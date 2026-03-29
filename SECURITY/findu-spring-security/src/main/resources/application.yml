@@ -1,0 +1,85 @@
+spring:
+  application:
+    name: findu-spring-security
+
+  sql:
+    init:
+      mode: ${SPRING_SQL_INIT_MODE:always}
+      schema-locations: classpath:schema.sql
+      data-locations: classpath:data.sql
+
+  r2dbc:
+    url: ${SPRING_R2DBC_URL:r2dbc:h2:mem:///findu_db;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE}
+    username: ${SPRING_R2DBC_USERNAME:sa}
+    password: ${SPRING_R2DBC_PASSWORD:}
+    pool:
+      initial-size: 2
+      max-size: 10
+
+  h2:
+    console:
+      enabled: ${SPRING_H2_CONSOLE_ENABLED:true}
+
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      timeout: ${SPRING_DATA_REDIS_TIMEOUT:300ms}
+      connect-timeout: ${SPRING_DATA_REDIS_CONNECT_TIMEOUT:500ms}
+
+server:
+  port: ${SERVER_PORT:8081}
+
+management:
+  endpoints:
+    web:
+      base-path: /actuator
+      exposure:
+        include: health,info,metrics,env,loggers,threaddump,heapdump
+  endpoint:
+    health:
+      show-details: when_authorized
+      probes:
+        enabled: true
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+    redis:
+      enabled: false
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+jwt:
+  secret: ${JWT_SECRET:ZmluZHUtZGVmYXVsdC1zZWNyZXQta2V5LWF0LWxlYXN0LTI1Ni1iaXRzLWZvci1oczI1Ng==}
+  access-expiration-seconds: ${JWT_ACCESS_EXPIRATION_SECONDS:300}
+  refresh-expiration-seconds: ${JWT_REFRESH_EXPIRATION_SECONDS:604800}
+
+findu:
+  auth:
+    reset-password-base-url: ${FINDU_AUTH_RESET_PASSWORD_BASE_URL:http://localhost:3000/reset-password}
+    recovery-token-expiry-minutes: ${FINDU_AUTH_RECOVERY_TOKEN_EXPIRY_MINUTES:60}
+  aws:
+    dynamodb:
+      enabled: ${FINDU_AWS_DYNAMODB_ENABLED:false}
+      endpoint: ${FINDU_AWS_DYNAMODB_ENDPOINT:http://localhost:4566}
+      region: ${FINDU_AWS_DYNAMODB_REGION:us-east-1}
+      revoked-tokens-table: ${FINDU_AWS_DYNAMODB_REVOKED_TOKENS_TABLE:findu_revoked_tokens}
+      create-table-if-not-exists: ${FINDU_AWS_DYNAMODB_CREATE_TABLE_IF_NOT_EXISTS:true}
+
+logging:
+  level:
+    com.findu.security: INFO
+    com.findu.security.config.filter: DEBUG
+    com.findu.security.application.service.impl.UsuarioServiceImpl: DEBUG
+    com.findu.security.application.usecase.impl.RequestPasswordRecoveryUseCaseImpl: DEBUG
+    com.findu.security.application.usecase.impl.ResetPasswordUseCaseImpl: DEBUG
+    com.findu.security.infrastructure.adapter.persistence: DEBUG
+    com.findu.security.infrastructure.adapter.cache: INFO
+    org.springframework.security: DEBUG
+    io.r2dbc: DEBUG

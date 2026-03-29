@@ -1,0 +1,33 @@
+# Secretos y entorno local
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.local
+**/.env.*.local
+
+# Gradle / Java
+.gradle/
+**/build/
+**/out/
+**/bin/
+!**/src/**/bin/
+*.class
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+.metadata/
+*.dtmp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

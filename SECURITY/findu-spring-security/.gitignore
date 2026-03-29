@@ -1,0 +1,4 @@
+# Secretos y entorno local (usar .env.example como plantilla)
+.env
+.env.local
+.env.*.local

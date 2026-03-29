@@ -1,0 +1,62 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '4.0.2'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.findu'
+version = '0.0.1-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok-mapstruct-binding:0.2.0'
+
+    implementation 'org.mapstruct:mapstruct:1.6.3'
+    annotationProcessor 'org.mapstruct:mapstruct-processor:1.6.3'
+
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-data-r2dbc'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis-reactive'
+    implementation 'org.springdoc:springdoc-openapi-starter-webflux-ui:3.0.2'
+
+    // Jackson 2.x: JwtServiceImpl y jjwt-jackson usan com.fasterxml.jackson.*.
+    // Spring Boot 4 también trae Jackson 3 (tools.jackson) vía starters; este BOM alinea Jackson 2 en el classpath.
+    implementation platform('com.fasterxml.jackson:jackson-bom:2.20.2')
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+
+    // JWT (JJWT 0.12.x API: parser().verifyWith(), parseSignedClaims, etc.)
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
+
+    runtimeOnly 'io.r2dbc:r2dbc-h2'
+    runtimeOnly 'com.h2database:h2'
+
+    implementation platform('software.amazon.awssdk:bom:2.29.51')
+    implementation 'software.amazon.awssdk:dynamodb'
+
+    implementation 'io.github.cdimascio:dotenv-java:3.0.0'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'io.projectreactor:reactor-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
