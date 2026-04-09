@@ -1,6 +1,7 @@
 package com.findu.security.exception;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -35,9 +36,15 @@ public class GlobalExceptionHandler {
         ));
     }
 
+    @ExceptionHandler(AccessDeniedException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public Mono<ErrorResponse> handleSecurityAccessDenied(AccessDeniedException ex, ServerWebExchange exchange) {
+        return Mono.just(ErrorResponse.accessDenied(ex, exchange));
+    }
+
     @ExceptionHandler(Throwable.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
-    public Mono<ErrorResponse> handleGeneric(Throwable ex, ServerWebExchange exchange) {
+    public Mono<ErrorResponse> handleAnyThrowable(Throwable ex, ServerWebExchange exchange) {
         String message = ex.getMessage() != null ? ex.getMessage() : "Error interno";
         return Mono.just(ErrorResponse.of(
                 HttpStatus.INTERNAL_SERVER_ERROR.value(),

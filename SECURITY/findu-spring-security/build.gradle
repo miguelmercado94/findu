@@ -31,6 +31,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.springframework.boot:spring-boot-starter-data-redis-reactive'
+    implementation 'org.springframework.data:spring-data-redis'
     implementation 'org.springdoc:springdoc-openapi-starter-webflux-ui:3.0.2'
 
     // Jackson 2.x: JwtServiceImpl y jjwt-jackson usan com.fasterxml.jackson.*.
