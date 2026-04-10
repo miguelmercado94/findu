@@ -15,7 +15,7 @@ import org.springframework.data.relational.core.mapping.Table;
 import java.time.LocalDateTime;
 
 /**
- * Entidad módulo. Restricciones de unicidad en BD: name, pathBase.
+ * Agrupación funcional. {@code pathBase} = segmento del micro en la URI (ej. security-auth), no la ruta API completa.
  */
 @Table("MODULE")
 @Getter

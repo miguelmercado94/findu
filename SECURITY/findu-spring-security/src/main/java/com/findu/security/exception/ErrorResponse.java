@@ -1,8 +1,10 @@
 package com.findu.security.exception;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.findu.security.messages.ApiMessages;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.server.ServerWebExchange;
 
 import java.time.Instant;
@@ -17,7 +19,7 @@ public record ErrorResponse(
         int status,
         String error,
         String message,
-        /** Ruta o URL solicitada (en 403 de permisos suele ir la URI completa). */
+        /** Ruta solicitada (valor de {@link org.springframework.http.server.reactive.ServerHttpRequest#getPath()}). */
         String path,
         String method,
         String backendMessage,
@@ -32,40 +34,20 @@ public record ErrorResponse(
     }
 
     /**
-     * Cuando solo se tiene {@link Throwable}; delega solo si es {@link AccessDeniedException}.
+     * 403: mensaje orientado al usuario; opcionalmente con contexto de {@link Authentication}.
      */
-    public static ErrorResponse accessDenied(Throwable ex, ServerWebExchange exchange) {
-        if (ex instanceof AccessDeniedException ade) {
-            return buildAccessDenied(ade, exchange);
-        }
-        throw new IllegalArgumentException("Se esperaba AccessDeniedException, recibido: " + ex.getClass().getName());
-    }
-
-    /**
-     * Respuesta 403 por falta de permisos (equivalente a ApiError en MVC servlet).
-     */
-    public static ErrorResponse accessDenied(AccessDeniedException ex, ServerWebExchange exchange) {
-        return buildAccessDenied(ex, exchange);
-    }
-
-    private static ErrorResponse buildAccessDenied(AccessDeniedException ex, ServerWebExchange exchange) {
-        String userMessage = "Acceso denegado. No tienes los permisos necesarios para acceder a este recurso. "
-                + "Por favor, contacta al administrador si crees que esto es un error.";
-        String uri = exchange.getRequest().getURI().toString();
-        String method = exchange.getRequest().getMethod() != null
-                ? exchange.getRequest().getMethod().name()
-                : null;
-        String backend = ex.getLocalizedMessage();
-        if (backend != null && backend.isBlank()) {
-            backend = null;
-        }
+    public static ErrorResponse accessDenied(Authentication auth, ServerWebExchange exchange, AccessDeniedException ex) {
+        String path = exchange.getRequest().getPath().value();
+        String method = exchange.getRequest().getMethod() != null ? exchange.getRequest().getMethod().name() : "";
+        String userMessage = ApiMessages.Security.accessDeniedUserMessage(auth, method, path);
+        String backend = ex != null && ex.getMessage() != null && !ex.getMessage().isBlank() ? ex.getMessage() : null;
         return new ErrorResponse(
                 Instant.now(),
                 HttpStatus.FORBIDDEN.value(),
                 HttpStatus.FORBIDDEN.getReasonPhrase(),
                 userMessage,
-                uri,
-                method,
+                path,
+                method.isBlank() ? null : method,
                 backend,
                 null
         );

@@ -1,16 +1,16 @@
-package com.findu.security.config;
+package com.findu.security.config.security;
 
-import com.findu.security.config.filter.JwtAuthenticationFilter;
+import com.findu.security.config.security.authentication.filter.JwtAuthenticationFilter;
 import com.findu.security.exception.JsonAccessDeniedHandler;
 import com.findu.security.exception.JsonAuthenticationEntryPoint;
-import com.findu.security.util.SecurityConstants;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
+import org.springframework.security.authorization.ReactiveAuthorizationManager;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.config.web.server.SecurityWebFiltersOrder;
 import org.springframework.security.web.server.SecurityWebFilterChain;
+import org.springframework.security.web.server.authorization.AuthorizationContext;
 import org.springframework.security.web.server.context.NoOpServerSecurityContextRepository;
 
 @Configuration
@@ -21,7 +21,8 @@ public class SecurityConfig {
     public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http,
                                                          JwtAuthenticationFilter jwtAuthenticationFilter,
                                                          JsonAuthenticationEntryPoint authenticationEntryPoint,
-                                                         JsonAccessDeniedHandler accessDeniedHandler) {
+                                                         JsonAccessDeniedHandler accessDeniedHandler,
+                                                         ReactiveAuthorizationManager<AuthorizationContext> authorizationManager) {
         return http
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .securityContextRepository(NoOpServerSecurityContextRepository.getInstance())
@@ -31,15 +32,7 @@ public class SecurityConfig {
                 )
                 .authorizeExchange(exchanges -> exchanges
                         .pathMatchers("/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**").permitAll()
-                        // Customers: solo el registro es público.
-                        .pathMatchers(HttpMethod.POST, "/api/v1/customers").permitAll()
-                        .pathMatchers("/api/v1/customers/**").authenticated()
-                        .pathMatchers(HttpMethod.POST, "/api/v1/auth/**").permitAll()
-                        .pathMatchers(HttpMethod.GET, "/api/v1/auth/validate").permitAll()
-                        .pathMatchers(SecurityConstants.PUBLIC_PATHS).permitAll()
-                        // Perfil y el resto de /api/v1/* (salvo lo anterior): JWT vía JwtAuthenticationFilter + authenticated()
-                        .pathMatchers(HttpMethod.GET, "/api/v1/profile").authenticated()
-                        .anyExchange().authenticated()
+                        .anyExchange().access(authorizationManager)
                 )
                 .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
                 .formLogin(ServerHttpSecurity.FormLoginSpec::disable)

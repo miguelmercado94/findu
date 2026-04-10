@@ -10,7 +10,7 @@ import com.findu.security.domain.model.Jwt;
 import com.findu.security.domain.model.JwtHeader;
 import com.findu.security.domain.model.JwtPayload;
 import com.findu.security.domain.model.JwtSignerFactory;
-import com.findu.security.domain.model.Operation;
+import com.findu.security.domain.model.Rol;
 import com.findu.security.domain.model.Usuario;
 import com.findu.security.application.service.JwtTokenRevocationService;
 import com.findu.security.dto.request.LoginRequest;
@@ -20,7 +20,9 @@ import com.findu.security.dto.response.AuthToken;
 import com.findu.security.dto.response.UserProfileResponse;
 import com.findu.security.dto.response.ValidateTokenResponse;
 import com.findu.security.exception.ResourceNotFoundException;
+import com.findu.security.util.RoleAuthoritySupport;
 import com.findu.security.util.SecurityConstants;
+import com.findu.security.util.UserOperationNames;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -32,7 +34,6 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
@@ -191,6 +192,8 @@ public class JwtManagerImpl implements JwtManager {
         return ReactiveSecurityContextHolder.getContext()
                 .flatMap(JwtManagerImpl::authenticationToUsuario)
                 .map(JwtManagerImpl::toUserProfileResponse)
+                .doOnNext(p -> log.info("Perfil entregado user={} role={} operationCount={}",
+                        p.username(), p.roleName(), p.operationNames().size()))
                 .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.UNAUTHORIZED, "No autenticado")));
     }
 
@@ -213,7 +216,7 @@ public class JwtManagerImpl implements JwtManager {
                 u.getEmail(),
                 u.getPhone(),
                 roleName,
-                Collections.emptyList()
+                UserOperationNames.fromUsuario(u)
         );
     }
 
@@ -237,34 +240,20 @@ public class JwtManagerImpl implements JwtManager {
                 .defaultIfEmpty(user);
     }
 
-    /** Carga operaciones del rol en BD; si están vacías usa operaciones por defecto. Setea grantedAuthorities en el usuario. */
+    /** Carga operaciones del rol en BD. Setea grantedAuthorities (vacías si no hay rol u operaciones). */
     private Mono<Usuario> enrichUserWithAuthorities(Usuario user) {
         if (user.getRol() == null) {
-            log.debug("User {} without role, using default authorities", user.getUsername());
-            user.setGrantedAuthorities(SecurityConstants.DEFAULT_OPERATION_NAMES.stream()
-                    .map(SimpleGrantedAuthority::new)
-                    .collect(Collectors.toList()));
+            log.debug("User {} without role, authorities vacías", user.getUsername());
+            user.setGrantedAuthorities(Collections.emptyList());
             return Mono.just(user);
         }
         log.debug("Loading authorities from DB for roleId={} user={}", user.getRol().getId(), user.getUsername());
-        return rolOperationRepositoryPort.findOperationsByRoleId(user.getRol().getId())
+        Rol rol = user.getRol();
+        return rolOperationRepositoryPort.findOperationsByRoleId(rol.getId())
                 .collectList()
-                .map(ops -> buildAuthoritiesFromOperations(ops))
+                .map(ops -> RoleAuthoritySupport.fromOperationsAndRole(ops, rol))
                 .doOnNext(user::setGrantedAuthorities)
                 .thenReturn(user);
-    }
-
-    private static List<GrantedAuthority> buildAuthoritiesFromOperations(List<Operation> operations) {
-        if (operations == null || operations.isEmpty()) {
-            return SecurityConstants.DEFAULT_OPERATION_NAMES.stream()
-                    .map(SimpleGrantedAuthority::new)
-                    .collect(Collectors.toList());
-        }
-        return operations.stream()
-                .map(Operation::getName)
-                .filter(name -> name != null && !name.isBlank())
-                .map(SimpleGrantedAuthority::new)
-                .collect(Collectors.toList());
     }
 
     private Mono<AuthToken> buildAuthToken(Usuario user, String algorithm) {

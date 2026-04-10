@@ -23,8 +23,8 @@ public class OperationRepoAdapter implements OperationRepositoryPort {
 
     private final OperationRepository operationRepository;
     private final OperationMapper operationMapper;
-
-    public OperationRepoAdapter(OperationRepository operationRepository, OperationMapper operationMapper) {
+    public OperationRepoAdapter(OperationRepository operationRepository,
+                                OperationMapper operationMapper) {
         this.operationRepository = operationRepository;
         this.operationMapper = operationMapper;
     }
@@ -36,8 +36,14 @@ public class OperationRepoAdapter implements OperationRepositoryPort {
     }
 
     @Override
-    public Mono<Operation> findByPath(String path) {
-        return operationRepository.findByPath(path)
+    public Mono<Operation> findByPathAndHttpMethod(String path, String httpMethod) {
+        return operationRepository.findByPathAndHttpMethod(path, httpMethod)
+                .map(operationMapper::toDomain);
+    }
+
+    @Override
+    public Mono<Operation> findByModulePathBaseAndPathAndHttpMethod(String modulePathBase, String path, String httpMethod) {
+        return operationRepository.findByModulePathBaseAndPathAndHttpMethod(modulePathBase, path, httpMethod)
                 .map(operationMapper::toDomain);
     }
 

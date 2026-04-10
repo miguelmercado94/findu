@@ -1,5 +1,6 @@
 package com.findu.security.exception;
 
+import com.findu.security.messages.ApiMessages;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.server.ServerAuthenticationEntryPoint;
@@ -20,7 +21,7 @@ public class JsonAuthenticationEntryPoint implements ServerAuthenticationEntryPo
     public Mono<Void> commence(ServerWebExchange exchange, AuthenticationException ex) {
         String message = ex != null && ex.getMessage() != null && !ex.getMessage().isBlank()
                 ? ex.getMessage()
-                : "No autenticado o token inválido";
+                : ApiMessages.Security.UNAUTHENTICATED_OR_INVALID_TOKEN;
         return errorResponseWriter.write(exchange, HttpStatus.UNAUTHORIZED, message);
     }
 }

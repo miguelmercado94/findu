@@ -13,6 +13,11 @@ public interface ModuloRepositoryPort {
 
     Mono<Modulo> findByName(String name);
 
+    /**
+     * Módulo cuyo {@code path_base} coincide con el segmento del micro (alineado con {@code spring.webflux.base-path}).
+     */
+    Mono<Modulo> findByPathBase(String pathBase);
+
     Flux<Modulo> findByActiveTrue();
 
     Mono<Modulo> save(Modulo modulo);

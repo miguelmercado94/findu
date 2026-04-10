@@ -2,6 +2,10 @@ spring:
   application:
     name: findu-spring-security
 
+  # Segmento del micro en la URI (ej. …/security-auth/api/v1/…). Alineado con module.path_base en BD.
+  webflux:
+    base-path: ${FINDU_API_CONTEXT_PATH:/security-auth}
+
   sql:
     init:
       mode: ${SPRING_SQL_INIT_MODE:always}
@@ -75,7 +79,7 @@ findu:
 logging:
   level:
     com.findu.security: INFO
-    com.findu.security.config.filter: DEBUG
+    com.findu.security.config.security.authentication.filter: DEBUG
     com.findu.security.application.service.impl.UsuarioServiceImpl: DEBUG
     com.findu.security.application.usecase.impl.RequestPasswordRecoveryUseCaseImpl: DEBUG
     com.findu.security.application.usecase.impl.ResetPasswordUseCaseImpl: DEBUG

@@ -1,4 +1,4 @@
-package com.findu.security.config;
+package com.findu.security.config.security.authentication;
 
 import com.findu.security.application.service.JwtService;
 import com.findu.security.application.service.UsuarioService;

@@ -7,26 +7,27 @@ DROP TABLE IF EXISTS operation;
 DROP TABLE IF EXISTS role;
 DROP TABLE IF EXISTS module;
 
--- module: id (long), name, path_base, active, audit (name y path_base únicos)
+-- module: path_base = segmento del micro en la URI (ej. security-auth), alineado con spring.webflux.base-path / descubrimiento
 CREATE TABLE module (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(25) NOT NULL,
-    path_base VARCHAR(25) NOT NULL,
+    path_base VARCHAR(64) NOT NULL,
     active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_by VARCHAR(100),
     updated_by VARCHAR(100),
-    CONSTRAINT uq_module_name UNIQUE (name),
-    CONSTRAINT uq_module_path_base UNIQUE (path_base)
+    CONSTRAINT uq_module_name UNIQUE (name)
 );
 
--- operation: id (long), path, name (nullable), module_id → module, active, audit (name y path únicos)
+-- operation: path = resto de la URL tras el path_base del micro; http_method = GET, POST, …; name = authority Spring
 CREATE TABLE operation (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    path VARCHAR(25) NOT NULL,
-    name VARCHAR(25),
+    path VARCHAR(255) NOT NULL,
+    name VARCHAR(64),
+    http_method VARCHAR(10) NOT NULL,
     module_id BIGINT NOT NULL,
+    permite_all BOOLEAN NOT NULL DEFAULT FALSE,
     active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -34,7 +35,7 @@ CREATE TABLE operation (
     updated_by VARCHAR(100),
     CONSTRAINT fk_operation_module FOREIGN KEY (module_id) REFERENCES module(id),
     CONSTRAINT uq_operation_name UNIQUE (name),
-    CONSTRAINT uq_operation_path UNIQUE (path)
+    CONSTRAINT uq_operation_module_path_method UNIQUE (module_id, path, http_method)
 );
 
 -- role: id (int), name, active, audit (name único)

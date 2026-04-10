@@ -15,11 +15,13 @@ import org.mapstruct.NullValuePropertyMappingStrategy;
         nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
 public interface OperationMapper {
 
+    @Mapping(target = "method", source = "httpMethod")
     Operation toDomain(OperationEntity entity);
 
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
     @Mapping(target = "createdBy", ignore = true)
     @Mapping(target = "updatedBy", ignore = true)
+    @Mapping(target = "httpMethod", source = "method")
     OperationEntity toEntity(Operation domain);
 }

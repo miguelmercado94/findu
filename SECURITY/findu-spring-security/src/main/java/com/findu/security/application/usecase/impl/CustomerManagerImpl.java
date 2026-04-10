@@ -6,21 +6,17 @@ import com.findu.security.application.port.output.persistence.UserRolRepositoryP
 import com.findu.security.application.service.UsuarioService;
 import com.findu.security.application.usecase.CustomerManager;
 import com.findu.security.application.usecase.JwtManager;
-import com.findu.security.domain.model.Operation;
+import com.findu.security.domain.model.Rol;
 import com.findu.security.domain.model.Usuario;
 import com.findu.security.dto.request.UserRegisterDto;
 import com.findu.security.dto.response.SaveUserResponse;
 import com.findu.security.exception.ResourceNotFoundException;
-import com.findu.security.util.SecurityConstants;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import com.findu.security.util.RoleAuthoritySupport;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
 import java.util.Collections;
-import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Implementación del caso de uso de registro de cliente.
@@ -63,14 +59,7 @@ public class CustomerManagerImpl implements CustomerManager {
             return usuarioService.save(usuario)
                     .flatMap(savedUser -> rolRepositoryPort.findByName(request.roleName())
                             .switchIfEmpty(Mono.error(new ResourceNotFoundException("Rol no encontrado: " + request.roleName())))
-                            .flatMap(rol -> userRolRepositoryPort.assignRoleToUser(savedUser.getId(), rol.getId())
-                                    .then(Mono.fromCallable(() -> {
-                                        savedUser.setRol(rol);
-                                        return savedUser;
-                                    }))
-                                    .flatMap(userWithRol -> setAuthoritiesForUser(userWithRol)
-                                            .flatMap(u -> jwtManager.buildTokensForUser(u, algorithm)))
-                                    .map(tokens -> buildResponse(savedUser, request.roleName(), tokens.jwt(), tokens.jwtRefresh()))));
+                            .flatMap(rol -> afterRoleAssigned(savedUser, rol, request.roleName(), algorithm)));
         });
         return validation.then(saveAndRespond);
     }
@@ -97,27 +86,29 @@ public class CustomerManagerImpl implements CustomerManager {
         });
     }
 
-    /** Carga operaciones del rol (o por defecto si vacío) y setea grantedAuthorities en el usuario. */
+    private Mono<SaveUserResponse> afterRoleAssigned(Usuario savedUser, Rol rol, String roleName, String algorithm) {
+        return userRolRepositoryPort.assignRoleToUser(savedUser.getId(), rol.getId())
+                .then(Mono.fromCallable(() -> {
+                    savedUser.setRol(rol);
+                    return savedUser;
+                }))
+                .flatMap(userWithRol -> setAuthoritiesForUser(userWithRol)
+                        .flatMap(u -> jwtManager.buildTokensForUser(u, algorithm)))
+                .map(tokens -> CustomerManagerImpl.buildResponse(savedUser, roleName, tokens.jwt(), tokens.jwtRefresh()));
+    }
+
+    /** Carga operaciones del rol desde BD y setea grantedAuthorities (vacías si no hay operaciones). */
     private Mono<Usuario> setAuthoritiesForUser(Usuario user) {
         if (user.getRol() == null) {
-            user.setGrantedAuthorities(SecurityConstants.DEFAULT_OPERATION_NAMES.stream()
-                    .map(SimpleGrantedAuthority::new)
-                    .collect(Collectors.toList()));
+            user.setGrantedAuthorities(Collections.emptyList());
             return Mono.just(user);
         }
-        return rolOperationRepositoryPort.findOperationsByRoleId(user.getRol().getId())
+        Rol rol = user.getRol();
+        return rolOperationRepositoryPort.findOperationsByRoleId(rol.getId())
                 .collectList()
-                .map(ops -> {
-                    List<GrantedAuthority> auth = ops.isEmpty()
-                            ? SecurityConstants.DEFAULT_OPERATION_NAMES.stream().map(SimpleGrantedAuthority::new).collect(Collectors.toList())
-                            : ops.stream()
-                                    .map(Operation::getName)
-                                    .filter(name -> name != null && !name.isBlank())
-                                    .map(SimpleGrantedAuthority::new)
-                                    .collect(Collectors.toList());
-                    user.setGrantedAuthorities(auth);
-                    return user;
-                });
+                .map(ops -> RoleAuthoritySupport.fromOperationsAndRole(ops, rol))
+                .doOnNext(user::setGrantedAuthorities)
+                .thenReturn(user);
     }
 
     private static SaveUserResponse buildResponse(Usuario savedUser, String roleName, String jwt, String jwtRefresh) {

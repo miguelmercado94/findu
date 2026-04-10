@@ -15,7 +15,7 @@ import org.springframework.data.relational.core.mapping.Table;
 import java.time.LocalDateTime;
 
 /**
- * Entidad operación. Restricciones de unicidad en BD: name, path.
+ * Entidad operación: ruta relativa al micro + método HTTP; {@code name} es la authority en Spring.
  */
 @Table("OPERATION")
 @Getter
@@ -26,13 +26,21 @@ public class OperationEntity {
 
     @Id
     private Long id;
-    /** Único en la tabla. */
+    /** Resto de la URL (ej. /api/v1/customers) sin el segmento del micro. */
     private String path;
-    /** Único en la tabla. */
+    /** Authority (ej. CUST_REGISTER). */
     private String name;
+
+    @Column("HTTP_METHOD")
+    /** GET, POST, PUT, DELETE, PATCH, etc. */
+    private String httpMethod;
 
     @Column("MODULE_ID")
     private Long moduleId;
+
+    @Column("PERMITE_ALL")
+    private boolean permiteAll;
+
     private boolean active = true;
 
     @Column("CREATED_AT")

@@ -42,6 +42,12 @@ public class ModuloRepoAdapter implements ModuloRepositoryPort {
     }
 
     @Override
+    public Mono<Modulo> findByPathBase(String pathBase) {
+        return moduleRepository.findByPathBase(pathBase)
+                .map(moduloMapper::toDomain);
+    }
+
+    @Override
     public Flux<Modulo> findByActiveTrue() {
         return moduleRepository.findByActiveTrue()
                 .map(moduloMapper::toDomain);

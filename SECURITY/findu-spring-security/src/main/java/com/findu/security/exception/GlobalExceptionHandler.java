@@ -1,7 +1,11 @@
 package com.findu.security.exception;
 
+import com.findu.security.messages.ApiMessages;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -13,6 +17,8 @@ import reactor.core.publisher.Mono;
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(ResourceNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
@@ -39,13 +45,18 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AccessDeniedException.class)
     @ResponseStatus(HttpStatus.FORBIDDEN)
     public Mono<ErrorResponse> handleSecurityAccessDenied(AccessDeniedException ex, ServerWebExchange exchange) {
-        return Mono.just(ErrorResponse.accessDenied(ex, exchange));
+        return ReactiveSecurityContextHolder.getContext()
+                .map(ctx -> ErrorResponse.accessDenied(ctx.getAuthentication(), exchange, ex))
+                .switchIfEmpty(Mono.fromCallable(() -> ErrorResponse.accessDenied(null, exchange, ex)));
     }
 
-    @ExceptionHandler(Throwable.class)
+    @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
-    public Mono<ErrorResponse> handleAnyThrowable(Throwable ex, ServerWebExchange exchange) {
-        String message = ex.getMessage() != null ? ex.getMessage() : "Error interno";
+    public Mono<ErrorResponse> handleUnhandledException(Exception ex, ServerWebExchange exchange) {
+        log.error("Error no controlado path={} : {}", exchange.getRequest().getPath().value(), ex.toString(), ex);
+        String message = ex.getMessage() != null && !ex.getMessage().isBlank()
+                ? ex.getMessage()
+                : ApiMessages.Error.INTERNAL;
         return Mono.just(ErrorResponse.of(
                 HttpStatus.INTERNAL_SERVER_ERROR.value(),
                 HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase(),

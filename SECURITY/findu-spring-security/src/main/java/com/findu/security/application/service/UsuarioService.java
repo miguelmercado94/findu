@@ -20,7 +20,7 @@ public interface UsuarioService {
 
     /**
      * Carga usuario por username verificando que tenga el rol indicado en BD.
-     * Consulta las operaciones del rol (rol_operation); si están vacías, usa operaciones por defecto.
+     * Consulta las operaciones del rol (rol_operation).
      * Setea rol y authorities en el usuario.
      */
     Mono<Usuario> getUserByUsernameWithRole(String username, String roleName);

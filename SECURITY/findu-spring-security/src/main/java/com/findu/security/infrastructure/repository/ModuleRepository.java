@@ -12,5 +12,7 @@ public interface ModuleRepository extends R2dbcRepository<ModuleEntity, Long> {
 
     Mono<ModuleEntity> findByName(String name);
 
+    Mono<ModuleEntity> findByPathBase(String pathBase);
+
     Flux<ModuleEntity> findByActiveTrue();
 }

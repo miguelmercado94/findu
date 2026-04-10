@@ -5,24 +5,18 @@ import com.findu.security.application.port.output.persistence.RolRepositoryPort;
 import com.findu.security.application.port.output.persistence.UsuarioRepositoryPort;
 import com.findu.security.application.port.output.persistence.UserRolRepositoryPort;
 import com.findu.security.application.service.UsuarioService;
-import com.findu.security.domain.model.Operation;
 import com.findu.security.domain.model.Usuario;
-import com.findu.security.util.SecurityConstants;
+import com.findu.security.util.RoleAuthoritySupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.util.List;
-import java.util.stream.Collectors;
-
 /**
  * Implementación de UsuarioService. Usa los puertos de persistencia (implementados por los RepoAdapters).
  * getUserByUsernameWithRole / getUserByEmailWithRole: verifican que el usuario tenga el rol en BD,
- * cargan operaciones del rol (o por defecto si está vacío) y setean authorities en el usuario.
+ * cargan operaciones del rol (lista vacía si no hay filas en rol_operation) y setean authorities en el usuario.
  */
 @Service
 public class UsuarioServiceImpl implements UsuarioService {
@@ -100,8 +94,8 @@ public class UsuarioServiceImpl implements UsuarioService {
     }
 
     /**
-     * 1) Trae el rol por nombre. 2) Verifica que el usuario tenga ese rol en BD. 3) Consulta operaciones del rol;
-     * si están vacías, usa operaciones por defecto. 4) Setea rol y grantedAuthorities en el usuario.
+     * 1) Trae el rol por nombre. 2) Verifica que el usuario tenga ese rol en BD. 3) Consulta operaciones del rol.
+     * 4) Setea rol y grantedAuthorities (vacías si no hay operaciones asignadas al rol).
      */
     private Mono<Usuario> loadUserWithRoleAndAuthorities(Usuario user, String roleName) {
         if (roleName == null || roleName.isBlank()) {
@@ -120,22 +114,9 @@ public class UsuarioServiceImpl implements UsuarioService {
                             user.setRol(rol);
                             return rolOperationRepositoryPort.findOperationsByRoleId(rol.getId())
                                     .collectList()
-                                    .map(ops -> buildAuthoritiesFromOperations(ops))
+                                    .map(ops -> RoleAuthoritySupport.fromOperationsAndRole(ops, rol))
                                     .doOnNext(user::setGrantedAuthorities)
                                     .thenReturn(user);
                         }));
-    }
-
-    private static List<GrantedAuthority> buildAuthoritiesFromOperations(List<Operation> operations) {
-        if (operations == null || operations.isEmpty()) {
-            return SecurityConstants.DEFAULT_OPERATION_NAMES.stream()
-                    .map(SimpleGrantedAuthority::new)
-                    .collect(Collectors.toList());
-        }
-        return operations.stream()
-                .map(Operation::getName)
-                .filter(name -> name != null && !name.isBlank())
-                .map(SimpleGrantedAuthority::new)
-                .collect(Collectors.toList());
     }
 }

@@ -2,6 +2,7 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '4.0.2'
     id 'io.spring.dependency-management' version '1.1.7'
+    id 'jacoco'
 }
 
 group = 'com.findu'
@@ -60,4 +61,58 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+    finalizedBy 'jacocoTestReport'
 }
+
+jacoco {
+    toolVersion = '0.8.12'
+}
+
+/**
+ * Exclusiones alineadas con SonarQube (DTOs, entidades, config, MapStruct) y capa de infraestructura
+ * (R2DBC/DynamoDB/Redis/adaptadores) cubierta mejor por tests de integración o contratos.
+ */
+def jacocoExcludedFiles = [
+        'com/findu/security/dto/**',
+        'com/findu/security/infrastructure/entity/**',
+        'com/findu/security/config/**',
+        'com/findu/security/mapper/**',
+        'com/findu/security/**/FinduSpringSecurityApplication.class',
+        'com/findu/security/presentation/controller/CategoryController.class',
+        'com/findu/security/presentation/controller/ProductController.class',
+        'com/findu/security/infrastructure/adapter/persistence/**',
+        'com/findu/security/infrastructure/adapter/cache/**',
+        'com/findu/security/infrastructure/repository/impl/**',
+        'com/findu/security/infrastructure/dynamodb/**',
+        'com/findu/security/infrastructure/scheduler/**',
+        'com/findu/security/infrastructure/repository/*.class',
+]
+
+jacocoTestReport {
+    dependsOn test
+    reports {
+        xml.required = true
+        html.required = true
+    }
+    classDirectories.setFrom(files(sourceSets.main.output.classesDirs.collect { d ->
+        fileTree(dir: d, excludes: jacocoExcludedFiles)
+    }))
+}
+
+jacocoTestCoverageVerification {
+    dependsOn jacocoTestReport
+    classDirectories.setFrom(files(sourceSets.main.output.classesDirs.collect { d ->
+        fileTree(dir: d, excludes: jacocoExcludedFiles)
+    }))
+    violationRules {
+        rule {
+            limit {
+                counter = 'LINE'
+                value = 'COVEREDRATIO'
+                minimum = 0.80
+            }
+        }
+    }
+}
+
+check.dependsOn jacocoTestCoverageVerification

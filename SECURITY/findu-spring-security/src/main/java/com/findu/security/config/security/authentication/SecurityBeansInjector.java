@@ -1,4 +1,4 @@
-package com.findu.security.config;
+package com.findu.security.config.security.authentication;
 
 import com.findu.security.application.service.UsuarioService;
 import com.findu.security.domain.model.JwtSignerFactory;
@@ -19,8 +19,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import reactor.core.publisher.Mono;
 
 /**
- * Beans de seguridad para WebFlux.
- * Equivalente reactivo de UserDetailsService, AuthenticationManager y AuthenticationProvider.
+ * Beans de autenticación reactiva (WebFlux).
+ * Equivalente reactivo de UserDetailsService, AuthenticationManager y firma JWT.
  */
 @Configuration
 public class SecurityBeansInjector {

@@ -1,4 +1,4 @@
-package com.findu.security.config.filter;
+package com.findu.security.config.security.authentication.filter;
 
 import com.findu.security.application.service.JwtService;
 import com.findu.security.application.service.JwtTokenRevocationService;
