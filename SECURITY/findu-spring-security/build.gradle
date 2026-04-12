@@ -45,8 +45,7 @@ dependencies {
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
 
-    runtimeOnly 'io.r2dbc:r2dbc-h2'
-    runtimeOnly 'com.h2database:h2'
+    runtimeOnly 'org.postgresql:r2dbc-postgresql:1.0.7.RELEASE'
 
     implementation platform('software.amazon.awssdk:bom:2.29.51')
     implementation 'software.amazon.awssdk:dynamodb'
@@ -56,6 +55,9 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'io.projectreactor:reactor-test'
     testImplementation 'org.springframework.security:spring-security-test'
+    testImplementation platform('org.testcontainers:testcontainers-bom:1.20.4')
+    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation 'org.testcontainers:postgresql'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 

@@ -10,7 +10,6 @@ import com.findu.security.domain.model.Jwt;
 import com.findu.security.domain.model.JwtHeader;
 import com.findu.security.domain.model.JwtPayload;
 import com.findu.security.domain.model.JwtSignerFactory;
-import com.findu.security.domain.model.Rol;
 import com.findu.security.domain.model.Usuario;
 import com.findu.security.application.service.JwtTokenRevocationService;
 import com.findu.security.dto.request.LoginRequest;
@@ -20,7 +19,7 @@ import com.findu.security.dto.response.AuthToken;
 import com.findu.security.dto.response.UserProfileResponse;
 import com.findu.security.dto.response.ValidateTokenResponse;
 import com.findu.security.exception.ResourceNotFoundException;
-import com.findu.security.util.RoleAuthoritySupport;
+import com.findu.security.util.ReactiveUserAuthoritiesLoader;
 import com.findu.security.util.SecurityConstants;
 import com.findu.security.util.UserOperationNames;
 import org.slf4j.Logger;
@@ -40,7 +39,6 @@ import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
 
 import java.time.Instant;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -240,20 +238,9 @@ public class JwtManagerImpl implements JwtManager {
                 .defaultIfEmpty(user);
     }
 
-    /** Carga operaciones del rol en BD. Setea grantedAuthorities (vacías si no hay rol u operaciones). */
+    /** Carga operaciones del rol en BD vía {@link ReactiveUserAuthoritiesLoader}. */
     private Mono<Usuario> enrichUserWithAuthorities(Usuario user) {
-        if (user.getRol() == null) {
-            log.debug("User {} without role, authorities vacías", user.getUsername());
-            user.setGrantedAuthorities(Collections.emptyList());
-            return Mono.just(user);
-        }
-        log.debug("Loading authorities from DB for roleId={} user={}", user.getRol().getId(), user.getUsername());
-        Rol rol = user.getRol();
-        return rolOperationRepositoryPort.findOperationsByRoleId(rol.getId())
-                .collectList()
-                .map(ops -> RoleAuthoritySupport.fromOperationsAndRole(ops, rol))
-                .doOnNext(user::setGrantedAuthorities)
-                .thenReturn(user);
+        return ReactiveUserAuthoritiesLoader.loadAuthoritiesFromDb(rolOperationRepositoryPort, user);
     }
 
     private Mono<AuthToken> buildAuthToken(Usuario user, String algorithm) {

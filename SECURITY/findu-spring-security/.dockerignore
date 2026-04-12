@@ -1,0 +1,16 @@
+.gradle
+build
+out
+.idea
+.vscode
+*.iml
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+**/test
+**/src/test
+*.md
+Thumbs.db
+.DS_Store

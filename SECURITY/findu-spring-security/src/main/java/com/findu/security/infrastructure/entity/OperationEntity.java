@@ -17,7 +17,7 @@ import java.time.LocalDateTime;
 /**
  * Entidad operación: ruta relativa al micro + método HTTP; {@code name} es la authority en Spring.
  */
-@Table("OPERATION")
+@Table("operation")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -31,31 +31,31 @@ public class OperationEntity {
     /** Authority (ej. CUST_REGISTER). */
     private String name;
 
-    @Column("HTTP_METHOD")
+    @Column("http_method")
     /** GET, POST, PUT, DELETE, PATCH, etc. */
     private String httpMethod;
 
-    @Column("MODULE_ID")
+    @Column("module_id")
     private Long moduleId;
 
-    @Column("PERMITE_ALL")
+    @Column("permite_all")
     private boolean permiteAll;
 
     private boolean active = true;
 
-    @Column("CREATED_AT")
+    @Column("created_at")
     @CreatedDate
     private LocalDateTime createdAt;
 
-    @Column("UPDATED_AT")
+    @Column("updated_at")
     @LastModifiedDate
     private LocalDateTime updatedAt;
 
-    @Column("CREATED_BY")
+    @Column("created_by")
     @CreatedBy
     private String createdBy;
 
-    @Column("UPDATED_BY")
+    @Column("updated_by")
     @LastModifiedBy
     private String updatedBy;
 }

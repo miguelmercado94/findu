@@ -1,9 +1,11 @@
--- Módulos: path_base = segmento del micro en la URI (igual que spring.webflux.base-path), repetible entre filas
+-- Datos iniciales (PostgreSQL). Ejecutar después de schema.sql.
+-- Requiere secuencias alineadas: los INSERT omiten ids; el orden respeta FKs.
+
+-- Módulos: path_base = segmento del micro en la URI (igual que spring.webflux.base-path)
 INSERT INTO module (name, path_base, active) VALUES ('AUTH', 'security-auth', TRUE);
 INSERT INTO module (name, path_base, active) VALUES ('CUSTOMERS', 'security-auth', TRUE);
 INSERT INTO module (name, path_base, active) VALUES ('PROFILE', 'security-auth', TRUE);
 
--- Operaciones: path = resto de URL tras el micro; http_method = verbo; name = authority Spring; permite_all = acceso sin exigir autenticación/autorización por authority
 INSERT INTO operation (path, name, http_method, module_id, permite_all, active) VALUES ('/api/v1/auth/login', 'AUTH_LOGIN', 'POST', 1, TRUE, TRUE);
 INSERT INTO operation (path, name, http_method, module_id, permite_all, active) VALUES ('/api/v1/auth/refresh', 'AUTH_REFRESH', 'POST', 1, TRUE, TRUE);
 INSERT INTO operation (path, name, http_method, module_id, permite_all, active) VALUES ('/api/v1/auth/logout', 'AUTH_LOGOUT', 'POST', 1, TRUE, TRUE);

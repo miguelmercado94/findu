@@ -6,7 +6,7 @@ import com.findu.security.application.port.output.persistence.UsuarioRepositoryP
 import com.findu.security.application.port.output.persistence.UserRolRepositoryPort;
 import com.findu.security.application.service.UsuarioService;
 import com.findu.security.domain.model.Usuario;
-import com.findu.security.util.RoleAuthoritySupport;
+import com.findu.security.util.ReactiveUserAuthoritiesLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -112,11 +112,7 @@ public class UsuarioServiceImpl implements UsuarioService {
                                 return Mono.empty();
                             }
                             user.setRol(rol);
-                            return rolOperationRepositoryPort.findOperationsByRoleId(rol.getId())
-                                    .collectList()
-                                    .map(ops -> RoleAuthoritySupport.fromOperationsAndRole(ops, rol))
-                                    .doOnNext(user::setGrantedAuthorities)
-                                    .thenReturn(user);
+                            return ReactiveUserAuthoritiesLoader.loadAuthoritiesFromDb(rolOperationRepositoryPort, user);
                         }));
     }
 }

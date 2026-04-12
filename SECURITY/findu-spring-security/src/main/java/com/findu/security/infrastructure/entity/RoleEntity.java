@@ -17,7 +17,7 @@ import java.time.LocalDateTime;
 /**
  * Entidad rol. Restricción de unicidad en BD: name.
  */
-@Table("ROLE")
+@Table("role")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -30,19 +30,19 @@ public class RoleEntity {
     private String name;
     private boolean active = true;
 
-    @Column("CREATED_AT")
+    @Column("created_at")
     @CreatedDate
     private LocalDateTime createdAt;
 
-    @Column("UPDATED_AT")
+    @Column("updated_at")
     @LastModifiedDate
     private LocalDateTime updatedAt;
 
-    @Column("CREATED_BY")
+    @Column("created_by")
     @CreatedBy
     private String createdBy;
 
-    @Column("UPDATED_BY")
+    @Column("updated_by")
     @LastModifiedBy
     private String updatedBy;
 }

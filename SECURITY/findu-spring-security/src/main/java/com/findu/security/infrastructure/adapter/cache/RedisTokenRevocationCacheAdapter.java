@@ -31,9 +31,10 @@ public class RedisTokenRevocationCacheAdapter implements TokenRevocationCachePor
     private final JwtService jwtService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public RedisTokenRevocationCacheAdapter(ReactiveRedisTemplate<String, String> redisTemplate,
-                                            RedisCacheProperties properties,
-                                            JwtService jwtService) {
+    public RedisTokenRevocationCacheAdapter(
+            @Qualifier("finduReactiveRedisTemplate") ReactiveRedisTemplate<String, String> redisTemplate,
+            RedisCacheProperties properties,
+            JwtService jwtService) {
         this.redisTemplate = redisTemplate;
         this.properties = properties;
         this.jwtService = jwtService;

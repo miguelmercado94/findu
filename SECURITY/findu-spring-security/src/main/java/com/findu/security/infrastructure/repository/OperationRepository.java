@@ -24,13 +24,13 @@ public interface OperationRepository extends R2dbcRepository<OperationEntity, Lo
      * Varios módulos pueden compartir el mismo {@code path_base}; el join evita ambigüedad de {@code findByPathBase}.
      */
     @Query("""
-            SELECT o.ID, o.PATH, o.NAME, o.HTTP_METHOD, o.MODULE_ID, o.PERMITE_ALL, o.ACTIVE,
-                   o.CREATED_AT, o.UPDATED_AT, o.CREATED_BY, o.UPDATED_BY
-            FROM OPERATION o
-            INNER JOIN MODULE m ON o.MODULE_ID = m.ID
-            WHERE m.PATH_BASE = :pathBase AND m.ACTIVE = TRUE
-              AND o.PATH = :path AND o.HTTP_METHOD = :httpMethod AND o.ACTIVE = TRUE
-            FETCH FIRST 1 ROW ONLY
+            SELECT o.id, o.path, o.name, o.http_method, o.module_id, o.permite_all, o.active,
+                   o.created_at, o.updated_at, o.created_by, o.updated_by
+            FROM operation o
+            INNER JOIN module m ON o.module_id = m.id
+            WHERE m.path_base = :pathBase AND m.active = TRUE
+              AND o.path = :path AND o.http_method = :httpMethod AND o.active = TRUE
+            LIMIT 1
             """)
     Mono<OperationEntity> findByModulePathBaseAndPathAndHttpMethod(String pathBase, String path, String httpMethod);
 }

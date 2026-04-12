@@ -1,0 +1,65 @@
+# Desarrollo local: PostgreSQL (por defecto localhost:5432/findu; sobrescribir con SPRING_R2DBC_*).
+# - Cada arranque: spring.sql.init en modo "always" + schema.sql (DROP) + data.sql.
+# - Redis desactivado; autoconfig Redis excluida (sin conexión Lettuce).
+# - Logs DEBUG y trazas SQL R2DBC.
+
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.data.redis.autoconfigure.DataRedisAutoConfiguration
+      - org.springframework.boot.data.redis.autoconfigure.DataRedisReactiveAutoConfiguration
+      - org.springframework.boot.data.redis.autoconfigure.DataRedisRepositoriesAutoConfiguration
+      - org.springframework.boot.data.redis.autoconfigure.health.DataRedisHealthContributorAutoConfiguration
+      - org.springframework.boot.data.redis.autoconfigure.health.DataRedisReactiveHealthContributorAutoConfiguration
+
+  sql:
+    init:
+      mode: ${SPRING_SQL_INIT_MODE:always}
+      schema-locations: classpath:schema.sql
+      data-locations: classpath:data.sql
+  r2dbc:
+    url: ${SPRING_R2DBC_URL:r2dbc:postgresql://localhost:5432/findu}
+    username: ${SPRING_R2DBC_USERNAME:findu}
+    password: ${SPRING_R2DBC_PASSWORD:findu}
+
+findu:
+  deployment: ${FINDU_DEPLOYMENT:dev}
+  auth:
+    reset-password-base-url: ${FINDU_AUTH_RESET_PASSWORD_BASE_URL:http://localhost:3000/reset-password}
+    recovery-token-expiry-minutes: ${FINDU_AUTH_RECOVERY_TOKEN_EXPIRY_MINUTES:60}
+  aws:
+    dynamodb:
+      enabled: ${FINDU_AWS_DYNAMODB_ENABLED:false}
+      endpoint: ${FINDU_AWS_DYNAMODB_ENDPOINT:http://localhost:4566}
+      region: ${FINDU_AWS_DYNAMODB_REGION:us-east-1}
+      revoked-tokens-table: ${FINDU_AWS_DYNAMODB_REVOKED_TOKENS_TABLE:findu_revoked_tokens}
+      create-table-if-not-exists: ${FINDU_AWS_DYNAMODB_CREATE_TABLE_IF_NOT_EXISTS:true}
+  redis:
+    enabled: false
+
+management:
+  health:
+    redis:
+      enabled: false
+  endpoint:
+    health:
+      show-details: when_authorized
+
+logging:
+  level:
+    root: ${LOG_LEVEL_ROOT:DEBUG}
+    com.findu.security: DEBUG
+    com.findu.security.config.security.authentication.filter: DEBUG
+    com.findu.security.application.service.impl.UsuarioServiceImpl: DEBUG
+    com.findu.security.application.usecase.impl.RequestPasswordRecoveryUseCaseImpl: DEBUG
+    com.findu.security.application.usecase.impl.ResetPasswordUseCaseImpl: DEBUG
+    com.findu.security.infrastructure.adapter.persistence: DEBUG
+    com.findu.security.infrastructure.adapter.cache: INFO
+    org.springframework.security: DEBUG
+    org.springframework.r2dbc.core: DEBUG
+    org.springframework.data.r2dbc: DEBUG
+    org.springframework.data.r2dbc.core: DEBUG
+    io.r2dbc: DEBUG
+    io.r2dbc.postgresql: DEBUG
+    io.r2dbc.pool: DEBUG
+    reactor.netty: INFO

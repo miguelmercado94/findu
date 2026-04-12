@@ -35,19 +35,19 @@ public class UserEntity {
     private String email;
     private boolean active = true;
 
-    @Column("CREATED_AT")
+    @Column("created_at")
     @CreatedDate
     private LocalDateTime createdAt;
 
-    @Column("UPDATED_AT")
+    @Column("updated_at")
     @LastModifiedDate
     private LocalDateTime updatedAt;
 
-    @Column("CREATED_BY")
+    @Column("created_by")
     @CreatedBy
     private String createdBy;
 
-    @Column("UPDATED_BY")
+    @Column("updated_by")
     @LastModifiedBy
     private String updatedBy;
 }

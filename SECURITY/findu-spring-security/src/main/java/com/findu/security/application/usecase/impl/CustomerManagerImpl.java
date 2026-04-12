@@ -11,13 +11,11 @@ import com.findu.security.domain.model.Usuario;
 import com.findu.security.dto.request.UserRegisterDto;
 import com.findu.security.dto.response.SaveUserResponse;
 import com.findu.security.exception.ResourceNotFoundException;
-import com.findu.security.util.RoleAuthoritySupport;
+import com.findu.security.util.ReactiveUserAuthoritiesLoader;
+import com.findu.security.util.UserOperationNames;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
-
-import java.util.Collections;
-
 /**
  * Implementación del caso de uso de registro de cliente.
  * Orquesta UsuarioService, RolRepositoryPort y PasswordEncoder.
@@ -92,28 +90,15 @@ public class CustomerManagerImpl implements CustomerManager {
                     savedUser.setRol(rol);
                     return savedUser;
                 }))
-                .flatMap(userWithRol -> setAuthoritiesForUser(userWithRol)
-                        .flatMap(u -> jwtManager.buildTokensForUser(u, algorithm)))
-                .map(tokens -> CustomerManagerImpl.buildResponse(savedUser, roleName, tokens.jwt(), tokens.jwtRefresh()));
+                .flatMap(userWithRol -> ReactiveUserAuthoritiesLoader.loadAuthoritiesFromDb(rolOperationRepositoryPort, userWithRol)
+                        .flatMap(u -> jwtManager.buildTokensForUser(u, algorithm)
+                                .map(tokens -> buildResponse(u, roleName, tokens.jwt(), tokens.jwtRefresh()))));
     }
 
-    /** Carga operaciones del rol desde BD y setea grantedAuthorities (vacías si no hay operaciones). */
-    private Mono<Usuario> setAuthoritiesForUser(Usuario user) {
-        if (user.getRol() == null) {
-            user.setGrantedAuthorities(Collections.emptyList());
-            return Mono.just(user);
-        }
-        Rol rol = user.getRol();
-        return rolOperationRepositoryPort.findOperationsByRoleId(rol.getId())
-                .collectList()
-                .map(ops -> RoleAuthoritySupport.fromOperationsAndRole(ops, rol))
-                .doOnNext(user::setGrantedAuthorities)
-                .thenReturn(user);
-    }
-
-    private static SaveUserResponse buildResponse(Usuario savedUser, String roleName, String jwt, String jwtRefresh) {
-        return new SaveUserResponse(savedUser.getUsername(), savedUser.getEmail(),
-                savedUser.getPhone(), roleName, Collections.<String>emptyList(), jwt, jwtRefresh);
+    /** Misma convención que {@link com.findu.security.presentation.controller.ProfileController}: nombres vía {@link UserOperationNames}. */
+    private static SaveUserResponse buildResponse(Usuario user, String roleName, String jwt, String jwtRefresh) {
+        return new SaveUserResponse(user.getUsername(), user.getEmail(),
+                user.getPhone(), roleName, UserOperationNames.fromUsuario(user), jwt, jwtRefresh);
     }
 }
 

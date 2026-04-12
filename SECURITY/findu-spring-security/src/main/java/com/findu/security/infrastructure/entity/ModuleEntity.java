@@ -17,7 +17,7 @@ import java.time.LocalDateTime;
 /**
  * Agrupación funcional. {@code pathBase} = segmento del micro en la URI (ej. security-auth), no la ruta API completa.
  */
-@Table("MODULE")
+@Table("module")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -29,24 +29,24 @@ public class ModuleEntity {
     /** Único en la tabla. */
     private String name;
 
-    @Column("PATH_BASE")
+    @Column("path_base")
     /** Único en la tabla. */
     private String pathBase;
     private boolean active = true;
 
-    @Column("CREATED_AT")
+    @Column("created_at")
     @CreatedDate
     private LocalDateTime createdAt;
 
-    @Column("UPDATED_AT")
+    @Column("updated_at")
     @LastModifiedDate
     private LocalDateTime updatedAt;
 
-    @Column("CREATED_BY")
+    @Column("created_by")
     @CreatedBy
     private String createdBy;
 
-    @Column("UPDATED_BY")
+    @Column("updated_by")
     @LastModifiedBy
     private String updatedBy;
 }

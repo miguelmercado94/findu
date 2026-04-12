@@ -1,0 +1,32 @@
+# Producción: importa QA; sin SQL init en arranque; Redis obligatorio (revocación en caché).
+# Activación: --spring.profiles.active=pdn
+
+spring:
+  config:
+    import: classpath:application-qa.yml
+  sql:
+    init:
+      mode: never
+
+findu:
+  deployment: pdn
+  redis:
+    enabled: true
+  auth:
+    reset-password-base-url: ${FINDU_AUTH_RESET_PASSWORD_BASE_URL:https://app.findu.example/reset-password}
+
+management:
+  endpoint:
+    health:
+      show-details: never
+  health:
+    redis:
+      enabled: true
+
+logging:
+  level:
+    root: WARN
+    com.findu.security: INFO
+    org.springframework.r2dbc.core: WARN
+    org.springframework.data.r2dbc: WARN
+    io.r2dbc: WARN
