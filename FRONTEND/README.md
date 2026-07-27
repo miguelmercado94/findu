@@ -1,95 +1,260 @@
 # Portales Frontend de FIND-U (Clientes y Proveedores)
 
-Este directorio contiene las aplicaciones frontend SPA de **FIND-U** desarrolladas sobre **JavaScript Vanilla** y empaquetadas con **Vite**:
+Aplicaciones frontend SPA de **FIND-U** desarrolladas con **JavaScript Vanilla** + **Vite**:
 
-1. **Cliente (`/cliente`)**: Portal de acceso para usuarios que consumen servicios.
-2. **Proveedor (`/proveedor`)**: Portal de acceso para proveedores que ofrecen servicios.
+| App | Directorio | Puerto | Rol |
+|-----|-----------|--------|-----|
+| Cliente | `/cliente` | 3000 | `ROLE_OUR_CLIENTE` |
+| Proveedor | `/proveedor` | 3001 | `ROLE_OUR_PROVEEDOR` |
 
-Ambos portales comparten la misma lógica de negocio para autenticación local, recuperación de contraseñas e integración con inicios de sesión federados.
+Ambos portales comparten la misma lógica de autenticación, recuperación de contraseñas e integración con Google Sign-In. Son la referencia para implementar un frontend móvil.
 
 ---
 
-## ⚙️ Variables de Entorno (`.env`)
+## Arquitectura de Comunicación
 
-Antes de iniciar cualquier aplicación, debes configurar las siguientes variables de entorno creando un archivo `.env` en las carpetas `/cliente` y `/proveedor`:
+```
+┌──────────────┐        ┌──────────────────┐        ┌──────────────────────────┐
+│  Frontend    │──────▶ │  API Gateway     │──────▶ │  Microservicios          │
+│  (Vite SPA)  │  HTTP  │  localhost:8080   │  lb:// │  (red Docker interna)    │
+└──────────────┘        └──────────────────┘        └──────────────────────────┘
+```
+
+- El frontend **solo habla con el API Gateway** (`http://localhost:8080`).
+- El gateway enruta por path prefix a cada microservicio via Eureka.
+- Los microservicios y BDs **no tienen puertos expuestos** al host.
+
+---
+
+## Variables de Entorno (`.env`)
+
+Crear un archivo `.env` en cada carpeta (`/cliente` y `/proveedor`):
 
 ```env
-# ID de Cliente para la integración con Google Sign-In
-VITE_GOOGLE_CLIENT_ID=tu_cliente_id_google.apps.googleusercontent.com
+# ID de Cliente OAuth2 para Google Sign-In (consola Google Cloud)
+VITE_GOOGLE_CLIENT_ID=tu_cliente_id.apps.googleusercontent.com
 
-# URL base del API Gateway
+# URL base del API Gateway (punto de entrada único para todas las APIs)
 VITE_API_GATEWAY_URL=http://localhost:8080
 ```
 
----
-
-## 🚦 Consumo de APIs en el Frontend
-
-Todas las llamadas se dirigen a través del API Gateway (`http://localhost:8080`):
-
-### 1. Autenticación Local
-* **Endpoint**: `POST /security-auth/api/v1/auth/login`
-* **Lógica**: Envía las credenciales y el rol asignado (`ROLE_OUR_CLIENTE` o `ROLE_OUR_PROVEEDOR`). Si la respuesta es exitosa, almacena `jwt`, `jwtRefresh` y el `role` en `localStorage`.
-
-### 2. Registro de Usuario
-* **Endpoint**: `POST /security-auth/api/v1/customers`
-* **Lógica**: Envía el formulario de registro. En caso de conflicto de datos (ej. correo duplicado), notifica en la interfaz de usuario con un mensaje amigable.
-
-### 3. Recuperación de Contraseña
-* **Endpoint**: `POST /security-auth/api/v1/auth/forgot-password` (Solicitud de código)
-* **Endpoint**: `POST /security-auth/api/v1/auth/reset-password` (Confirmación de nueva contraseña)
-* **Lógica**:
-  1. El usuario solicita un código de 6 dígitos ingresando su correo o celular.
-  2. El sistema backend emite el código (el cual se visualiza en la consola backend localmente como stub: `123456`).
-  3. El usuario ingresa el código de 6 dígitos recibido y su nueva contraseña para completar el cambio.
-
-### 4. Consulta de Perfil y Operaciones
-* **Endpoint**: `GET /security-auth/api/v1/profile`
-* **Lógica**: Se envía el token en la cabecera `Authorization: Bearer [token]`. Retorna los datos básicos y los permisos/operaciones autorizadas para el usuario.
+> El Google Client ID debe tener `http://localhost:3000` y `http://localhost:3001` como orígenes autorizados en Google Cloud Console.
 
 ---
 
-## 🌐 Integración con Inicios de Sesión Federados (Google Sign-In)
+## Endpoints del Backend (via Gateway)
 
-El flujo de inicio de sesión con Google funciona bajo el estándar **OpenID Connect (OIDC)**:
+Todas las rutas van prefijadas con `/security-auth/api/v1/`.
 
-1. **Carga del Script**: El frontend carga el script oficial de Google (`https://accounts.google.com/gsi/client`).
-2. **Renderización del Botón**: Se inicializa el botón con el ID de cliente provisto en las variables de entorno (`VITE_GOOGLE_CLIENT_ID`).
-3. **Recepción del Credential Token (JWT)**: Tras el inicio de sesión exitoso por el usuario en el popup de Google, la librería retorna un `credential` token (un JWT firmado por Google).
-4. **Decodificación local**: El frontend decodifica este token (usando su payload base64) para extraer los campos del perfil:
-   * ID de usuario de Google (`sub`).
-   * Correo electrónico (`email`).
-   * Nombre de usuario (`name`).
-5. **Autenticación en el Backend**: Envía esta información al endpoint federado de FIND-U:
-   * **Endpoint**: `POST /security-auth/api/v1/auth/federated`
-   * **Payload**:
-     ```json
-     {
-       "providerName": "google",
-       "providerUserId": "sub_de_google",
-       "email": "email_de_google",
-       "username": "nombre_de_google",
-       "role": "ROLE_OUR_CLIENTE"
-     }
-     ```
-   * **Resultado**: El backend valida el usuario (y crea una cuenta automáticamente si es el primer inicio de sesión) y retorna las credenciales JWT de FIND-U para iniciar sesión en la SPA.
+### Autenticación
+
+| Método | Endpoint | Auth | Descripción |
+|--------|----------|------|-------------|
+| POST | `/auth/login` | No | Login con usuario/correo + contraseña |
+| POST | `/auth/federated` | No | Login/registro federado (Google) |
+| POST | `/auth/refresh` | No | Renovar access token con refresh token |
+| POST | `/auth/logout` | Bearer | Cerrar sesión (revocar tokens) |
+
+### Registro
+
+| Método | Endpoint | Auth | Descripción |
+|--------|----------|------|-------------|
+| POST | `/customers` | No | Registrar nuevo usuario (todos los campos obligatorios) |
+
+### Perfil
+
+| Método | Endpoint | Auth | Descripción |
+|--------|----------|------|-------------|
+| GET | `/profile` | Bearer | Obtener perfil del usuario autenticado |
+| PUT | `/profile` | Bearer | Actualizar perfil (username, phone, codPhoneInternational) |
+
+### Recuperación de Contraseña
+
+| Método | Endpoint | Auth | Descripción |
+|--------|----------|------|-------------|
+| POST | `/auth/forgot-password` | No | Solicitar código de recuperación (6 dígitos) |
+| POST | `/auth/reset-password` | No | Confirmar nueva contraseña con código |
 
 ---
 
-## 🏃 Lanzamiento en Local
+## Flujo de Google Sign-In (OIDC)
 
-### Requisitos previos:
-* Node.js instalado en el sistema.
+### Primera vez (usuario no existe):
 
-### Instrucciones de inicio:
-```bash
-# Entrar a la carpeta
-cd FRONTEND/cliente  # o proveedor
-
-# Instalar dependencias
-npm install
-
-# Lanzar servidor de desarrollo
-npm run dev
 ```
-La aplicación cliente se abrirá en `http://localhost:3000` y la aplicación proveedor en `http://localhost:3001` (según configuraciones de puerto de Vite).
+1. Click "Iniciar sesión con Google"
+2. Google devuelve credential JWT con: sub, email, given_name, family_name
+3. Frontend llama POST /auth/federated → Backend crea usuario SIN teléfono → devuelve JWT
+4. Frontend verifica GET /profile → phone es null
+5. Frontend muestra formulario de registro para completar teléfono
+6. Usuario ingresa teléfono → PUT /profile actualiza el dato
+7. Frontend muestra la vista de perfil completa
+```
+
+### Segunda vez (usuario ya existe):
+
+```
+1. Click "Iniciar sesión con Google"
+2. Google devuelve credential JWT
+3. Frontend llama POST /auth/federated → Backend reconoce usuario → devuelve JWT
+4. Frontend verifica GET /profile → phone tiene valor
+5. Frontend muestra la vista de perfil directamente
+```
+
+### Payload de `/auth/federated`:
+
+```json
+{
+  "providerName": "google",
+  "providerUserId": "112627575228485860910",
+  "email": "usuario@gmail.com",
+  "username": "usuario",
+  "role": "ROLE_OUR_CLIENTE"
+}
+```
+
+### Respuesta exitosa:
+
+```json
+{
+  "jwt": "eyJhbG...",
+  "jwtRefresh": "eyJhbG...",
+  "available": true
+}
+```
+
+---
+
+## Payload de Registro (`POST /customers`)
+
+```json
+{
+  "username": "juan.perez",
+  "email": "juan.perez@gmail.com",
+  "phone": "3001234567",
+  "codPhoneInternational": "+57",
+  "password": "Password123*",
+  "roleName": "ROLE_OUR_CLIENTE"
+}
+```
+
+> Para registro via Google, el password se genera internamente (`GoogleAccountLinked123*`).
+
+---
+
+## Payload de Actualizar Perfil (`PUT /profile`)
+
+```json
+{
+  "username": "juan.perez",
+  "phone": "3001234567",
+  "codPhoneInternational": "+57"
+}
+```
+
+Header requerido: `Authorization: Bearer <access_token>`
+
+---
+
+## Respuesta de Perfil (`GET /profile`)
+
+```json
+{
+  "username": "juan.perez",
+  "email": "juan.perez@gmail.com",
+  "phone": "3001234567",
+  "codPhoneInternational": "+57",
+  "roleName": "ROLE_OUR_CLIENTE",
+  "operationNames": [
+    "AUTH_LOGIN",
+    "AUTH_FEDERATED",
+    "AUTH_REFRESH",
+    "AUTH_LOGOUT",
+    "CUST_LIST",
+    "CUST_REGISTER",
+    "PROFILE_READ",
+    "PROFILE_UPDATE",
+    "AUTH_FORGOT_PASSWORD",
+    "AUTH_RESET_PASSWORD",
+    "HEALTH_ACTUATOR"
+  ]
+}
+```
+
+---
+
+## Manejo de Tokens (localStorage)
+
+```javascript
+// Guardar después de login/registro exitoso
+localStorage.setItem('findu_token', data.jwt);
+
+// Enviar en cada request protegido
+headers: { 'Authorization': `Bearer ${localStorage.getItem('findu_token')}` }
+
+// Logout: limpiar storage
+localStorage.removeItem('findu_token');
+```
+
+---
+
+## Recuperación de Contraseña
+
+### Paso 1 — Solicitar código:
+
+```json
+// Por email
+{ "email": "usuario@gmail.com" }
+
+// Por teléfono
+{ "phone": "3001234567", "codPhoneInternational": "+57" }
+```
+
+### Paso 2 — Restablecer con código:
+
+```json
+{
+  "code": "123456",
+  "newPassword": "NuevaPassword123*",
+  "email": "usuario@gmail.com"
+}
+```
+
+> En entorno dev, el código siempre es `123456` (stub del backend).
+
+---
+
+## Lanzamiento Local
+
+### Requisitos:
+- Node.js (v18+)
+- Backend corriendo (ver `docker-compose.yml` en la raíz del proyecto)
+
+### Pasos:
+
+```bash
+# Terminal 1 — Backend
+cd findu
+docker compose up -d
+
+# Terminal 2 — Frontend cliente
+cd FRONTEND/cliente
+npm install
+npm run dev    # → http://localhost:3000
+
+# Terminal 3 — Frontend proveedor
+cd FRONTEND/proveedor
+npm install
+npm run dev    # → http://localhost:3001
+```
+
+---
+
+## Notas para el Frontend Móvil
+
+- Usa los mismos endpoints documentados arriba.
+- El `VITE_API_GATEWAY_URL` equivale a la base URL que configurarás en la app móvil.
+- Para Google Sign-In en móvil, usa el SDK nativo (Google Sign-In para Android/iOS) y envía el `idToken` al mismo endpoint `/auth/federated`.
+- El `providerUserId` es el campo `sub` del token de Google.
+- El flujo de "completar teléfono" aplica igual: después del primer login federado, verificar si `phone` es null en `/profile` y pedir al usuario que lo complete via `PUT /profile`.
+- Los tokens tienen 1 hora de expiración (access) y 7 días (refresh).

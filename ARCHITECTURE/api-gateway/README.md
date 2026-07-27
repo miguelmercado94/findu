@@ -1,47 +1,82 @@
 # findu-api-gateway
 
-Puerta de enlace principal (API Gateway) del ecosistema de **FIND-U**, construida utilizando **Spring Cloud Gateway** (reactivo sobre Netty) y conectada a **Netflix Eureka** para el descubrimiento de microservicios y balanceo de carga.
+API Gateway del ecosistema FIND-U, construido con **Spring Cloud Gateway** (reactivo/Netty) + **Netflix Eureka Client**.
+
+Es el punto de entrada único para los frontends. Enruta las peticiones a los microservicios internos por service discovery.
 
 ---
 
-## ⚙️ Configuración y Puerto
-* **Puerto de escucha**: `8080` (punto de entrada único para el frontend).
-* **Consola de Administración de rutas**: `http://localhost:8080/actuator/gateway`
+## Configuración
+
+| Propiedad | Valor |
+|-----------|-------|
+| Puerto | `8080` |
+| Imagen Docker Hub | `mmercado94/findu-api-gateway:1.0.0` |
+| Actuator | http://localhost:8080/actuator/health |
 
 ---
 
-## 🚦 Ruteo Dinámico y Redirecciones
+## Rutas
 
-El API Gateway balancea las peticiones de forma dinámica utilizando los nombres de servicio registrados en Eureka:
+| Path en el Gateway | Servicio Eureka | Puerto Interno | Descripción |
+|--------------------|-----------------|---------------|-------------|
+| `/security-auth/**` | `FINDU-SPRING-SECURITY` | 8081 | Auth, perfiles, registro, recuperación |
+| `/authorization-server/**` | `AUTORIZATION-SERVER-OAUTH2` | 9595 | Servidor OAuth2/OIDC |
 
-| Ruta del Gateway | Destino Eureka | Descripción |
-|------------------|----------------|-------------|
-| `/security-auth/**` | `FINDU-SPRING-SECURITY` | Servicio principal de autenticación, perfiles y recuperación de contraseñas. |
-| `/authorization-server/**` | `AUTORIZATION-SERVER-OAUTH2` | Servidor de autorización OAuth2 / OIDC estándar. |
-
----
-
-## 🌐 Configuración de CORS Global
-
-El Gateway intercepta todas las llamadas CORS entrantes y las autoriza de forma centralizada para evitar duplicidades y conflictos en cabeceras HTTP:
-
-* **Orígenes Permitidos**: `http://localhost:3000` (Portal Clientes), `http://localhost:3001` (Portal Proveedores), `https://www.google.com`.
-* **Métodos Soportados**: `GET`, `POST`, `PUT`, `DELETE`, `OPTIONS`, `PATCH`.
-* **Filtro de cabeceras**: Deduplica automáticamente las cabeceras `Access-Control-Allow-Origin` para evitar conflictos en peticiones redirigidas.
+El gateway usa `lb://SERVICE-NAME` (load balancer via Eureka) para resolver las instancias.
 
 ---
 
-## 🏃 Lanzamiento en Local
+## CORS
 
-### Requisitos previos:
-* Servidor Eureka en marcha (`eureka-server` en puerto `8761`).
+Configuración global de CORS centralizada en el gateway:
 
-### Comando de arranque:
+| Propiedad | Valor |
+|-----------|-------|
+| Orígenes | `http://localhost:3000`, `http://localhost:3001`, `https://www.google.com` |
+| Métodos | Todos (`*`) |
+| Headers | Todos (`*`) |
+| Credentials | `true` |
+
+> Para un frontend móvil, no se necesita CORS (las apps nativas no tienen restricción de origen).
+
+---
+
+## Ejecución
+
+### Con Docker (recomendado):
+
 ```bash
-# Windows
-.\gradlew.bat bootRun
-
-# Linux / macOS
-./gradlew bootRun
+docker compose up -d    # Levanta todo el stack desde la raíz
 ```
-El gateway se conectará automáticamente a Eureka (`http://localhost:8761/eureka/`) para descubrir las rutas disponibles.
+
+El gateway arranca después de que eureka-server esté healthy.
+
+### Local (desarrollo sin Docker):
+
+```bash
+cd ARCHITECTURE/api-gateway
+./gradlew bootRun       # Linux/macOS
+.\gradlew.bat bootRun   # Windows
+```
+
+Requiere JDK 21 y eureka-server corriendo en `localhost:8761`.
+
+---
+
+## Docker Compose
+
+En el stack Docker:
+- Corre en la red privada `findu-internal`
+- Expone el puerto `8080` al host (único punto de acceso para los frontends)
+- Se conecta a Eureka via `EUREKA_CLIENT_SERVICEURL_DEFAULTZONE`
+- Las BDs y microservicios de seguridad NO tienen puertos expuestos al host — solo son accesibles via el gateway
+
+---
+
+## Notas para el Frontend Móvil
+
+- La URL base para la app móvil en desarrollo local es `http://<IP_DEL_EQUIPO>:8080` (no `localhost`, ya que el emulador/dispositivo no resuelve localhost al host).
+- Para Android emulator: `http://10.0.2.2:8080`
+- Para iOS simulator: `http://localhost:8080`
+- Para dispositivo físico: usar la IP LAN del equipo (ej. `http://192.168.1.X:8080`)

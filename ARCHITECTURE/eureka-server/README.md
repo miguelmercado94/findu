@@ -1,29 +1,59 @@
 # findu-eureka-server
 
-Servidor de Descubrimiento de Servicios (**Netflix Eureka Server**) central para el ecosistema de microservicios de **FIND-U**.
+Servidor de descubrimiento de servicios (**Netflix Eureka Server**) del ecosistema FIND-U.
 
-Este servidor actúa como el directorio telefónico de servicios. Cada microservicio en el ecosistema se registra dinámicamente con Eureka al arrancar, facilitando el balanceo de carga reactivo y la resolución de nombres de dominio internos en el API Gateway.
-
----
-
-## ⚙️ Configuración y Puerto
-* **Puerto de escucha**: `8761`
-* **Dashboard de Monitoreo**: `http://localhost:8761`
+Actúa como registro central: cada microservicio se registra al arrancar, permitiendo balanceo de carga reactivo y resolución de nombres internos en el API Gateway.
 
 ---
 
-## 🏃 Lanzamiento en Local
+## Configuración
 
-### Requisitos previos:
-* JDK 21 instalado.
+| Propiedad | Valor |
+|-----------|-------|
+| Puerto | `8761` |
+| Dashboard | http://localhost:8761 |
+| Imagen Docker Hub | `mmercado94/findu-eureka-server:1.0.0` |
 
-### Comando de arranque:
+---
+
+## Ejecución
+
+### Con Docker (recomendado):
+
 ```bash
-# Windows
-.\gradlew.bat bootRun
-
-# Linux / macOS
-./gradlew bootRun
+docker compose up -d    # Levanta todo el stack desde la raíz del proyecto
 ```
 
-Una vez levantado, ingresa a [http://localhost:8761](http://localhost:8761) en tu navegador para ver la lista de instancias activas registradas (`Instances currently registered with Eureka`).
+El eureka-server es el primer servicio en arrancar. Los demás dependen de su healthcheck.
+
+### Local (desarrollo sin Docker):
+
+```bash
+cd ARCHITECTURE/eureka-server
+./gradlew bootRun       # Linux/macOS
+.\gradlew.bat bootRun   # Windows
+```
+
+Requiere JDK 21.
+
+---
+
+## Servicios Registrados
+
+Una vez el stack está arriba, el dashboard en http://localhost:8761 muestra:
+
+| Servicio | Puerto Interno | Descripción |
+|----------|---------------|-------------|
+| API-GATEWAY | 8080 | Puerta de enlace principal |
+| FINDU-SPRING-SECURITY | 8081 | Autenticación, perfiles, JWT |
+| AUTORIZATION-SERVER-OAUTH2 | 9595 | Servidor OAuth2/OIDC |
+
+---
+
+## Docker Compose
+
+En el `docker-compose.yml` del proyecto, eureka-server:
+- Corre en la red privada `findu-internal`
+- Expone el puerto `8761` al host (para visualizar el dashboard)
+- Los demás servicios se registran usando `EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/`
+- Los servicios se registran con hostname (no IP) para correcta resolución DNS entre contenedores
