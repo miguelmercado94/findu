@@ -1,116 +1,178 @@
-# FINDU — stack local
-#   1) postgres       → localhost:5432  (findu / findu / findu)
-#   2) localstack     → DynamoDB API http://localhost:4566
-#   3) redis          → localhost:6379
-#   4) findu-security → imagen desde ./SECURITY/findu-spring-security/Dockerfile
+# FINDU — stack local (Docker Compose)
+# =====================================================================
+# Orden de arranque:
+#   1. Red privada: findu-internal (solo acceso inter-contenedores)
+#   2. Arquitectura: eureka-server → api-gateway (expuestos al host)
+#   3. Bases de datos: postgres-security, postgres-oauth2 (red privada)
+#   4. Seguridad: findu-spring-security, autorization-server-oauth2 (red privada, perfil dev)
 #
-# Variables:
-#   - FINDU-PROJECT/.env  → sustituye ${VAR} en este archivo (copiar desde .env.example en la raíz).
-#   - SECURITY/findu-spring-security/.env → carga en el contenedor (env_file): JWT, logs, Dynamo, etc.
-#   - Perfil Spring en Docker: define SPRING_PROFILES_ACTIVE en FINDU-PROJECT/.env (raíz); el bloque environment
-#     del servicio findu-security lo aplica y sustituye el valor homónimo del env_file de la app.
+# Frontends (Vite): se levantan localmente (no Docker)
+#   - cliente:   npm run dev → http://localhost:3000
+#   - proveedor: npm run dev → http://localhost:3001
 #
-# Perfil recomendado con este stack (Postgres + Redis + LocalStack): qa o pdn.
-# Con perfil dev la app excluye autoconfig de Redis; el contenedor redis sigue disponible pero la app no lo usa.
-#
-# Uso: docker compose up -d --build
-# Logs: docker logs -f findu-security
+# Uso:
+#   docker compose up -d
+#   Luego en terminales separadas:
+#     cd FRONTEND/cliente   && npm run dev
+#     cd FRONTEND/proveedor && npm run dev
+# =====================================================================
 
 services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: findu-postgres
+
+  # ─────────────────────────────────────────────────────────────────────
+  # ARQUITECTURA (expuestos al host)
+  # ─────────────────────────────────────────────────────────────────────
+
+  eureka-server:
+    image: mmercado94/findu-eureka-server:1.0.0
+    container_name: findu-eureka-server
+    networks:
+      - findu-internal
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-findu}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-findu}
-      POSTGRES_DB: ${POSTGRES_DB:-findu}
-    volumes:
-      - findu-postgres-data:/var/lib/postgresql/data
+      - "8761:8761"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-findu} -d ${POSTGRES_DB:-findu}"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:8761/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  api-gateway:
+    image: mmercado94/findu-api-gateway:1.0.0
+    container_name: findu-api-gateway
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - findu-internal
+    ports:
+      - "8080:8080"
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ─────────────────────────────────────────────────────────────────────
+  # BASES DE DATOS (red privada, sin puertos expuestos al host)
+  # ─────────────────────────────────────────────────────────────────────
+
+  postgres-security:
+    image: postgres:16-alpine
+    container_name: findu-postgres-security
+    networks:
+      - findu-internal
+    environment:
+      POSTGRES_USER: findu
+      POSTGRES_PASSWORD: findu
+      POSTGRES_DB: findu
+    volumes:
+      - findu-pg-security-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U findu -d findu"]
       interval: 5s
       timeout: 5s
       retries: 5
       start_period: 10s
 
-  localstack:
-    image: localstack/localstack:3.8
-    container_name: findu-localstack
-    depends_on:
-      postgres:
-        condition: service_healthy
-    ports:
-      - "${LOCALSTACK_PORT:-4566}:4566"
+  postgres-oauth2:
+    image: postgres:16-alpine
+    container_name: findu-postgres-oauth2
+    networks:
+      - findu-internal
     environment:
-      SERVICES: dynamodb
-      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
-      DEBUG: ${DEBUG:-0}
-      HOSTNAME_EXTERNAL: localhost
-      LS_LOG: ${LOCALSTACK_LOG:-warning}
+      POSTGRES_USER: findu_oauth2
+      POSTGRES_PASSWORD: findu_oauth2_password
+      POSTGRES_DB: findu_oauth2
+    volumes:
+      - findu-pg-oauth2-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:4566/_localstack/health >/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 15
-      start_period: 25s
-
-  redis:
-    image: redis:7-alpine
-    container_name: findu-redis
-    depends_on:
-      postgres:
-        condition: service_healthy
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "pg_isready -U findu_oauth2 -d findu_oauth2"]
       interval: 5s
-      timeout: 3s
+      timeout: 5s
       retries: 5
-      start_period: 5s
+      start_period: 10s
 
-  findu-security:
-    build:
-      context: ./SECURITY/findu-spring-security
-      dockerfile: Dockerfile
-    image: findu-spring-security:${FINDU_SECURITY_TAG:-local}
-    container_name: findu-security
+  # ─────────────────────────────────────────────────────────────────────
+  # SEGURIDAD (red privada, perfil dev, sin puertos expuestos al host)
+  # ─────────────────────────────────────────────────────────────────────
+
+  findu-spring-security:
+    image: mmercado94/findu-spring-security:1.0.0
+    container_name: findu-spring-security
+    hostname: findu-spring-security
     depends_on:
-      postgres:
+      eureka-server:
         condition: service_healthy
-      localstack:
+      postgres-security:
         condition: service_healthy
-      redis:
-        condition: service_healthy
-    ports:
-      - "${APP_PORT:-8081}:8081"
-    env_file:
-      - ./SECURITY/findu-spring-security/.env
+    networks:
+      - findu-internal
     environment:
-      # Perfil: prioridad variable de entorno al arrancar compose (FINDU-PROJECT/.env) → default qa
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-qa}
-      # Red Docker: sustituyen localhost del .env local de la app
-      SPRING_R2DBC_URL: r2dbc:postgresql://postgres:5432/${POSTGRES_DB:-findu}
-      SPRING_R2DBC_USERNAME: ${POSTGRES_USER:-findu}
-      SPRING_R2DBC_PASSWORD: ${POSTGRES_PASSWORD:-findu}
-      SPRING_DATA_REDIS_HOST: redis
-      SPRING_DATA_REDIS_PORT: "6379"
-      FINDU_AWS_DYNAMODB_ENDPOINT: http://localstack:4566
-      FINDU_AWS_DYNAMODB_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
-      # Stack completo: activar Redis/Dynamo salvo que el .env raíz indique lo contrario
-      SPRING_SQL_INIT_MODE: ${SPRING_SQL_INIT_MODE:-never}
-      FINDU_REDIS_ENABLED: ${FINDU_REDIS_ENABLED:-true}
-      FINDU_AWS_DYNAMODB_ENABLED: ${FINDU_AWS_DYNAMODB_ENABLED:-true}
-      FINDU_AWS_DYNAMODB_CREATE_TABLE_IF_NOT_EXISTS: ${FINDU_AWS_DYNAMODB_CREATE_TABLE_IF_NOT_EXISTS:-true}
-      MANAGEMENT_HEALTH_REDIS_ENABLED: ${MANAGEMENT_HEALTH_REDIS_ENABLED:-true}
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_R2DBC_URL: r2dbc:postgresql://postgres-security:5432/findu
+      SPRING_R2DBC_USERNAME: findu
+      SPRING_R2DBC_PASSWORD: findu
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      # Eureka — forzar que se registre con el hostname DNS de Docker Compose
+      EUREKA_INSTANCE_PREFER_IP_ADDRESS: "false"
+      EUREKA_INSTANCE_HOSTNAME: findu-spring-security
+      # JWT — misma clave para generar y validar tokens
+      JWT_SECRET: ZmluZHUtZGVmYXVsdC1zZWNyZXQta2V5LWF0LWxlYXN0LTI1Ni1iaXRzLWZvci1oczI1Ng==
+      JWT_ACCESS_EXPIRATION_SECONDS: "3600"
+      JWT_REFRESH_EXPIRATION_SECONDS: "604800"
+      # Issuer URI — apunta al authorization-server dentro de la red Docker
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://autorization-server-oauth2:9595/authorization-server
+      FINDU_REDIS_ENABLED: "false"
+      FINDU_AWS_DYNAMODB_ENABLED: "false"
+      MANAGEMENT_HEALTH_REDIS_ENABLED: "false"
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8081/security-auth/actuator/health >/dev/null || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:8081/security-auth/actuator/health || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 10
-      start_period: 90s
+      start_period: 60s
+
+  autorization-server-oauth2:
+    image: mmercado94/findu-autorization-server-oauth2:1.0.0
+    container_name: findu-autorization-server-oauth2
+    hostname: findu-autorization-server-oauth2
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      postgres-oauth2:
+        condition: service_healthy
+      findu-spring-security:
+        condition: service_healthy
+    networks:
+      - findu-internal
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-oauth2:5432/findu_oauth2
+      SPRING_DATASOURCE_USERNAME: findu_oauth2
+      SPRING_DATASOURCE_PASSWORD: findu_oauth2_password
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      EUREKA_INSTANCE_PREFER_IP_ADDRESS: "false"
+      EUREKA_INSTANCE_HOSTNAME: findu-autorization-server-oauth2
+      FINDU_SECURITY_API_BASE_URL: http://findu-spring-security:8081/security-auth
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9595/authorization-server/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+# ─────────────────────────────────────────────────────────────────────
+# REDES Y VOLÚMENES
+# ─────────────────────────────────────────────────────────────────────
+
+networks:
+  findu-internal:
+    driver: bridge
 
 volumes:
-  findu-postgres-data:
+  findu-pg-security-data:
+  findu-pg-oauth2-data:

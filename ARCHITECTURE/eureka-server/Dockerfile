@@ -1,8 +1,7 @@
-# FINDU Spring Security — imagen runtime (JRE 21).
-# Perfil Spring (dev | qa | pdn) y resto de variables: .env + docker-compose (env_file / environment).
+# FINDU Eureka Server — imagen runtime (JRE 21).
 #
 # Build manual:
-#   docker build -t findu-spring-security:local .
+#   docker build -t findu-eureka-server:local .
 
 FROM eclipse-temurin:21-jdk-jammy AS builder
 WORKDIR /workspace
@@ -26,6 +25,6 @@ COPY --from=builder /workspace/build/libs/*.jar /app/app.jar
 
 USER spring:spring
 
-EXPOSE 8081
+EXPOSE 8761
 
 ENTRYPOINT ["sh", "-c", "exec java ${JAVA_OPTS:-} -jar /app/app.jar"]

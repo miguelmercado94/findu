@@ -65,27 +65,40 @@ async function safeParseJson(response) {
 }
 
 // Cargar perfil del usuario
-async function fetchProfile() {
-  try {
-    const res = await fetch(`${API_GATEWAY_URL}/security-auth/api/v1/profile`, {
-      headers: {
-        'Authorization': `Bearer ${state.token}`
+async function fetchProfile(retries = 3) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(`${API_GATEWAY_URL}/security-auth/api/v1/profile`, {
+        headers: {
+          'Authorization': `Bearer ${state.token}`
+        }
+      });
+
+      if (res.status === 401) {
+        logout();
+        return;
       }
-    });
 
-    if (res.status === 401) {
-      logout();
+      if (!res.ok) {
+        if (attempt < retries && res.status >= 500) {
+          await new Promise(r => setTimeout(r, 2000));
+          continue;
+        }
+        throw new Error('Error al obtener perfil');
+      }
+
+      const data = await safeParseJson(res);
+      state.profile = data;
+      setView('profile');
       return;
+    } catch (err) {
+      console.error(`fetchProfile attempt ${attempt}/${retries}:`, err);
+      if (attempt < retries) {
+        await new Promise(r => setTimeout(r, 2000));
+        continue;
+      }
+      logout();
     }
-
-    if (!res.ok) throw new Error('Error al obtener perfil');
-
-    const data = await safeParseJson(res);
-    state.profile = data;
-    setView('profile');
-  } catch (err) {
-    console.error(err);
-    logout();
   }
 }
 
@@ -145,6 +158,24 @@ async function handleRegister(e) {
   const password = state.googleData ? 'GoogleAccountLinked123*' : document.getElementById('reg-password').value;
 
   try {
+    // Si ya tenemos token (usuario creado via federated, solo falta completar teléfono)
+    if (state.token && state.googleData) {
+      const updateRes = await fetch(`${API_GATEWAY_URL}/security-auth/api/v1/profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${state.token}`
+        },
+        body: JSON.stringify({ username, phone, codPhoneInternational })
+      });
+      if (updateRes.ok) {
+        state.googleData = null;
+        fetchProfile();
+        return;
+      }
+      // Si falla el update, continuar con flujo normal
+    }
+
     // 1. Crear el usuario en la BD mediante el endpoint de customers
     const res = await fetch(`${API_GATEWAY_URL}/security-auth/api/v1/customers`, {
       method: 'POST',
@@ -161,30 +192,73 @@ async function handleRegister(e) {
 
     const data = await safeParseJson(res);
     if (!res.ok) {
+      // Si el usuario ya existe y estamos con Google, intentar federated login directo
+      if (state.googleData && (data.message || '').toLowerCase().includes('ya')) {
+        const fedRes = await fetch(`${API_GATEWAY_URL}/security-auth/api/v1/auth/federated`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            providerName: 'google',
+            providerUserId: state.googleData.sub,
+            email: state.googleData.email,
+            username: username,
+            role: ROLE_NAME
+          })
+        });
+        const fedData = await safeParseJson(fedRes);
+        if (fedRes.ok) {
+          localStorage.setItem('findu_token', fedData.jwt);
+          state.token = fedData.jwt;
+          state.googleData = null;
+          fetchProfile();
+          return;
+        }
+      }
       throw new Error(data.message || `Error en el registro (${res.status})`);
     }
 
     // 2. Si el registro fue a través de Google, enlazamos la identidad federada en el backend
     if (state.googleData) {
-      const fedRes = await fetch(`${API_GATEWAY_URL}/security-auth/api/v1/auth/federated`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          providerName: 'google',
-          providerUserId: state.googleData.sub,
-          email: state.googleData.email,
-          username: username,
-          role: ROLE_NAME
-        })
-      });
-
-      const fedData = await safeParseJson(fedRes);
-      if (!fedRes.ok) {
-        throw new Error(fedData.message || 'Usuario creado pero falló el enlace con Google.');
+      let fedRes;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          fedRes = await fetch(`${API_GATEWAY_URL}/security-auth/api/v1/auth/federated`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              providerName: 'google',
+              providerUserId: state.googleData.sub,
+              email: state.googleData.email,
+              username: username,
+              role: ROLE_NAME
+            })
+          });
+          if (fedRes.ok || fedRes.status < 500) break;
+        } catch (e) {
+          console.warn(`Federated link attempt ${attempt}/3 failed:`, e);
+        }
+        if (attempt < 3) await new Promise(r => setTimeout(r, 2000));
       }
 
-      localStorage.setItem('findu_token', fedData.jwt);
-      state.token = fedData.jwt;
+      if (fedRes && fedRes.ok) {
+        const fedData = await safeParseJson(fedRes);
+        localStorage.setItem('findu_token', fedData.jwt);
+        state.token = fedData.jwt;
+      } else {
+        // Fallback: intentar login normal con password generado
+        const loginRes = await fetch(`${API_GATEWAY_URL}/security-auth/api/v1/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ usernameOrEmail: username, password, role: ROLE_NAME })
+        });
+        if (loginRes.ok) {
+          const loginData = await safeParseJson(loginRes);
+          localStorage.setItem('findu_token', loginData.jwt);
+          state.token = loginData.jwt;
+        } else {
+          throw new Error('Usuario creado pero falló el enlace con Google. Intenta iniciar sesión.');
+        }
+      }
     } else {
       // Si fue tradicional, iniciamos sesión automáticamente
       const loginRes = await fetch(`${API_GATEWAY_URL}/security-auth/api/v1/auth/login`, {
@@ -357,33 +431,62 @@ window.handleGoogleCredentialResponse = async function(response) {
       return;
     }
 
-    // Intentamos hacer login federado directo (por si ya está registrado/enlazado)
+    // Intentamos hacer login federado directo (crea usuario automáticamente si no existe)
     let res;
-    try {
-      res = await fetch(`${API_GATEWAY_URL}/security-auth/api/v1/auth/federated`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          providerName: 'google',
-          providerUserId: state.googleData.sub,
-          email: state.googleData.email,
-          username: state.googleData.email.split('@')[0], // username fallback
-          role: ROLE_NAME
-        })
-      });
-    } catch (fetchErr) {
-      console.warn('Network error or CORS during federated login, falling back to register form:', fetchErr);
-      setView('register');
-      showAlert('success', 'Autenticado con Google con éxito. Por favor, completa tu teléfono y usuario para finalizar el registro.');
-      return;
+    const maxRetries = 3;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        res = await fetch(`${API_GATEWAY_URL}/security-auth/api/v1/auth/federated`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            providerName: 'google',
+            providerUserId: state.googleData.sub,
+            email: state.googleData.email,
+            username: state.googleData.email.split('@')[0],
+            role: ROLE_NAME
+          })
+        });
+        break; // fetch exitoso, salir del retry
+      } catch (fetchErr) {
+        console.warn(`Federated login attempt ${attempt}/${maxRetries} failed:`, fetchErr);
+        if (attempt === maxRetries) {
+          setView('register');
+          showAlert('success', 'Autenticado con Google con éxito. Por favor, completa tu teléfono y usuario para finalizar el registro.');
+          return;
+        }
+        await new Promise(r => setTimeout(r, 2000)); // esperar 2s antes de reintentar
+      }
     }
 
     if (res.ok) {
       const data = await safeParseJson(res);
       localStorage.setItem('findu_token', data.jwt);
       state.token = data.jwt;
-      fetchProfile();
+      // Verificar si el perfil tiene teléfono (registro completo)
+      try {
+        const profileRes = await fetch(`${API_GATEWAY_URL}/security-auth/api/v1/profile`, {
+          headers: { 'Authorization': `Bearer ${state.token}` }
+        });
+        if (profileRes.ok) {
+          const profile = await safeParseJson(profileRes);
+          if (profile.phone) {
+            // Usuario completo, ir directo al perfil
+            state.profile = profile;
+            setView('profile');
+          } else {
+            // Usuario sin teléfono — necesita completar registro
+            setView('register');
+            showAlert('success', 'Autenticado con Google con éxito. Por favor, completa tu teléfono para finalizar el registro.');
+          }
+        } else {
+          fetchProfile();
+        }
+      } catch (e) {
+        fetchProfile();
+      }
     } else {
+      // Si el backend responde con error, ir al registro
       setView('register');
       showAlert('success', 'Autenticado con Google con éxito. Por favor, completa tu teléfono y usuario para finalizar el registro.');
     }
@@ -404,12 +507,17 @@ function decodeJwt(token) {
 }
 
 // Inicializar el botón de Google One-Tap/Button
-function initGoogleSignIn() {
+let googleInitialized = false;
+
+function initGoogleSignIn(retries = 10) {
   if (typeof google !== 'undefined') {
-    google.accounts.id.initialize({
-      client_id: GOOGLE_CLIENT_ID,
-      callback: window.handleGoogleCredentialResponse
-    });
+    if (!googleInitialized) {
+      google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: window.handleGoogleCredentialResponse
+      });
+      googleInitialized = true;
+    }
     
     const btnDiv = document.getElementById('google-btn');
     if (btnDiv) {
@@ -419,6 +527,8 @@ function initGoogleSignIn() {
         width: 320
       });
     }
+  } else if (retries > 0) {
+    setTimeout(() => initGoogleSignIn(retries - 1), 300);
   }
 }
 
