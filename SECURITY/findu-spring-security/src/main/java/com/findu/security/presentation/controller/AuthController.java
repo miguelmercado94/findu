@@ -6,6 +6,7 @@ import com.findu.security.application.usecase.ResetPasswordUseCase;
 import com.findu.security.dto.request.ForgotPasswordRequest;
 import com.findu.security.dto.request.LoginRequest;
 import com.findu.security.dto.request.LogoutRequest;
+import com.findu.security.dto.request.FederatedLoginRequest;
 import com.findu.security.dto.request.RefreshTokenRequest;
 import com.findu.security.dto.request.ResetPasswordRequest;
 import com.findu.security.dto.response.AuthToken;
@@ -97,6 +98,25 @@ public class AuthController {
     }
 
     /**
+     * Login federado con proveedor externo (Google/Apple). Devuelve access + refresh token.
+     * POST /api/v1/auth/federated
+     * Header: X-JWT-Algorithm (ej. HS256).
+     */
+    @PostMapping("/federated")
+    @Operation(summary = "Login Federado", description = "Autentica o registra un usuario por red social (Google/Apple) y devuelve access/refresh JWT")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Tokens emitidos",
+                    content = @Content(schema = @Schema(implementation = AuthToken.class))),
+            @ApiResponse(responseCode = "400", description = "Datos invalidos")
+    })
+    public Mono<AuthToken> federatedLogin(
+            @RequestBody @Valid FederatedLoginRequest request,
+            @Parameter(description = "Algoritmo JWT (HS256 por defecto)")
+            @RequestHeader(name = SecurityConstants.HEADER_JWT_ALGORITHM, defaultValue = SecurityConstants.DEFAULT_JWT_ALGORITHM) String algorithm) {
+        return jwtManager.loginFederated(request, algorithm);
+    }
+
+    /**
      * Cierra sesión: revoca el access JWT en almacén (DynamoDB / memoria); el refresh es opcional.
      * Respuesta: mismo DTO que emisión de tokens con {@code available: false}.
      * POST /api/v1/auth/logout
@@ -138,27 +158,27 @@ public class AuthController {
      */
     @PostMapping("/forgot-password")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @Operation(summary = "Solicitar recuperacion de password", description = "Genera token y envia enlace al correo si el usuario existe")
+    @Operation(summary = "Solicitar recuperacion de password", description = "Genera codigo y envia si el usuario existe")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Solicitud procesada"),
             @ApiResponse(responseCode = "400", description = "Datos invalidos")
     })
     public Mono<Void> forgotPassword(@RequestBody @Valid ForgotPasswordRequest request) {
-        return requestPasswordRecoveryUseCase.requestRecovery(request.emailOrUsername());
+        return requestPasswordRecoveryUseCase.requestRecovery(request);
     }
 
     /**
-     * Restablece la contraseña con el token recibido por correo.
+     * Restablece la contraseña con el token o código recibido.
      * POST /api/v1/auth/reset-password
      */
     @PostMapping("/reset-password")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @Operation(summary = "Restablecer password", description = "Actualiza la password usando token de recuperacion")
+    @Operation(summary = "Restablecer password", description = "Actualiza la password usando token o codigo de recuperacion")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Password actualizada"),
-            @ApiResponse(responseCode = "400", description = "Token invalido o expirado")
+            @ApiResponse(responseCode = "400", description = "Token o codigo invalido o expirado")
     })
     public Mono<Void> resetPassword(@RequestBody @Valid ResetPasswordRequest request) {
-        return resetPasswordUseCase.resetPassword(request.token(), request.newPassword());
+        return resetPasswordUseCase.resetPassword(request);
     }
 }

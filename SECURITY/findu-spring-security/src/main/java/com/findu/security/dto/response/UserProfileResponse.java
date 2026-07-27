@@ -14,6 +14,8 @@ public record UserProfileResponse(
         String email,
         @Schema(example = "3003763311")
         String phone,
+        @Schema(example = "+57")
+        String codPhoneInternational,
         @Schema(example = "ROLE_CUSTOMER")
         String roleName,
         @Schema(description = "Operaciones/autorizaciones del rol")

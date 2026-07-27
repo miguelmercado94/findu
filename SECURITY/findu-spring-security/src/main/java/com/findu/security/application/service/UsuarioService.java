@@ -38,4 +38,6 @@ public interface UsuarioService {
     Mono<Boolean> existsByEmail(String email);
 
     Mono<Boolean> existsByPhone(String phone);
+
+    Mono<Usuario> getUserByPhoneAndCountry(String countryCode, String phone);
 }

@@ -23,7 +23,7 @@ import reactor.core.publisher.Mono;
  * Filtro de autenticación JWT para WebFlux.
  * Authorization: Bearer solo acepta access token ({@code typ: JWT}); el refresh ({@code typ: JWTRefresh}) responde 401.
  */
-@Component
+//@Component
 public class JwtAuthenticationFilter implements WebFilter {
     private static final Logger log = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
 

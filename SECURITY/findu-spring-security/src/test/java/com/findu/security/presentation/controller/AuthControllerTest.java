@@ -72,7 +72,7 @@ class AuthControllerTest {
         when(jwtManager.login(org.mockito.ArgumentMatchers.any(LoginRequest.class), eq("HS256")))
                 .thenReturn(Mono.just(new AuthToken("a", "r", true)));
 
-        var body = new LoginRequest("u", "p", "ROLE_CUSTOMER");
+        var body = new LoginRequest("u", null, null, "p", "ROLE_CUSTOMER");
         client.post().uri("/api/v1/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header(SecurityConstants.HEADER_JWT_ALGORITHM, "HS256")
@@ -109,24 +109,26 @@ class AuthControllerTest {
 
     @Test
     void forgotPassword_returns204() {
-        when(requestPasswordRecoveryUseCase.requestRecovery("x@y.com")).thenReturn(Mono.empty());
+        ForgotPasswordRequest req = new ForgotPasswordRequest("x@y.com", null, null);
+        when(requestPasswordRecoveryUseCase.requestRecovery(req)).thenReturn(Mono.empty());
 
         client.post().uri("/api/v1/auth/forgot-password")
                 .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(new ForgotPasswordRequest("x@y.com"))
+                .bodyValue(req)
                 .exchange()
                 .expectStatus().isNoContent();
 
-        verify(requestPasswordRecoveryUseCase).requestRecovery("x@y.com");
+        verify(requestPasswordRecoveryUseCase).requestRecovery(req);
     }
 
     @Test
     void resetPassword_returns204() {
-        when(resetPasswordUseCase.resetPassword("t", "newpass1")).thenReturn(Mono.empty());
+        ResetPasswordRequest req = new ResetPasswordRequest("t", null, null, null, null, "newpass1");
+        when(resetPasswordUseCase.resetPassword(req)).thenReturn(Mono.empty());
 
         client.post().uri("/api/v1/auth/reset-password")
                 .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(new ResetPasswordRequest("t", "newpass1"))
+                .bodyValue(req)
                 .exchange()
                 .expectStatus().isNoContent();
     }

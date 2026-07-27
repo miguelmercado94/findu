@@ -17,7 +17,7 @@ class JsonAuthenticationEntryPointTest {
     @BeforeEach
     void setUp() {
         entryPoint = new JsonAuthenticationEntryPoint(
-                new SecurityErrorResponseWriter(new tools.jackson.databind.ObjectMapper()));
+                new SecurityErrorResponseWriter(new com.fasterxml.jackson.databind.ObjectMapper()));
     }
 
     @Test

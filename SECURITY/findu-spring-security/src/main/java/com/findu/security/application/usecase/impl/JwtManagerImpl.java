@@ -3,8 +3,11 @@ package com.findu.security.application.usecase.impl;
 import com.findu.security.application.port.output.persistence.RolOperationRepositoryPort;
 import com.findu.security.application.port.output.persistence.RolRepositoryPort;
 import com.findu.security.application.port.output.persistence.UserRolRepositoryPort;
+import com.findu.security.application.port.output.persistence.UserIdentityProviderRepositoryPort;
 import com.findu.security.application.service.JwtService;
 import com.findu.security.application.service.UsuarioService;
+import com.findu.security.domain.model.UserIdentityProvider;
+import com.findu.security.dto.request.FederatedLoginRequest;
 import com.findu.security.application.usecase.JwtManager;
 import com.findu.security.domain.model.Jwt;
 import com.findu.security.domain.model.JwtHeader;
@@ -60,6 +63,7 @@ public class JwtManagerImpl implements JwtManager {
     private final RolOperationRepositoryPort rolOperationRepositoryPort;
     private final ReactiveAuthenticationManager reactiveAuthenticationManager;
     private final JwtTokenRevocationService jwtTokenRevocationService;
+    private final UserIdentityProviderRepositoryPort userIdentityProviderRepositoryPort;
 
     @Value("${jwt.access-expiration-seconds:300}")
     private long accessExpirationSeconds;
@@ -74,7 +78,8 @@ public class JwtManagerImpl implements JwtManager {
                           UserRolRepositoryPort userRolRepositoryPort,
                           RolOperationRepositoryPort rolOperationRepositoryPort,
                           ReactiveAuthenticationManager reactiveAuthenticationManager,
-                          JwtTokenRevocationService jwtTokenRevocationService) {
+                          JwtTokenRevocationService jwtTokenRevocationService,
+                          UserIdentityProviderRepositoryPort userIdentityProviderRepositoryPort) {
         this.usuarioService = usuarioService;
         this.jwtService = jwtService;
         this.jwtSignerFactory = jwtSignerFactory;
@@ -83,19 +88,30 @@ public class JwtManagerImpl implements JwtManager {
         this.rolOperationRepositoryPort = rolOperationRepositoryPort;
         this.reactiveAuthenticationManager = reactiveAuthenticationManager;
         this.jwtTokenRevocationService = jwtTokenRevocationService;
+        this.userIdentityProviderRepositoryPort = userIdentityProviderRepositoryPort;
     }
 
     @Override
     public Mono<AuthToken> login(LoginRequest loginRequest, String algorithm) {
         String alg = normalizeAlgorithm(algorithm);
         String roleName = loginRequest.role() != null ? loginRequest.role().trim() : "";
-        String usernameOrEmail = loginRequest.usernameOrEmail().trim();
-        log.info("Login attempt userOrEmail={} role={} alg={}", usernameOrEmail, roleName, alg);
+        
+        String principal;
+        if (loginRequest.usernameOrEmail() != null && !loginRequest.usernameOrEmail().isBlank()) {
+            principal = loginRequest.usernameOrEmail().trim();
+        } else if (loginRequest.phone() != null && !loginRequest.phone().isBlank() &&
+                   loginRequest.codPhoneInternational() != null && !loginRequest.codPhoneInternational().isBlank()) {
+            principal = "phone:" + loginRequest.codPhoneInternational().trim() + "::" + loginRequest.phone().trim();
+        } else {
+            return Mono.error(new IllegalArgumentException("Debe proporcionar un usuario/correo o el número de teléfono con su código de país"));
+        }
+
+        log.info("Login attempt principal={} role={} alg={}", principal, roleName, alg);
         Mono<Void> validateRole = rolRepositoryPort.findByName(roleName)
                 .switchIfEmpty(Mono.error(new ResourceNotFoundException("Rol no encontrado: " + roleName)))
                 .then();
         UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                usernameOrEmail,
+                principal,
                 loginRequest.password()
         );
         return validateRole
@@ -105,6 +121,56 @@ public class JwtManagerImpl implements JwtManager {
                 .flatMap(this::enrichUserWithAuthorities)
                 .flatMap(user -> buildAuthToken(user, alg)
                         .doOnSuccess(tokens -> log.info("Login successful user={} role={}", user.getUsername(),
+                                user.getRol() != null ? user.getRol().getName() : null)));
+    }
+
+    @Override
+    public Mono<AuthToken> loginFederated(FederatedLoginRequest request, String algorithm) {
+        String alg = normalizeAlgorithm(algorithm);
+        String providerName = request.providerName().trim().toLowerCase();
+        String providerUserId = request.providerUserId().trim();
+        String email = request.email().trim();
+        String username = request.username().trim();
+        String roleName = request.role().trim();
+
+        log.info("Federated login attempt provider={} providerUserId={} email={} role={}", providerName, providerUserId, email, roleName);
+
+        return userIdentityProviderRepositoryPort.findByProviderNameAndProviderUserId(providerName, providerUserId)
+                .flatMap(mapping -> usuarioService.findById(mapping.getUserId())
+                        .switchIfEmpty(Mono.error(new ResourceNotFoundException("Usuario no encontrado para la identidad federada"))))
+                .switchIfEmpty(Mono.defer(() -> usuarioService.getUserByEmail(email)
+                        .flatMap(existingUser -> {
+                            UserIdentityProvider newMapping = UserIdentityProvider.builder()
+                                    .userId(existingUser.getId())
+                                    .providerName(providerName)
+                                    .providerUserId(providerUserId)
+                                    .build();
+                            return userIdentityProviderRepositoryPort.save(newMapping)
+                                    .thenReturn(existingUser);
+                        })
+                        .switchIfEmpty(Mono.defer(() -> {
+                            Usuario newUser = new Usuario();
+                            newUser.setUsername(username);
+                            newUser.setEmail(email);
+                            newUser.setPassword(null);
+                            newUser.setActive(true);
+                            return usuarioService.save(newUser)
+                                    .flatMap(savedUser -> rolRepositoryPort.findByName(roleName)
+                                            .switchIfEmpty(Mono.error(new ResourceNotFoundException("Rol no encontrado: " + roleName)))
+                                            .flatMap(rol -> userRolRepositoryPort.assignRoleToUser(savedUser.getId(), rol.getId())
+                                                    .then(userIdentityProviderRepositoryPort.save(
+                                                            UserIdentityProvider.builder()
+                                                                    .userId(savedUser.getId())
+                                                                    .providerName(providerName)
+                                                                    .providerUserId(providerUserId)
+                                                                    .build()
+                                                    ))
+                                                    .thenReturn(savedUser)));
+                        }))))
+                .flatMap(this::enrichUserWithRole)
+                .flatMap(this::enrichUserWithAuthorities)
+                .flatMap(user -> buildAuthToken(user, alg)
+                        .doOnSuccess(tokens -> log.info("Federated login successful user={} role={}", user.getUsername(),
                                 user.getRol() != null ? user.getRol().getName() : null)));
     }
 
@@ -188,23 +254,79 @@ public class JwtManagerImpl implements JwtManager {
     public Mono<UserProfileResponse> getCurrentUserProfile() {
         log.debug("Fetching current user profile from reactive security context");
         return ReactiveSecurityContextHolder.getContext()
-                .flatMap(JwtManagerImpl::authenticationToUsuario)
+                .flatMap(ctx -> {
+                    Authentication auth = ctx.getAuthentication();
+                    if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
+                        return Mono.empty();
+                    }
+                    Object principal = auth.getPrincipal();
+                    if (principal instanceof Usuario) {
+                        return Mono.just((Usuario) principal);
+                    } else if (principal instanceof org.springframework.security.oauth2.jwt.Jwt jwt) {
+                        String username = jwt.getSubject();
+                        return usuarioService.getUserByUsername(username)
+                                .flatMap(this::enrichUserWithRole)
+                                .flatMap(this::enrichUserWithAuthorities);
+                    }
+                    return Mono.empty();
+                })
                 .map(JwtManagerImpl::toUserProfileResponse)
                 .doOnNext(p -> log.info("Perfil entregado user={} role={} operationCount={}",
                         p.username(), p.roleName(), p.operationNames().size()))
                 .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.UNAUTHORIZED, "No autenticado")));
     }
 
-    private static Mono<Usuario> authenticationToUsuario(SecurityContext ctx) {
-        Authentication auth = ctx.getAuthentication();
-        if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
-            return Mono.empty();
-        }
-        Object principal = auth.getPrincipal();
-        if (!(principal instanceof Usuario)) {
-            return Mono.empty();
-        }
-        return Mono.just((Usuario) principal);
+    @Override
+    public Mono<UserProfileResponse> updateCurrentUserProfile(com.findu.security.dto.request.UpdateProfileDto request) {
+        log.info("Updating current user profile");
+        return ReactiveSecurityContextHolder.getContext()
+                .flatMap(ctx -> {
+                    Authentication auth = ctx.getAuthentication();
+                    if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
+                        return Mono.empty();
+                    }
+                    Object principal = auth.getPrincipal();
+                    String username;
+                    if (principal instanceof Usuario) {
+                        username = ((Usuario) principal).getUsername();
+                    } else if (principal instanceof org.springframework.security.oauth2.jwt.Jwt jwt) {
+                        username = jwt.getSubject();
+                    } else {
+                        return Mono.empty();
+                    }
+                    return usuarioService.getUserByUsername(username)
+                            .switchIfEmpty(Mono.defer(() -> usuarioService.getUserByEmail(username)))
+                            .flatMap(user -> {
+                                String newUsername = request.username().trim();
+                                Mono<Void> usernameValidation = Mono.empty();
+                                if (!newUsername.equalsIgnoreCase(user.getUsername())) {
+                                    usernameValidation = usuarioService.existsByUsername(newUsername)
+                                            .flatMap(exists -> exists
+                                                    ? Mono.error(new IllegalArgumentException("El nombre de usuario ya está registrado"))
+                                                    : Mono.empty());
+                                }
+
+                                String newPhone = request.phone().trim();
+                                Mono<Void> phoneValidation = Mono.empty();
+                                if (user.getPhone() == null || !newPhone.equals(user.getPhone())) {
+                                    phoneValidation = usuarioService.existsByPhone(newPhone)
+                                            .flatMap(exists -> exists
+                                                    ? Mono.error(new IllegalArgumentException("El teléfono ya está registrado"))
+                                                    : Mono.empty());
+                                }
+
+                                return usernameValidation.then(phoneValidation).then(Mono.defer(() -> {
+                                    user.setUsername(newUsername);
+                                    user.setPhone(newPhone);
+                                    user.setCodPhoneInternational(request.codPhoneInternational().trim());
+                                    return usuarioService.save(user)
+                                            .flatMap(this::enrichUserWithRole)
+                                            .flatMap(this::enrichUserWithAuthorities);
+                                }));
+                            });
+                })
+                .map(JwtManagerImpl::toUserProfileResponse)
+                .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.UNAUTHORIZED, "No autenticado")));
     }
 
     private static UserProfileResponse toUserProfileResponse(Usuario u) {
@@ -213,6 +335,7 @@ public class JwtManagerImpl implements JwtManager {
                 u.getUsername(),
                 u.getEmail(),
                 u.getPhone(),
+                u.getCodPhoneInternational(),
                 roleName,
                 UserOperationNames.fromUsuario(u)
         );

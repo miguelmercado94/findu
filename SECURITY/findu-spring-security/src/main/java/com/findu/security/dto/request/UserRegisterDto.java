@@ -23,6 +23,10 @@ public record UserRegisterDto(
     @Schema(example = "3003763311")
     String phone,
 
+    @NotBlank(message = "codPhoneInternational es requerido")
+    @Schema(example = "+57")
+    String codPhoneInternational,
+
     @NotBlank(message = "password es requerido")
     @Schema(example = "Password123*")
     String password,

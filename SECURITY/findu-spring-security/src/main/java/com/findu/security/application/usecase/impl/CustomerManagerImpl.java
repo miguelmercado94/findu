@@ -52,6 +52,7 @@ public class CustomerManagerImpl implements CustomerManager {
             usuario.setUsername(request.username());
             usuario.setEmail(request.email());
             usuario.setPhone(request.phone());
+            usuario.setCodPhoneInternational(request.codPhoneInternational());
             usuario.setPassword(passwordEncoder.encode(request.password()));
             usuario.setActive(true);
             return usuarioService.save(usuario)

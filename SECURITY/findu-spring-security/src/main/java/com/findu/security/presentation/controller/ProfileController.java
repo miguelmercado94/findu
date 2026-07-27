@@ -10,6 +10,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
@@ -40,5 +42,17 @@ public class ProfileController {
     })
     public Mono<UserProfileResponse> profile() {
         return jwtManager.getCurrentUserProfile();
+    }
+
+    @PutMapping("/profile")
+    @Operation(summary = "Actualizar perfil autenticado", security = {@SecurityRequirement(name = "bearerAuth")})
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Perfil actualizado",
+                    content = @Content(schema = @Schema(implementation = UserProfileResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Datos inválidos"),
+            @ApiResponse(responseCode = "401", description = "No autenticado")
+    })
+    public Mono<UserProfileResponse> updateProfile(@RequestBody @jakarta.validation.Valid com.findu.security.dto.request.UpdateProfileDto request) {
+        return jwtManager.updateCurrentUserProfile(request);
     }
 }

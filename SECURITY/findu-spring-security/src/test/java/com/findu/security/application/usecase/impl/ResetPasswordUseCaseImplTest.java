@@ -1,8 +1,11 @@
 package com.findu.security.application.usecase.impl;
 
+import com.findu.security.application.port.output.persistence.PasswordRecoveryCodeRepositoryPort;
 import com.findu.security.application.port.output.persistence.PasswordRecoveryTokenRepositoryPort;
 import com.findu.security.application.port.output.persistence.UsuarioRepositoryPort;
+import com.findu.security.application.service.UsuarioService;
 import com.findu.security.domain.model.PasswordRecoveryToken;
+import com.findu.security.dto.request.ResetPasswordRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -24,7 +27,11 @@ class ResetPasswordUseCaseImplTest {
     @Mock
     private PasswordRecoveryTokenRepositoryPort tokenRepository;
     @Mock
+    private PasswordRecoveryCodeRepositoryPort codeRepository;
+    @Mock
     private UsuarioRepositoryPort usuarioRepository;
+    @Mock
+    private UsuarioService usuarioService;
     @Mock
     private PasswordEncoder passwordEncoder;
 
@@ -32,12 +39,13 @@ class ResetPasswordUseCaseImplTest {
 
     @BeforeEach
     void setUp() {
-        useCase = new ResetPasswordUseCaseImpl(tokenRepository, usuarioRepository, passwordEncoder);
+        useCase = new ResetPasswordUseCaseImpl(tokenRepository, codeRepository, usuarioRepository, usuarioService, passwordEncoder);
     }
 
     @Test
     void resetPassword_blank_errors() {
-        StepVerifier.create(useCase.resetPassword("", "pwd"))
+        ResetPasswordRequest req = new ResetPasswordRequest("", null, null, null, null, "pwd");
+        StepVerifier.create(useCase.resetPassword(req))
                 .expectError(IllegalArgumentException.class)
                 .verify();
     }
@@ -50,12 +58,14 @@ class ResetPasswordUseCaseImplTest {
         t.setUsed(false);
         t.setExpiresAt(Instant.now().plusSeconds(3600));
 
+        ResetPasswordRequest req = new ResetPasswordRequest("tok", null, null, null, null, "new");
+
         when(tokenRepository.findByToken("tok")).thenReturn(Mono.just(t));
         when(passwordEncoder.encode("new")).thenReturn("hash");
         when(usuarioRepository.updatePassword(1L, "hash")).thenReturn(Mono.empty());
         when(tokenRepository.markAsUsed("tok")).thenReturn(Mono.empty());
 
-        StepVerifier.create(useCase.resetPassword("tok", "new"))
+        StepVerifier.create(useCase.resetPassword(req))
                 .verifyComplete();
     }
 }

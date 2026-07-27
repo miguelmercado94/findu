@@ -1,18 +1,18 @@
 package com.findu.security.application.usecase;
 
+import com.findu.security.dto.request.ResetPasswordRequest;
 import reactor.core.publisher.Mono;
 
 /**
- * Caso de uso: restablecer contraseña con el token recibido por correo.
+ * Caso de uso: restablecer contraseña.
  */
 public interface ResetPasswordUseCase {
 
     /**
-     * Restablece la contraseña del usuario asociado al token.
+     * Restablece la contraseña del usuario.
      *
-     * @param token   token de recuperación (recibido por correo)
-     * @param newPassword nueva contraseña en texto plano (se codificará con el encoder del sistema)
-     * @return Mono vacío si OK; error si token inválido, expirado o ya usado
+     * @param request datos del restablecimiento (token o código de 6 dígitos con nueva contraseña)
+     * @return Mono vacío si OK
      */
-    Mono<Void> resetPassword(String token, String newPassword);
+    Mono<Void> resetPassword(ResetPasswordRequest request);
 }

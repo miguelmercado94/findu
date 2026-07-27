@@ -15,4 +15,6 @@ public interface EmailSenderPort {
      * @return Mono que completa cuando el envío se ha aceptado (o falla)
      */
     Mono<Void> sendPasswordRecoveryEmail(String toEmail, String resetLinkUrl);
+
+    Mono<Void> sendPasswordRecoveryCode(String toEmail, String code);
 }

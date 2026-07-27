@@ -7,8 +7,12 @@ import jakarta.validation.constraints.NotBlank;
  * DTO para solicitar recuperación de contraseña (email o username).
  */
 public record ForgotPasswordRequest(
+    @Schema(example = "lmarquez@example.com", description = "Email del usuario")
+    String email,
 
-    @NotBlank(message = "email o nombre de usuario es requerido")
-    @Schema(example = "lmarquez@example.com", description = "Email o username del usuario")
-    String emailOrUsername
+    @Schema(example = "3001234567", description = "Teléfono móvil del usuario")
+    String phone,
+
+    @Schema(example = "+57", description = "Código internacional del país")
+    String codPhoneInternational
 ) {}

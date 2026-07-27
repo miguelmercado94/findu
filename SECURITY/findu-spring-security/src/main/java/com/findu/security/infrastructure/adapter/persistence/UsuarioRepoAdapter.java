@@ -57,19 +57,30 @@ public class UsuarioRepoAdapter implements UsuarioRepositoryPort {
 
     @Override
     public Mono<Usuario> save(Usuario usuario) {
-        UserEntity entity = usuarioMapper.toEntity(usuario);
-        LocalDateTime now = LocalDateTime.now();
-        if (entity.getId() == null) {
+        if (usuario.getId() == null) {
+            UserEntity entity = usuarioMapper.toEntity(usuario);
+            LocalDateTime now = LocalDateTime.now();
             entity.setCreatedAt(now);
             entity.setUpdatedAt(now);
             entity.setCreatedBy(entity.getCreatedBy() != null ? entity.getCreatedBy() : AUDIT_USER);
             entity.setUpdatedBy(entity.getUpdatedBy() != null ? entity.getUpdatedBy() : AUDIT_USER);
+            return userRepository.save(entity)
+                    .map(usuarioMapper::toDomain);
         } else {
-            entity.setUpdatedAt(now);
-            entity.setUpdatedBy(entity.getUpdatedBy() != null ? entity.getUpdatedBy() : AUDIT_USER);
+            return userRepository.findById(usuario.getId())
+                    .flatMap(existingEntity -> {
+                        existingEntity.setUsername(usuario.getUsername());
+                        existingEntity.setEmail(usuario.getEmail());
+                        existingEntity.setPhone(usuario.getPhone());
+                        existingEntity.setCodPhoneInternational(usuario.getCodPhoneInternational());
+                        existingEntity.setPassword(usuario.getPassword());
+                        existingEntity.setActive(usuario.isActive());
+                        existingEntity.setUpdatedAt(LocalDateTime.now());
+                        existingEntity.setUpdatedBy(AUDIT_USER);
+                        return userRepository.save(existingEntity);
+                    })
+                    .map(usuarioMapper::toDomain);
         }
-        return userRepository.save(entity)
-                .map(usuarioMapper::toDomain);
     }
 
     @Override
@@ -85,6 +96,12 @@ public class UsuarioRepoAdapter implements UsuarioRepositoryPort {
     @Override
     public Mono<Boolean> existsByPhone(String phone) {
         return userRepository.existsByPhone(phone);
+    }
+
+    @Override
+    public Mono<Usuario> findByCodPhoneInternationalAndPhone(String codPhoneInternational, String phone) {
+        return userRepository.findByCodPhoneInternationalAndPhone(codPhoneInternational, phone)
+                .map(usuarioMapper::toDomain);
     }
 
     @Override

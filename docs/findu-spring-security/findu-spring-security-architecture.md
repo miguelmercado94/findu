@@ -1,6 +1,7 @@
-# FINDU — Documentación técnica del módulo `findu-spring-security`
+# FINDU — Arquitectura técnica: findu-spring-security
 
-**Ubicación:** `SECURITY/findu-spring-security`  
+**Documento padre:** [Arquitectura del ecosistema](../findu-ecosystem-architecture.md)  
+**Ubicación del código:** `SECURITY/findu-spring-security`  
 **Stack:** Spring Boot 4, WebFlux, Spring Security reactivo, R2DBC (H2 en memoria por defecto), JWT (JJWT), DynamoDB opcional (tokens revocados), Redis opcional (caché de revocación), OpenAPI/Swagger.
 
 > **Nota:** Este documento omite a propósito los controladores de ejemplo `ProductController` y `CategoryController`.
@@ -214,6 +215,25 @@ com.findu.security
 6. **Perfil** (`GET /api/v1/profile`): requiere access válido; datos desde contexto / `JwtManager.getCurrentUserProfile()`.
 
 7. **Validación de token** (`GET /api/v1/auth/validate`): público; devuelve si el token es válido y metadatos decodificados.
+
+## Resumen Analítico del Microservicio
+
+Este módulo está diseñado para ser altamente concurrente y escalable, operando como el servicio central de identidades del ecosistema Findu.
+
+### 🛠️ Tecnologías Utilizadas
+- **Lenguaje y Core:** Java 21, Spring Boot, Spring WebFlux (100% reactivo y no bloqueante).
+- **Autenticación y Seguridad:** Spring Security Reactivo, JWT (JJWT con HMAC HS256), BCrypt para cifrado.
+- **Persistencia de Datos:** R2DBC (Reactive Relational Database Connectivity), PostgreSQL 16 (H2 en memoria para el perfil dev).
+- **Almacenamiento de Estado y Caché:** Redis (caché rápida para validación de tokens revocados), DynamoDB vía LocalStack (fuente de la verdad para cierres de sesión).
+
+### 🎯 Casos de Uso Principales
+1. **Inicio de Sesión (Login):** Autenticación de clientes/proveedores devolviendo Access y Refresh Tokens.
+2. **Cierre de Sesión (Logout):** Invalidación explícita del token actual marcando la sesión como "no disponible" en DynamoDB y Redis.
+3. **Renovación de Sesión (Refresh Token):** Obtención de un nuevo Access Token rotando el Refresh Token sin requerir credenciales nuevamente.
+4. **Registro de Clientes:** Alta de nuevos usuarios con rol de cliente asignado por defecto y cifrado BCrypt.
+5. **Recuperación de Contraseña:** Generación de token temporal (almacenado en BD) para reestablecer la contraseña vía enlace.
+6. **Validación de Tokens:** Endpoint consumido por el API Gateway para validar autenticidad, expiración y extraer claims del usuario.
+7. **Auditoría y Control de Operaciones (RBAC):** Sistema dinámico basado en roles que evalúa accesos en tiempo real mediante `FinduReactiveAuthorizationManager`.
 
 ---
 

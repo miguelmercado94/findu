@@ -27,6 +27,8 @@ public interface UsuarioRepositoryPort {
 
     Mono<Boolean> existsByPhone(String phone);
 
+    Mono<Usuario> findByCodPhoneInternationalAndPhone(String codPhoneInternational, String phone);
+
     /**
      * Actualiza la contraseña del usuario (ya codificada, p. ej. BCrypt).
      */

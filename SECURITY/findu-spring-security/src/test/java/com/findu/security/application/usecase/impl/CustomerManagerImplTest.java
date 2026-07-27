@@ -50,7 +50,7 @@ class CustomerManagerImplTest {
 
     @Test
     void registerNewCustomer_success() {
-        var dto = new UserRegisterDto("u", "u@e.com", "1", "pwd", "ROLE_CUSTOMER");
+        var dto = new UserRegisterDto("u", "u@e.com", "1", "+57", "pwd", "ROLE_CUSTOMER");
         Usuario saved = new Usuario();
         saved.setId(10L);
         saved.setUsername("u");
@@ -78,7 +78,7 @@ class CustomerManagerImplTest {
 
     @Test
     void registerNewCustomer_duplicateUsername_errors() {
-        var dto = new UserRegisterDto("u", "u@e.com", "1", "pwd", "ROLE_CUSTOMER");
+        var dto = new UserRegisterDto("u", "u@e.com", "1", "+57", "pwd", "ROLE_CUSTOMER");
         when(usuarioService.existsByUsername("u")).thenReturn(Mono.just(true));
         when(usuarioService.existsByEmail("u@e.com")).thenReturn(Mono.just(false));
         when(usuarioService.existsByPhone("1")).thenReturn(Mono.just(false));

@@ -18,4 +18,6 @@ public interface UserRepository extends R2dbcRepository<UserEntity, Long> {
     Mono<Boolean> existsByEmail(String email);
 
     Mono<Boolean> existsByPhone(String phone);
+
+    Mono<UserEntity> findByCodPhoneInternationalAndPhone(String codPhoneInternational, String phone);
 }

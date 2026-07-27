@@ -3,7 +3,10 @@ package com.findu.security.application.usecase.impl;
 import com.findu.security.application.port.output.persistence.RolOperationRepositoryPort;
 import com.findu.security.application.port.output.persistence.RolRepositoryPort;
 import com.findu.security.application.port.output.persistence.UserRolRepositoryPort;
+import com.findu.security.application.port.output.persistence.UserIdentityProviderRepositoryPort;
 import com.findu.security.application.service.JwtService;
+import com.findu.security.domain.model.UserIdentityProvider;
+import com.findu.security.dto.request.FederatedLoginRequest;
 import com.findu.security.application.service.JwtTokenRevocationService;
 import com.findu.security.application.service.UsuarioService;
 import com.findu.security.domain.model.Jwt;
@@ -54,13 +57,16 @@ class JwtManagerImplTest {
     private ReactiveAuthenticationManager reactiveAuthenticationManager;
     @Mock
     private JwtTokenRevocationService jwtTokenRevocationService;
+    @Mock
+    private UserIdentityProviderRepositoryPort userIdentityProviderRepositoryPort;
 
     private JwtManagerImpl jwtManager;
 
     @BeforeEach
     void setUp() {
         jwtManager = new JwtManagerImpl(usuarioService, jwtService, jwtSignerFactory, rolRepositoryPort,
-                userRolRepositoryPort, rolOperationRepositoryPort, reactiveAuthenticationManager, jwtTokenRevocationService);
+                userRolRepositoryPort, rolOperationRepositoryPort, reactiveAuthenticationManager, jwtTokenRevocationService,
+                userIdentityProviderRepositoryPort);
         ReflectionTestUtils.setField(jwtManager, "accessExpirationSeconds", 300L);
         ReflectionTestUtils.setField(jwtManager, "refreshExpirationSeconds", 604800L);
     }
@@ -138,7 +144,7 @@ class JwtManagerImplTest {
         when(jwtService.generateToken(any(Jwt.class))).thenReturn("accessJwt", "refreshJwt");
         when(jwtTokenRevocationService.registerIssuedPair("accessJwt", "refreshJwt")).thenReturn(Mono.empty());
 
-        var req = new LoginRequest("user", "pwd", "ROLE_CUSTOMER");
+        var req = new LoginRequest("user", null, null, "pwd", "ROLE_CUSTOMER");
         StepVerifier.create(jwtManager.login(req, "HS256"))
                 .expectNextMatches(t -> t.available()
                         && "accessJwt".equals(t.jwt())
@@ -228,6 +234,69 @@ class JwtManagerImplTest {
         StepVerifier.create(jwtManager.getCurrentUserProfile()
                         .contextWrite(ReactiveSecurityContextHolder.withSecurityContext(Mono.just(ctx))))
                 .expectNextMatches(p -> "alice".equals(p.username()) && "ROLE_CUSTOMER".equals(p.roleName()))
+                .verifyComplete();
+    }
+
+    @Test
+    void loginFederated_existingIdentity_returnsTokens() {
+        FederatedLoginRequest req = new FederatedLoginRequest("google", "sub-123", "a@b.com", "alice", "ROLE_CUSTOMER");
+        UserIdentityProvider mapping = UserIdentityProvider.builder()
+                .id(1L)
+                .userId(10L)
+                .providerName("google")
+                .providerUserId("sub-123")
+                .build();
+        Usuario user = new Usuario();
+        user.setId(10L);
+        user.setUsername("alice");
+        user.setEmail("a@b.com");
+        Rol r = new Rol();
+        r.setId(1);
+        r.setName("ROLE_CUSTOMER");
+        user.setRol(r);
+
+        when(userIdentityProviderRepositoryPort.findByProviderNameAndProviderUserId("google", "sub-123"))
+                .thenReturn(Mono.just(mapping));
+        when(usuarioService.findById(10L)).thenReturn(Mono.just(user));
+        when(userRolRepositoryPort.findRoleByUserId(10L)).thenReturn(Mono.just(r));
+        when(rolOperationRepositoryPort.findOperationsByRoleId(1)).thenReturn(Flux.empty());
+        when(jwtService.generateToken(any())).thenReturn("token-val");
+        when(jwtTokenRevocationService.registerIssuedPair(anyString(), anyString())).thenReturn(Mono.empty());
+
+        StepVerifier.create(jwtManager.loginFederated(req, "HS256"))
+                .expectNextMatches(t -> "token-val".equals(t.jwt()))
+                .verifyComplete();
+    }
+
+    @Test
+    void loginFederated_newIdentityExistingEmail_linksAndReturnsTokens() {
+        FederatedLoginRequest req = new FederatedLoginRequest("google", "sub-123", "a@b.com", "alice", "ROLE_CUSTOMER");
+        Usuario user = new Usuario();
+        user.setId(10L);
+        user.setUsername("alice");
+        user.setEmail("a@b.com");
+        Rol r = new Rol();
+        r.setId(1);
+        r.setName("ROLE_CUSTOMER");
+        user.setRol(r);
+
+        UserIdentityProvider newMapping = UserIdentityProvider.builder()
+                .userId(10L)
+                .providerName("google")
+                .providerUserId("sub-123")
+                .build();
+
+        when(userIdentityProviderRepositoryPort.findByProviderNameAndProviderUserId("google", "sub-123"))
+                .thenReturn(Mono.empty());
+        when(usuarioService.getUserByEmail("a@b.com")).thenReturn(Mono.just(user));
+        when(userIdentityProviderRepositoryPort.save(any(UserIdentityProvider.class))).thenReturn(Mono.just(newMapping));
+        when(userRolRepositoryPort.findRoleByUserId(10L)).thenReturn(Mono.just(r));
+        when(rolOperationRepositoryPort.findOperationsByRoleId(1)).thenReturn(Flux.empty());
+        when(jwtService.generateToken(any())).thenReturn("token-val");
+        when(jwtTokenRevocationService.registerIssuedPair(anyString(), anyString())).thenReturn(Mono.empty());
+
+        StepVerifier.create(jwtManager.loginFederated(req, "HS256"))
+                .expectNextMatches(t -> "token-val".equals(t.jwt()))
                 .verifyComplete();
     }
 }

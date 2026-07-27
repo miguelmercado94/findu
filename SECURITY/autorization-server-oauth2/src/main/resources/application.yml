@@ -1,0 +1,22 @@
+spring:
+  application:
+    name: autorization-server-oauth2
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
+
+server:
+  port: 9595
+  servlet:
+    context-path: /authorization-server
+  forward-headers-strategy: framework
+
+findu:
+  security-api:
+    base-url: ${FINDU_SECURITY_API_BASE_URL:http://localhost:8081/security-auth}
+
+eureka:
+  instance:
+    prefer-ip-address: true
+  client:
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://localhost:8761/eureka/}

@@ -21,6 +21,7 @@ public class Usuario implements UserDetails {
     private String username;
     private String email;
     private String phone;
+    private String codPhoneInternational;
     private String password;
     private boolean active = true;
     private Rol rol;

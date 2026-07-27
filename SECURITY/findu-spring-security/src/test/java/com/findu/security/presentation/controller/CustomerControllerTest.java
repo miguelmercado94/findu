@@ -53,7 +53,7 @@ class CustomerControllerTest {
 
     @Test
     void register_returns201() {
-        var dto = new UserRegisterDto("u", "u@e.com", "1", "p", "ROLE_CUSTOMER");
+        var dto = new UserRegisterDto("u", "u@e.com", "1", "+57", "p", "ROLE_CUSTOMER");
         when(customerManager.registerNewCustomer(any(), eq("HS256")))
                 .thenReturn(Mono.just(new SaveUserResponse("u", "u@e.com", "1", "ROLE_CUSTOMER", java.util.List.of(), "jwt", "ref")));
 

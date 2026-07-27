@@ -9,6 +9,12 @@ spring:
   profiles:
     default: dev
 
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI:http://localhost:8080/authorization-server}
+
   webflux:
     base-path: /security-auth
 
@@ -57,3 +63,14 @@ jwt:
 logging:
   level:
     root: ${LOG_LEVEL_ROOT:INFO}
+
+eureka:
+  instance:
+    prefer-ip-address: true
+  client:
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://localhost:8761/eureka/}
+
+findu:
+  auth:
+    recovery-code-expiry-minutes: ${FINDU_AUTH_RECOVERY_CODE_EXPIRY_MINUTES:3}

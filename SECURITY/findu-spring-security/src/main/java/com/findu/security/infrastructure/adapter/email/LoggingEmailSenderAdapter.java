@@ -21,4 +21,11 @@ public class LoggingEmailSenderAdapter implements EmailSenderPort {
                 log.info("Password recovery email (stub): to={}, resetLink={}", toEmail, resetLinkUrl))
                 .then();
     }
+
+    @Override
+    public Mono<Void> sendPasswordRecoveryCode(String toEmail, String code) {
+        return Mono.fromRunnable(() ->
+                log.info("Password recovery code email (stub): to={}, code={}", toEmail, code))
+                .then();
+    }
 }

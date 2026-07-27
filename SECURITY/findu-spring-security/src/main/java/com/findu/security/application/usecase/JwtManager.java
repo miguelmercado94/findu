@@ -3,6 +3,7 @@ package com.findu.security.application.usecase;
 import com.findu.security.domain.model.Usuario;
 import com.findu.security.dto.request.LoginRequest;
 import com.findu.security.dto.request.LogoutRequest;
+import com.findu.security.dto.request.FederatedLoginRequest;
 import com.findu.security.dto.response.AuthToken;
 import com.findu.security.dto.response.UserProfileResponse;
 import com.findu.security.dto.response.ValidateTokenResponse;
@@ -21,6 +22,14 @@ public interface JwtManager {
      * @param algorithm    algoritmo del header (ej. HS256)
      */
     Mono<AuthToken> login(LoginRequest loginRequest, String algorithm);
+
+    /**
+     * Autentica o registra a un usuario a través de un proveedor federado (Google/Apple); devuelve tokens.
+     *
+     * @param request   datos de autenticación federada
+     * @param algorithm algoritmo del header
+     */
+    Mono<AuthToken> loginFederated(FederatedLoginRequest request, String algorithm);
 
     /**
      * Genera un nuevo par de tokens a partir del refresh token válido.
@@ -57,4 +66,9 @@ public interface JwtManager {
      * Requiere access token en {@code Authorization: Bearer ...}.
      */
     Mono<UserProfileResponse> getCurrentUserProfile();
+
+    /**
+     * Actualiza el perfil del usuario autenticado actual.
+     */
+    Mono<UserProfileResponse> updateCurrentUserProfile(com.findu.security.dto.request.UpdateProfileDto request);
 }

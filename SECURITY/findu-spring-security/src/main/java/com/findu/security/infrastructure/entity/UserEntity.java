@@ -17,7 +17,7 @@ import java.time.LocalDateTime;
 /**
  * Entidad usuario. Restricciones de unicidad en BD: email, username, phone.
  */
-@Table("user")
+@Table("\"user\"")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -28,6 +28,8 @@ public class UserEntity {
     private Long id;
     /** Único en la tabla (puede ser null). */
     private String phone;
+    @Column("cod_phone_international")
+    private String codPhoneInternational;
     /** Único en la tabla. */
     private String username;
     private String password;
