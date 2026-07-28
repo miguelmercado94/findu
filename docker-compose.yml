@@ -30,6 +30,15 @@ services:
       - findu-internal
     ports:
       - "8761:8761"
+    environment:
+      # --- Eureka Server: config optimizada para dev local ---
+      # Eviction check cada 5s (default 60s) — detecta servicios caídos rápido
+      EUREKA_SERVER_EVICTION_INTERVAL_TIMER_IN_MS: "5000"
+      # Response cache refresh cada 5s (default 30s) — los clientes ven cambios rápido
+      EUREKA_SERVER_RESPONSE_CACHE_UPDATE_INTERVAL_MS: "5000"
+      # Deshabilitar self-preservation: en dev con pocos servicios, evictar inmediatamente
+      # EN PRODUCCIÓN: SIEMPRE debe ser true
+      EUREKA_SERVER_ENABLE_SELF_PRESERVATION: "false"
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8761/actuator/health || exit 1"]
       interval: 10s
@@ -49,6 +58,10 @@ services:
       - "8080:8080"
     environment:
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      # Registry fetch cada 5s (default 30s) — gateway descubre servicios rápido
+      EUREKA_CLIENT_REGISTRY_FETCH_INTERVAL_SECONDS: "5"
+      # LoadBalancer cache TTL reducido (default 35s) — evita routing a instancias stale
+      SPRING_CLOUD_LOADBALANCER_CACHE_TTL: "5s"
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8080/actuator/health || exit 1"]
       interval: 10s
@@ -103,6 +116,8 @@ services:
   findu-spring-security:
     image: mmercado94/findu-spring-security:1.0.0
     container_name: findu-spring-security
+    # hostname fija para que Java detecte correctamente el nombre de host
+    # y Eureka lo registre con este valor (resuelto via DNS Docker)
     hostname: findu-spring-security
     depends_on:
       eureka-server:
@@ -117,15 +132,25 @@ services:
       SPRING_R2DBC_USERNAME: findu
       SPRING_R2DBC_PASSWORD: findu
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
-      # Eureka — forzar que se registre con el hostname DNS de Docker Compose
+      # --- EUREKA INSTANCE: hostname-based registration (CLAVE para Docker) ---
+      # prefer-ip-address=false → Eureka registra el hostname, no la IP
+      # hostname=findu-spring-security → coincide con el DNS de Docker Compose
+      # El gateway resuelve este hostname via DNS interno de Docker → IP correcta siempre
       EUREKA_INSTANCE_PREFER_IP_ADDRESS: "false"
       EUREKA_INSTANCE_HOSTNAME: findu-spring-security
-      # JWT — misma clave para generar y validar tokens
+      # Heartbeat cada 5s (default 30s) — Eureka sabe rápido que estamos vivos
+      EUREKA_INSTANCE_LEASE_RENEWAL_INTERVAL_IN_SECONDS: "5"
+      # Si no hay heartbeat en 15s (default 90s), Eureka nos da de baja
+      EUREKA_INSTANCE_LEASE_EXPIRATION_DURATION_IN_SECONDS: "15"
+      # Fetch del registry cada 5s
+      EUREKA_CLIENT_REGISTRY_FETCH_INTERVAL_SECONDS: "5"
+      # --- JWT ---
       JWT_SECRET: ZmluZHUtZGVmYXVsdC1zZWNyZXQta2V5LWF0LWxlYXN0LTI1Ni1iaXRzLWZvci1oczI1Ng==
       JWT_ACCESS_EXPIRATION_SECONDS: "3600"
       JWT_REFRESH_EXPIRATION_SECONDS: "604800"
-      # Issuer URI — apunta al authorization-server dentro de la red Docker
+      # --- Issuer URI (red interna) ---
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://autorization-server-oauth2:9595/authorization-server
+      # --- Features deshabilitados en dev ---
       FINDU_REDIS_ENABLED: "false"
       FINDU_AWS_DYNAMODB_ENABLED: "false"
       MANAGEMENT_HEALTH_REDIS_ENABLED: "false"
@@ -155,8 +180,13 @@ services:
       SPRING_DATASOURCE_USERNAME: findu_oauth2
       SPRING_DATASOURCE_PASSWORD: findu_oauth2_password
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      # --- EUREKA INSTANCE: hostname-based (mismo patrón) ---
       EUREKA_INSTANCE_PREFER_IP_ADDRESS: "false"
       EUREKA_INSTANCE_HOSTNAME: findu-autorization-server-oauth2
+      EUREKA_INSTANCE_LEASE_RENEWAL_INTERVAL_IN_SECONDS: "5"
+      EUREKA_INSTANCE_LEASE_EXPIRATION_DURATION_IN_SECONDS: "15"
+      EUREKA_CLIENT_REGISTRY_FETCH_INTERVAL_SECONDS: "5"
+      # --- Comunicación interna ---
       FINDU_SECURITY_API_BASE_URL: http://findu-spring-security:8081/security-auth
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:9595/authorization-server/actuator/health || exit 1"]

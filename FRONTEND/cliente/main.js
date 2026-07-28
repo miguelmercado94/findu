@@ -89,6 +89,12 @@ async function fetchProfile(retries = 3) {
 
       const data = await safeParseJson(res);
       state.profile = data;
+      // Si el perfil no tiene teléfono y hay datos de Google, ir al registro
+      if (!data.phone && state.googleData) {
+        setView('register');
+        showAlert('success', 'Autenticado con Google con éxito. Por favor, completa tu teléfono para finalizar el registro.');
+        return;
+      }
       setView('profile');
       return;
     } catch (err) {
@@ -464,25 +470,30 @@ window.handleGoogleCredentialResponse = async function(response) {
       localStorage.setItem('findu_token', data.jwt);
       state.token = data.jwt;
       // Verificar si el perfil tiene teléfono (registro completo)
-      try {
-        const profileRes = await fetch(`${API_GATEWAY_URL}/security-auth/api/v1/profile`, {
-          headers: { 'Authorization': `Bearer ${state.token}` }
-        });
-        if (profileRes.ok) {
-          const profile = await safeParseJson(profileRes);
-          if (profile.phone) {
-            // Usuario completo, ir directo al perfil
-            state.profile = profile;
-            setView('profile');
-          } else {
-            // Usuario sin teléfono — necesita completar registro
-            setView('register');
-            showAlert('success', 'Autenticado con Google con éxito. Por favor, completa tu teléfono para finalizar el registro.');
+      let profile = null;
+      for (let pAttempt = 1; pAttempt <= 3; pAttempt++) {
+        try {
+          const profileRes = await fetch(`${API_GATEWAY_URL}/security-auth/api/v1/profile`, {
+            headers: { 'Authorization': `Bearer ${state.token}` }
+          });
+          if (profileRes.ok) {
+            profile = await safeParseJson(profileRes);
+            break;
           }
-        } else {
-          fetchProfile();
-        }
-      } catch (e) {
+        } catch (e) { /* retry */ }
+        await new Promise(r => setTimeout(r, 2000));
+      }
+
+      if (profile && profile.phone) {
+        state.profile = profile;
+        state.googleData = null;
+        setView('profile');
+      } else if (profile && !profile.phone) {
+        setView('register');
+        showAlert('success', 'Autenticado con Google con éxito. Por favor, completa tu teléfono para finalizar el registro.');
+      } else {
+        // No se pudo verificar el perfil, pero el login fue exitoso — ir al perfil
+        state.googleData = null;
         fetchProfile();
       }
     } else {
