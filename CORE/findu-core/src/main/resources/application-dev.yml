@@ -1,0 +1,33 @@
+# =====================================================================
+# Perfil DEV: PostgreSQL local o Docker.
+# Schema se recrea en cada arranque (create-drop) + data.sql de semilla.
+# Usado en Docker Compose para desarrollo integrado.
+# =====================================================================
+
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5433/findu_core}
+    username: ${SPRING_DATASOURCE_USERNAME:findu_core}
+    password: ${SPRING_DATASOURCE_PASSWORD:findu_core}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+    defer-datasource-initialization: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  sql:
+    init:
+      mode: always
+      data-locations: classpath:db/postgres/data.sql
+
+logging:
+  level:
+    root: INFO
+    com.findu.core: DEBUG
+    org.springframework.web: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.orm.jdbc.bind: TRACE

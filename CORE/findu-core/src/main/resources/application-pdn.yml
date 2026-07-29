@@ -1,0 +1,41 @@
+# =====================================================================
+# Perfil PDN (Producción): PostgreSQL gestionado.
+# Schema administrado por migraciones (Flyway/Liquibase), NO por Hibernate.
+# Logs mínimos, sin exposición de SQL ni consolas de debug.
+# =====================================================================
+
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      idle-timeout: 30000
+      max-lifetime: 1800000
+      connection-timeout: 10000
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  sql:
+    init:
+      mode: never
+
+management:
+  endpoint:
+    health:
+      show-details: when_authorized
+
+logging:
+  level:
+    root: WARN
+    com.findu.core: INFO
+    org.hibernate.SQL: WARN
+    org.springframework.web: WARN

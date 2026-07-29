@@ -1,0 +1,39 @@
+# =====================================================================
+# FINDU Core — Configuración base (común a todos los perfiles)
+# Perfil activo: local | dev | test | pdn
+# =====================================================================
+
+server:
+  port: 8082
+  servlet:
+    context-path: /findu-core
+
+spring:
+  application:
+    name: findu-core
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
+
+eureka:
+  instance:
+    prefer-ip-address: true
+  client:
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://localhost:8761/eureka/}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+logging:
+  level:
+    root: ${LOG_LEVEL_ROOT:INFO}
+    com.findu.core: ${LOG_LEVEL_FINDU_CORE:INFO}
