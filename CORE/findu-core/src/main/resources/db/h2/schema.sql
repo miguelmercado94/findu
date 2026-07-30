@@ -55,6 +55,8 @@ CREATE TABLE servicio (
 CREATE TABLE perfil_cliente (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     auth_user_id BIGINT NOT NULL UNIQUE,
+    username VARCHAR(50) NOT NULL UNIQUE,
+    email VARCHAR(150) NOT NULL UNIQUE,
     nombre_completo VARCHAR(200) NOT NULL,
     numero_identificacion VARCHAR(30) NOT NULL,
     tipo_identificacion VARCHAR(20) NOT NULL,

@@ -7,6 +7,8 @@ import java.math.BigDecimal;
 @Schema(description = "Respuesta resumida del perfil de cliente")
 public record PerfilClienteResponse(
         @Schema(description = "ID del perfil") Long id,
+        @Schema(description = "Nombre de usuario") String username,
+        @Schema(description = "Correo electrónico") String email,
         @Schema(description = "Nombre completo") String nombreCompleto,
         @Schema(description = "Celular") String celular,
         @Schema(description = "Código telefónico internacional") String codPhoneInternational,

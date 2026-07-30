@@ -9,6 +9,8 @@ import java.util.List;
 @Schema(description = "Respuesta detallada del perfil de cliente")
 public record PerfilClienteDetalleResponse(
         @Schema(description = "ID del perfil") Long id,
+        @Schema(description = "Nombre de usuario") String username,
+        @Schema(description = "Correo electrónico") String email,
         @Schema(description = "Nombre completo") String nombreCompleto,
         @Schema(description = "Número de identificación") String numeroIdentificacion,
         @Schema(description = "Tipo de identificación") String tipoIdentificacion,

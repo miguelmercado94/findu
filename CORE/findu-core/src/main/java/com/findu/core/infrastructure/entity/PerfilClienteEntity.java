@@ -27,6 +27,12 @@ public class PerfilClienteEntity {
     @Column(name = "auth_user_id", nullable = false, unique = true)
     private Long authUserId;
 
+    @Column(nullable = false, unique = true)
+    private String username;
+
+    @Column(nullable = false, unique = true)
+    private String email;
+
     @Column(name = "nombre_completo", nullable = false)
     private String nombreCompleto;
 
@@ -54,7 +60,7 @@ public class PerfilClienteEntity {
 
     @Column(nullable = false)
     @Builder.Default
-    private String estado = "ACTIVO";
+    private String estado = "INCOMPLETO";
 
     @CreatedDate
     @Column(name = "created_at", updatable = false)

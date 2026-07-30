@@ -11,6 +11,7 @@ import com.findu.core.dto.response.DireccionResponse;
 import com.findu.core.dto.response.PerfilClienteDetalleResponse;
 import com.findu.core.dto.response.PerfilClienteResponse;
 import com.findu.core.exception.ResourceNotFoundException;
+import com.findu.core.domain.model.constants.EstadoPerfil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,6 +37,8 @@ public class GestionPerfilClienteUseCaseImpl implements GestionPerfilClienteUseC
 
         PerfilCliente perfil = PerfilCliente.builder()
                 .authUserId(request.authUserId())
+                .username(request.username())
+                .email(request.email())
                 .nombreCompleto(request.nombreCompleto())
                 .numeroIdentificacion(request.numeroIdentificacion())
                 .tipoIdentificacion(request.tipoIdentificacion())
@@ -43,7 +46,7 @@ public class GestionPerfilClienteUseCaseImpl implements GestionPerfilClienteUseC
                 .sexo(request.sexo())
                 .celular(request.celular())
                 .codPhoneInternational(request.codPhoneInternational())
-                .estado("ACTIVO")
+                .estado(EstadoPerfil.INCOMPLETO)
                 .build();
 
         PerfilCliente saved = perfilClienteService.save(perfil);
@@ -62,6 +65,8 @@ public class GestionPerfilClienteUseCaseImpl implements GestionPerfilClienteUseC
 
         return new PerfilClienteDetalleResponse(
                 perfil.getId(),
+                perfil.getUsername(),
+                perfil.getEmail(),
                 perfil.getNombreCompleto(),
                 perfil.getNumeroIdentificacion(),
                 perfil.getTipoIdentificacion(),
@@ -102,8 +107,9 @@ public class GestionPerfilClienteUseCaseImpl implements GestionPerfilClienteUseC
 
     private PerfilClienteResponse toResponse(PerfilCliente p) {
         return new PerfilClienteResponse(
-                p.getId(), p.getNombreCompleto(), p.getCelular(), p.getCodPhoneInternational(),
-                p.getSexo(), p.getUrlImagenPerfil(), p.getCalificacionPromedio(), p.getEstado()
+                p.getId(), p.getUsername(), p.getEmail(), p.getNombreCompleto(), p.getCelular(),
+                p.getCodPhoneInternational(), p.getSexo(), p.getUrlImagenPerfil(),
+                p.getCalificacionPromedio(), p.getEstado()
         );
     }
 

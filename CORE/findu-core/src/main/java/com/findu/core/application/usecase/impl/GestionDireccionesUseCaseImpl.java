@@ -1,9 +1,13 @@
 package com.findu.core.application.usecase.impl;
 
 import com.findu.core.application.service.DireccionService;
+import com.findu.core.application.service.PerfilClienteService;
 import com.findu.core.application.usecase.GestionDireccionesUseCase;
 import com.findu.core.domain.model.Direccion;
+import com.findu.core.domain.model.PerfilCliente;
+import com.findu.core.domain.model.constants.EstadoPerfil;
 import com.findu.core.dto.request.ActualizarDireccionRequest;
+import com.findu.core.dto.request.CrearDireccionClienteRequest;
 import com.findu.core.dto.request.CrearDireccionRequest;
 import com.findu.core.dto.response.DireccionResponse;
 import com.findu.core.exception.ResourceNotFoundException;
@@ -19,9 +23,16 @@ import java.util.List;
 public class GestionDireccionesUseCaseImpl implements GestionDireccionesUseCase {
 
     private final DireccionService direccionService;
+    private final PerfilClienteService perfilClienteService;
 
     @Override
     public DireccionResponse crearDireccion(CrearDireccionRequest request) {
+        // Validar que el perfil existe si viene perfilClienteId
+        if (request.perfilClienteId() != null) {
+            perfilClienteService.findById(request.perfilClienteId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Perfil de cliente no encontrado con id: " + request.perfilClienteId()));
+        }
+
         Direccion direccion = Direccion.builder()
                 .perfilClienteId(request.perfilClienteId())
                 .perfilProveedorId(request.perfilProveedorId())
@@ -38,6 +49,41 @@ public class GestionDireccionesUseCaseImpl implements GestionDireccionesUseCase 
                 .build();
 
         Direccion saved = direccionService.save(direccion);
+
+        // Si es dirección principal de un cliente, activar el perfil si estaba INCOMPLETO
+        if (request.perfilClienteId() != null && request.esPrincipal()) {
+            activarPerfilSiIncompleto(request.perfilClienteId());
+        }
+
+        return toResponse(saved);
+    }
+
+    @Override
+    public DireccionResponse crearDireccionCliente(Long perfilClienteId, CrearDireccionClienteRequest request) {
+        perfilClienteService.findById(perfilClienteId)
+                .orElseThrow(() -> new ResourceNotFoundException("Perfil de cliente no encontrado con id: " + perfilClienteId));
+
+        Direccion direccion = Direccion.builder()
+                .perfilClienteId(perfilClienteId)
+                .etiqueta(request.etiqueta())
+                .direccionTexto(request.direccionTexto())
+                .municipioId(request.municipioId())
+                .latitud(request.latitud())
+                .longitud(request.longitud())
+                .piso(request.piso())
+                .apartamento(request.apartamento())
+                .referencia(request.referencia())
+                .esPrincipal(request.esPrincipal())
+                .active(true)
+                .build();
+
+        Direccion saved = direccionService.save(direccion);
+
+        // Si es dirección principal, activar el perfil si estaba INCOMPLETO
+        if (request.esPrincipal()) {
+            activarPerfilSiIncompleto(perfilClienteId);
+        }
+
         return toResponse(saved);
     }
 
@@ -63,6 +109,15 @@ public class GestionDireccionesUseCaseImpl implements GestionDireccionesUseCase 
     public void eliminarDireccion(Long id) {
         Direccion direccion = direccionService.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Dirección no encontrada con id: " + id));
+
+        // Validar que no sea la última dirección del cliente
+        if (direccion.getPerfilClienteId() != null) {
+            long count = direccionService.countByClienteId(direccion.getPerfilClienteId());
+            if (count <= 1) {
+                throw new IllegalStateException("No se puede eliminar la única dirección del cliente. Debe tener al menos una.");
+            }
+        }
+
         direccion.setActive(false);
         direccionService.save(direccion);
     }
@@ -89,6 +144,18 @@ public class GestionDireccionesUseCaseImpl implements GestionDireccionesUseCase 
         Direccion direccion = direccionService.findBySolicitudId(solicitudId)
                 .orElseThrow(() -> new ResourceNotFoundException("Dirección no encontrada para la solicitud: " + solicitudId));
         return toResponse(direccion);
+    }
+
+    /**
+     * Si el perfil está en INCOMPLETO, lo cambia a ACTIVO (ya tiene dirección principal).
+     */
+    private void activarPerfilSiIncompleto(Long perfilClienteId) {
+        perfilClienteService.findById(perfilClienteId).ifPresent(perfil -> {
+            if (EstadoPerfil.INCOMPLETO.equals(perfil.getEstado())) {
+                perfil.setEstado(EstadoPerfil.ACTIVO);
+                perfilClienteService.save(perfil);
+            }
+        });
     }
 
     private DireccionResponse toResponse(Direccion d) {

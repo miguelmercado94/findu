@@ -13,6 +13,8 @@ import java.time.LocalDate;
 public class PerfilCliente {
     private Long id;
     private Long authUserId;
+    private String username;
+    private String email;
     private String nombreCompleto;
     private String numeroIdentificacion;
     private String tipoIdentificacion;

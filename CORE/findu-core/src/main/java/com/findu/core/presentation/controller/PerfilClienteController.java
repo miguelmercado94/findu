@@ -3,6 +3,7 @@ package com.findu.core.presentation.controller;
 import com.findu.core.application.usecase.GestionDireccionesUseCase;
 import com.findu.core.application.usecase.GestionPerfilClienteUseCase;
 import com.findu.core.dto.request.ActualizarPerfilClienteRequest;
+import com.findu.core.dto.request.CrearDireccionClienteRequest;
 import com.findu.core.dto.request.CrearPerfilClienteRequest;
 import com.findu.core.dto.response.DireccionResponse;
 import com.findu.core.dto.response.PerfilClienteDetalleResponse;
@@ -106,5 +107,22 @@ public class PerfilClienteController {
             @Parameter(description = "ID del perfil de cliente", required = true, example = "1")
             @PathVariable Long id) {
         return ResponseEntity.ok(direccionesUseCase.listarDireccionesCliente(id));
+    }
+
+    @PostMapping("/{id}/direcciones")
+    @Operation(summary = "Crear dirección para el cliente", description = "Registra una nueva dirección asociada al perfil del cliente. Si es la dirección principal y el perfil está INCOMPLETO, lo activa automáticamente.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Dirección creada exitosamente",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = DireccionResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Datos de dirección inválidos", content = @Content),
+            @ApiResponse(responseCode = "404", description = "Perfil de cliente o municipio no encontrado", content = @Content),
+            @ApiResponse(responseCode = "500", description = "Error interno del servidor", content = @Content)
+    })
+    public ResponseEntity<DireccionResponse> crearDireccion(
+            @Parameter(description = "ID del perfil de cliente", required = true, example = "1")
+            @PathVariable Long id,
+            @Valid @RequestBody CrearDireccionClienteRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(direccionesUseCase.crearDireccionCliente(id, request));
     }
 }
