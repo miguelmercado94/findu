@@ -8,11 +8,12 @@ import com.findu.core.dto.request.ModificarSolicitudRequest;
 import com.findu.core.dto.response.SolicitudResponse;
 import com.findu.core.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Set;
 
 @Service
@@ -46,10 +47,13 @@ public class GestionSolicitudesUseCaseImpl implements GestionSolicitudesUseCase 
 
     @Override
     @Transactional(readOnly = true)
-    public List<SolicitudResponse> consultarHistorial(Long clienteId) {
-        return solicitudService.findByClienteId(clienteId).stream()
-                .map(this::toResponse)
-                .toList();
+    public Page<SolicitudResponse> consultarHistorial(Long clienteId, String estado, Pageable pageable) {
+        if (estado != null && !estado.isBlank()) {
+            return solicitudService.findByClienteIdAndEstado(clienteId, estado.toUpperCase(), pageable)
+                    .map(this::toResponse);
+        }
+        return solicitudService.findByClienteId(clienteId, pageable)
+                .map(this::toResponse);
     }
 
     @Override
@@ -81,13 +85,12 @@ public class GestionSolicitudesUseCaseImpl implements GestionSolicitudesUseCase 
             throw new IllegalStateException("No se puede cancelar una solicitud en estado: " + solicitud.getEstadoSolicitud());
         }
 
-        // Regla de penalización: si la fecha programada es en menos de 8 horas
         if ("PROGRAMADA".equals(solicitud.getEstadoSolicitud()) &&
                 solicitud.getFechaProgramada() != null &&
                 solicitud.getFechaProgramada().isBefore(LocalDateTime.now().plusHours(8))) {
-            solicitud.setEstadoSolicitud("CANCELADA_CON_PENALIZACION");
+            solicitud.setEstadoSolicitud("CANCELADA_CON_PENALIDAD");
         } else {
-            solicitud.setEstadoSolicitud("CANCELADA");
+            solicitud.setEstadoSolicitud("CANCELADA_SIN_PENALIDAD");
         }
 
         SolicitudServicio updated = solicitudService.save(solicitud);

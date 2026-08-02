@@ -4,7 +4,6 @@ import com.findu.core.application.service.DireccionService;
 import com.findu.core.application.service.PerfilClienteService;
 import com.findu.core.application.usecase.GestionDireccionesUseCase;
 import com.findu.core.domain.model.Direccion;
-import com.findu.core.domain.model.PerfilCliente;
 import com.findu.core.domain.model.constants.EstadoPerfil;
 import com.findu.core.dto.request.ActualizarDireccionRequest;
 import com.findu.core.dto.request.CrearDireccionClienteRequest;
@@ -27,10 +26,17 @@ public class GestionDireccionesUseCaseImpl implements GestionDireccionesUseCase 
 
     @Override
     public DireccionResponse crearDireccion(CrearDireccionRequest request) {
-        // Validar que el perfil existe si viene perfilClienteId
         if (request.perfilClienteId() != null) {
             perfilClienteService.findById(request.perfilClienteId())
                     .orElseThrow(() -> new ResourceNotFoundException("Perfil de cliente no encontrado con id: " + request.perfilClienteId()));
+
+            // Validar etiqueta única
+            validarEtiquetaUnica(request.perfilClienteId(), request.etiqueta(), null);
+
+            // Si es principal, quitar principal a la anterior
+            if (request.esPrincipal()) {
+                quitarPrincipalAnterior(request.perfilClienteId());
+            }
         }
 
         Direccion direccion = Direccion.builder()
@@ -50,7 +56,6 @@ public class GestionDireccionesUseCaseImpl implements GestionDireccionesUseCase 
 
         Direccion saved = direccionService.save(direccion);
 
-        // Si es dirección principal de un cliente, activar el perfil si estaba INCOMPLETO
         if (request.perfilClienteId() != null && request.esPrincipal()) {
             activarPerfilSiIncompleto(request.perfilClienteId());
         }
@@ -62,6 +67,14 @@ public class GestionDireccionesUseCaseImpl implements GestionDireccionesUseCase 
     public DireccionResponse crearDireccionCliente(Long perfilClienteId, CrearDireccionClienteRequest request) {
         perfilClienteService.findById(perfilClienteId)
                 .orElseThrow(() -> new ResourceNotFoundException("Perfil de cliente no encontrado con id: " + perfilClienteId));
+
+        // Validar etiqueta única para este cliente
+        validarEtiquetaUnica(perfilClienteId, request.etiqueta(), null);
+
+        // Si es principal, quitar principal a la anterior
+        if (request.esPrincipal()) {
+            quitarPrincipalAnterior(perfilClienteId);
+        }
 
         Direccion direccion = Direccion.builder()
                 .perfilClienteId(perfilClienteId)
@@ -79,7 +92,6 @@ public class GestionDireccionesUseCaseImpl implements GestionDireccionesUseCase 
 
         Direccion saved = direccionService.save(direccion);
 
-        // Si es dirección principal, activar el perfil si estaba INCOMPLETO
         if (request.esPrincipal()) {
             activarPerfilSiIncompleto(perfilClienteId);
         }
@@ -91,6 +103,11 @@ public class GestionDireccionesUseCaseImpl implements GestionDireccionesUseCase 
     public DireccionResponse actualizarDireccion(Long id, ActualizarDireccionRequest request) {
         Direccion direccion = direccionService.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Dirección no encontrada con id: " + id));
+
+        // Validar etiqueta única si se está cambiando
+        if (request.etiqueta() != null && direccion.getPerfilClienteId() != null) {
+            validarEtiquetaUnica(direccion.getPerfilClienteId(), request.etiqueta(), id);
+        }
 
         if (request.etiqueta() != null) direccion.setEtiqueta(request.etiqueta());
         if (request.direccionTexto() != null) direccion.setDireccionTexto(request.direccionTexto());
@@ -110,12 +127,9 @@ public class GestionDireccionesUseCaseImpl implements GestionDireccionesUseCase 
         Direccion direccion = direccionService.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Dirección no encontrada con id: " + id));
 
-        // Validar que no sea la última dirección del cliente
-        if (direccion.getPerfilClienteId() != null) {
-            long count = direccionService.countByClienteId(direccion.getPerfilClienteId());
-            if (count <= 1) {
-                throw new IllegalStateException("No se puede eliminar la única dirección del cliente. Debe tener al menos una.");
-            }
+        // No se puede eliminar la dirección principal
+        if (direccion.isEsPrincipal()) {
+            throw new IllegalStateException("No se puede eliminar la dirección principal. Cambia la principal a otra dirección primero.");
         }
 
         direccion.setActive(false);
@@ -144,6 +158,55 @@ public class GestionDireccionesUseCaseImpl implements GestionDireccionesUseCase 
         Direccion direccion = direccionService.findBySolicitudId(solicitudId)
                 .orElseThrow(() -> new ResourceNotFoundException("Dirección no encontrada para la solicitud: " + solicitudId));
         return toResponse(direccion);
+    }
+
+    @Override
+    public DireccionResponse marcarComoPrincipal(Long direccionId) {
+        Direccion direccion = direccionService.findById(direccionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Dirección no encontrada con id: " + direccionId));
+
+        if (direccion.getPerfilClienteId() == null) {
+            throw new IllegalStateException("Solo se puede marcar como principal una dirección de cliente.");
+        }
+
+        // Quitar principal a la anterior
+        quitarPrincipalAnterior(direccion.getPerfilClienteId());
+
+        // Marcar la nueva como principal
+        direccion.setEsPrincipal(true);
+        Direccion updated = direccionService.save(direccion);
+        return toResponse(updated);
+    }
+
+    // ─── Reglas de negocio ────────────────────────────────────────────────────
+
+    /**
+     * Valida que la etiqueta no exista ya para el mismo cliente.
+     * @param excludeDireccionId ID de dirección a excluir (para updates), null para creates
+     */
+    private void validarEtiquetaUnica(Long perfilClienteId, String etiqueta, Long excludeDireccionId) {
+        if (etiqueta == null || etiqueta.isBlank()) return;
+
+        List<Direccion> direcciones = direccionService.findByClienteId(perfilClienteId);
+        boolean existeDuplicada = direcciones.stream()
+                .filter(d -> !d.getId().equals(excludeDireccionId))
+                .anyMatch(d -> etiqueta.equalsIgnoreCase(d.getEtiqueta()));
+
+        if (existeDuplicada) {
+            throw new IllegalStateException("Ya existe una dirección con la etiqueta '" + etiqueta + "' para este cliente.");
+        }
+    }
+
+    /**
+     * Quita el flag esPrincipal de la dirección principal actual del cliente.
+     */
+    private void quitarPrincipalAnterior(Long perfilClienteId) {
+        direccionService.findByClienteId(perfilClienteId).stream()
+                .filter(Direccion::isEsPrincipal)
+                .forEach(d -> {
+                    d.setEsPrincipal(false);
+                    direccionService.save(d);
+                });
     }
 
     /**

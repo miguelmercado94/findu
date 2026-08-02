@@ -1,0 +1,13 @@
+# Local: RabbitMQ en Docker (o mock), sin Firebase/AWS real
+findu:
+  notification:
+    firebase:
+      credentials-path: ""
+    aws:
+      sns:
+        enabled: false
+
+logging:
+  level:
+    com.findu.notification: DEBUG
+    org.springframework.amqp: DEBUG

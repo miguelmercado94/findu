@@ -58,11 +58,11 @@ public class DireccionController {
     }
 
     @DeleteMapping("/{id}")
-    @Operation(summary = "Eliminar dirección", description = "Desactiva una dirección (eliminación lógica)")
+    @Operation(summary = "Eliminar dirección", description = "Desactiva una dirección. No se puede eliminar la dirección principal.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "204", description = "Dirección eliminada exitosamente"),
             @ApiResponse(responseCode = "404", description = "Dirección no encontrada", content = @Content),
-            @ApiResponse(responseCode = "409", description = "No se puede eliminar la dirección porque está asociada a solicitudes activas", content = @Content),
+            @ApiResponse(responseCode = "409", description = "No se puede eliminar la dirección principal", content = @Content),
             @ApiResponse(responseCode = "500", description = "Error interno del servidor", content = @Content)
     })
     public ResponseEntity<Void> eliminarDireccion(
@@ -70,6 +70,20 @@ public class DireccionController {
             @PathVariable Long id) {
         direccionesUseCase.eliminarDireccion(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{id}/principal")
+    @Operation(summary = "Marcar como dirección principal", description = "Establece esta dirección como la principal del cliente. La anterior principal pierde ese estado.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Dirección marcada como principal",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = DireccionResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Dirección no encontrada", content = @Content),
+            @ApiResponse(responseCode = "500", description = "Error interno del servidor", content = @Content)
+    })
+    public ResponseEntity<DireccionResponse> marcarComoPrincipal(
+            @Parameter(description = "ID de la dirección", required = true, example = "2")
+            @PathVariable Long id) {
+        return ResponseEntity.ok(direccionesUseCase.marcarComoPrincipal(id));
     }
 
     @GetMapping("/{id}")

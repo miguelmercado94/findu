@@ -16,6 +16,11 @@ spring:
       idle-timeout: 30000
       max-lifetime: 1800000
       connection-timeout: 10000
+  redis:
+    host: ${SPRING_DATA_REDIS_HOST}
+    port: ${SPRING_DATA_REDIS_PORT:6379}
+    timeout: ${SPRING_DATA_REDIS_TIMEOUT:500ms}
+    connect-timeout: ${SPRING_DATA_REDIS_CONNECT_TIMEOUT:1000ms}
   jpa:
     hibernate:
       ddl-auto: none
@@ -39,3 +44,7 @@ logging:
     com.findu.core: INFO
     org.hibernate.SQL: WARN
     org.springframework.web: WARN
+
+findu:
+  cache:
+    enabled: true

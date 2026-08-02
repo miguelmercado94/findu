@@ -1,0 +1,52 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: findu-notification-processor
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+
+eureka:
+  instance:
+    prefer-ip-address: true
+  client:
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://localhost:8761/eureka/}
+
+findu:
+  notification:
+    exchange: findu.notifications
+    queue:
+      push: findu.notifications.push
+      email: findu.notifications.correo
+      sms: findu.notifications.celular
+      whatsapp: findu.notifications.whatsapp
+    templates:
+      table: ${DYNAMODB_TEMPLATES_TABLE:notification_templates}
+    firebase:
+      credentials-path: ${FIREBASE_CREDENTIALS_PATH:}
+    aws:
+      region: ${AWS_REGION:us-east-1}
+      dynamodb:
+        endpoint: ${DYNAMODB_ENDPOINT:}
+      ses:
+        from-email: ${SES_FROM_EMAIL:no-reply@findu.co}
+      sns:
+        enabled: ${SNS_ENABLED:false}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+logging:
+  level:
+    root: ${LOG_LEVEL_ROOT:INFO}
+    com.findu.notification: ${LOG_LEVEL_FINDU_NOTIFICATION:DEBUG}

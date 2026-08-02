@@ -29,3 +29,7 @@ logging:
     root: WARN
     com.findu.core: INFO
     org.hibernate.SQL: WARN
+
+findu:
+  cache:
+    enabled: false

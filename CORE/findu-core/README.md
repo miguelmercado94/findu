@@ -151,7 +151,32 @@ Respuesta 201:
 
 | HTTP | Cuándo |
 |------|--------|
-| 400 | Campos requeridos faltantes o formato inválido |
+| 400 | Campos requeridos faltantes, formato inválido, menor de 18 años |
 | 404 | Perfil, dirección o municipio no encontrado |
-| 409 | Perfil duplicado, restricción de negocio violada |
+| 409 | Perfil duplicado, restricción de estado violada |
 | 500 | Error interno inesperado |
+
+---
+
+## Reglas de Negocio Implementadas
+
+- El perfil se crea en estado `INCOMPLETO` hasta que se registre una dirección principal.
+- Solo se puede actualizar el perfil (PUT) mientras esté en estado `INCOMPLETO`. Después de `ACTIVO`, solo soporte/admin podrá modificarlo.
+- Se valida mayoría de edad (≥18 años) al crear el perfil.
+- No se puede eliminar la última dirección de un cliente.
+- La dirección principal activa automáticamente el perfil.
+
+---
+
+## Reglas de Negocio Futuras (pendientes de implementar)
+
+- **Actualización de perfil ACTIVO por admin/soporte:** Una vez que el perfil está ACTIVO, solo un administrador o agente de soporte podrá modificar los datos del perfil (nombre, imagen, datos sensibles). Requiere integración con el microservicio `findu-admin` y validación de roles.
+- **Datos sensibles con OTP:** La modificación de correo electrónico o celular requerirá validación OTP enviada al nuevo dato antes de persistir el cambio.
+- **Datos de identidad inmutables para el cliente:** `fecha_nacimiento`, `numero_identificacion` y `tipo_identificacion` solo podrán ser modificados por un administrador previa validación de documentos físicos.
+- **Desactivación con validación de solicitudes:** Al intentar desactivar un perfil, validar que no tenga solicitudes en estados ABIERTA, PROGRAMADA o EN_CURSO. Si existen, rechazar la operación.
+- **Eliminación definitiva (DELETE):** Solo disponible para administradores (derecho al olvido). No expuesto a clientes.
+- **Servicio de almacenamiento de imágenes (findu-s3-servicios):** Microservicio independiente conectado a Eureka que gestiona subida/consulta de archivos a S3. Interfaz:
+  - `POST /api/v1/files` → body: `{ bucket, fileName, fileBase64 }` → respuesta: `{ url }`
+  - `GET /api/v1/files?url={url}` → respuesta: `{ fileBase64 }`
+  - `findu-core` se comunicará via WebClient + load balancer (`lb://FINDU-S3-SERVICIOS`)
+  - Port preparado: `StorageServicePort` (actualmente stub, retorna null)

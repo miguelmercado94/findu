@@ -11,6 +11,7 @@ import com.findu.core.dto.response.DireccionResponse;
 import com.findu.core.dto.response.PerfilClienteDetalleResponse;
 import com.findu.core.dto.response.PerfilClienteResponse;
 import com.findu.core.exception.ResourceNotFoundException;
+import com.findu.core.application.util.DateUtils;
 import com.findu.core.domain.model.constants.EstadoPerfil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -34,6 +35,8 @@ public class GestionPerfilClienteUseCaseImpl implements GestionPerfilClienteUseC
         if (perfilClienteService.existsByNumeroIdentificacion(request.numeroIdentificacion())) {
             throw new IllegalStateException("Ya existe un perfil con este número de identificación.");
         }
+
+        DateUtils.validarMayorDeEdad(request.fechaNacimiento());
 
         PerfilCliente perfil = PerfilCliente.builder()
                 .authUserId(request.authUserId())
@@ -85,6 +88,10 @@ public class GestionPerfilClienteUseCaseImpl implements GestionPerfilClienteUseC
     public PerfilClienteResponse actualizarPerfil(Long id, ActualizarPerfilClienteRequest request) {
         PerfilCliente perfil = perfilClienteService.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Perfil de cliente no encontrado con id: " + id));
+
+        if (!EstadoPerfil.INCOMPLETO.equals(perfil.getEstado())) {
+            throw new IllegalStateException("Solo se puede actualizar el perfil mientras esté en estado INCOMPLETO. Estado actual: " + perfil.getEstado());
+        }
 
         if (request.nombreCompleto() != null) {
             perfil.setNombreCompleto(request.nombreCompleto());

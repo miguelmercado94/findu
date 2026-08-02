@@ -4,6 +4,7 @@ import com.findu.core.application.usecase.GestionPerfilProveedorUseCase;
 import com.findu.core.dto.request.ActualizarPerfilProveedorRequest;
 import com.findu.core.dto.request.CrearPerfilProveedorRequest;
 import com.findu.core.dto.response.PerfilProveedorDetalleResponse;
+import com.findu.core.dto.response.PerfilProveedorPublicoResponse;
 import com.findu.core.dto.response.PerfilProveedorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -105,5 +106,21 @@ public class PerfilProveedorController {
             @RequestBody List<String> codigosDane) {
         proveedorUseCase.actualizarCobertura(id, codigosDane);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{id}/publico")
+    @Operation(summary = "Ver perfil público del proveedor (vista cliente)", description = "Muestra el perfil del proveedor filtrado por servicio: nombre, calificación, especialidad relevante y portafolio. No expone datos sensibles.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Perfil público del proveedor",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = PerfilProveedorPublicoResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Proveedor no encontrado", content = @Content),
+            @ApiResponse(responseCode = "500", description = "Error interno del servidor", content = @Content)
+    })
+    public ResponseEntity<PerfilProveedorPublicoResponse> consultarPerfilPublico(
+            @Parameter(description = "ID del perfil de proveedor", required = true, example = "1")
+            @PathVariable Long id,
+            @Parameter(description = "ID del servicio para filtrar la especialidad mostrada", required = true, example = "3")
+            @RequestParam Long servicioId) {
+        return ResponseEntity.ok(proveedorUseCase.consultarPerfilPublico(id, servicioId));
     }
 }

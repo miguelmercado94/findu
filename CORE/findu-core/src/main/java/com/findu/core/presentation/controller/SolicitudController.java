@@ -17,6 +17,9 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -50,17 +53,23 @@ public class SolicitudController {
     }
 
     @GetMapping("/cliente/{clienteId}")
-    @Operation(summary = "Consultar historial de solicitudes", description = "Obtiene todas las solicitudes realizadas por un cliente")
+    @Operation(summary = "Consultar historial de solicitudes (paginado)", description = "Obtiene las solicitudes de un cliente con paginación, filtrable por estado. Por defecto muestra las ABIERTAS.")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Historial de solicitudes obtenido exitosamente",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = SolicitudResponse.class))),
+            @ApiResponse(responseCode = "200", description = "Historial de solicitudes obtenido exitosamente"),
             @ApiResponse(responseCode = "404", description = "Cliente no encontrado", content = @Content),
             @ApiResponse(responseCode = "500", description = "Error interno del servidor", content = @Content)
     })
-    public ResponseEntity<List<SolicitudResponse>> consultarHistorial(
+    public ResponseEntity<Page<SolicitudResponse>> consultarHistorial(
             @Parameter(description = "ID del perfil de cliente", required = true, example = "1")
-            @PathVariable Long clienteId) {
-        return ResponseEntity.ok(solicitudesUseCase.consultarHistorial(clienteId));
+            @PathVariable Long clienteId,
+            @Parameter(description = "Filtrar por estado (ABIERTA, EN_NEGOCIACION, PROGRAMADA, EN_CURSO, FINALIZADA, CANCELADA_SIN_PENALIDAD, CANCELADA_CON_PENALIDAD). Si no se envía, muestra ABIERTA.", example = "ABIERTA")
+            @RequestParam(defaultValue = "ABIERTA") String estado,
+            @Parameter(description = "Número de página (0-based)", example = "0")
+            @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "Tamaño de página", example = "10")
+            @RequestParam(defaultValue = "10") int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        return ResponseEntity.ok(solicitudesUseCase.consultarHistorial(clienteId, estado, pageable));
     }
 
     @PutMapping("/{id}")

@@ -24,6 +24,15 @@ spring:
       mode: always
       data-locations: classpath:db/postgres/data.sql
 
+  redis:
+    host: ${SPRING_DATA_REDIS_HOST:localhost}
+    port: ${SPRING_DATA_REDIS_PORT:6379}
+    timeout: ${SPRING_DATA_REDIS_TIMEOUT:300ms}
+
+findu:
+  cache:
+    enabled: ${FINDU_CACHE_ENABLED:true}
+
 logging:
   level:
     root: INFO

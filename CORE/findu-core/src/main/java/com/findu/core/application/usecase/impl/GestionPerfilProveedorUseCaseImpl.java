@@ -4,15 +4,19 @@ import com.findu.core.application.port.output.persistence.MunicipioRepositoryPor
 import com.findu.core.application.service.DireccionService;
 import com.findu.core.application.service.PerfilEspecialistaService;
 import com.findu.core.application.service.PerfilProveedorService;
+import com.findu.core.application.service.PortafolioService;
 import com.findu.core.application.service.ProveedorCoberturaService;
 import com.findu.core.application.usecase.GestionPerfilProveedorUseCase;
 import com.findu.core.domain.model.*;
 import com.findu.core.dto.request.ActualizarPerfilProveedorRequest;
 import com.findu.core.dto.request.CrearPerfilProveedorRequest;
 import com.findu.core.dto.response.DireccionResponse;
+import com.findu.core.dto.response.PerfilEspecialistaDetalleResponse;
 import com.findu.core.dto.response.PerfilEspecialistaResponse;
 import com.findu.core.dto.response.PerfilProveedorDetalleResponse;
+import com.findu.core.dto.response.PerfilProveedorPublicoResponse;
 import com.findu.core.dto.response.PerfilProveedorResponse;
+import com.findu.core.dto.response.PortafolioItemResponse;
 import com.findu.core.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -29,6 +33,7 @@ public class GestionPerfilProveedorUseCaseImpl implements GestionPerfilProveedor
     private final PerfilProveedorService perfilProveedorService;
     private final PerfilEspecialistaService perfilEspecialistaService;
     private final DireccionService direccionService;
+    private final PortafolioService portafolioService;
     private final ProveedorCoberturaService coberturaService;
     private final MunicipioRepositoryPort municipioPort;
 
@@ -76,6 +81,43 @@ public class GestionPerfilProveedorUseCaseImpl implements GestionPerfilProveedor
                 perfil.getCelular(), perfil.getCodPhoneInternational(), perfil.getUrlImagenPerfil(),
                 perfil.getCalificacionPromedio(), perfil.getEstado(), perfil.getEstadoVerificacion(),
                 especialidades, direcciones
+        );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PerfilProveedorPublicoResponse consultarPerfilPublico(Long proveedorId, Long servicioId) {
+        PerfilProveedor perfil = perfilProveedorService.findById(proveedorId)
+                .orElseThrow(() -> new ResourceNotFoundException("Perfil de proveedor no encontrado con id: " + proveedorId));
+
+        // Buscar la especialidad correspondiente al servicio solicitado
+        PerfilEspecialista especialidad = perfilEspecialistaService.findByProveedorId(proveedorId).stream()
+                .filter(e -> e.getServicioId().equals(servicioId) && e.isActive())
+                .findFirst()
+                .orElse(null);
+
+        PerfilEspecialistaDetalleResponse especialidadResponse = null;
+        List<PortafolioItemResponse> portafolioResponse = List.of();
+
+        if (especialidad != null) {
+            especialidadResponse = new PerfilEspecialistaDetalleResponse(
+                    null,
+                    especialidad.getDescripcion(),
+                    especialidad.getExperienciaAnios()
+            );
+
+            portafolioResponse = portafolioService.findByEspecialistaId(especialidad.getId()).stream()
+                    .map(p -> new PortafolioItemResponse(p.getId(), p.getTitulo(), p.getDescripcion(), p.getUrlImagen()))
+                    .toList();
+        }
+
+        return new PerfilProveedorPublicoResponse(
+                perfil.getNombreCompleto(),
+                perfil.getNombreCompleto(),
+                perfil.getUrlImagenPerfil(),
+                perfil.getCalificacionPromedio(),
+                especialidadResponse,
+                portafolioResponse
         );
     }
 

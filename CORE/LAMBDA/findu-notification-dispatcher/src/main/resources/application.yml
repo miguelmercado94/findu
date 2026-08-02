@@ -1,0 +1,18 @@
+spring:
+  cloud:
+    function:
+      definition: dispatchNotification
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+
+findu:
+  notification:
+    exchange: findu.notifications
+    routing-key-prefix: notification.
+    dynamodb:
+      table-name: ${DYNAMODB_TABLE:findu_notifications}
+      endpoint: ${DYNAMODB_ENDPOINT:}
+      region: ${AWS_REGION:us-east-1}

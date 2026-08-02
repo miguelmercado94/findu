@@ -1,0 +1,15 @@
+# Dev: RabbitMQ en Docker Compose, Firebase test project, LocalStack SES/SNS
+findu:
+  notification:
+    firebase:
+      credentials-path: ${FIREBASE_CREDENTIALS_PATH:/app/firebase-credentials.json}
+    aws:
+      ses:
+        endpoint: ${SES_ENDPOINT:http://localstack:4566}
+      sns:
+        endpoint: ${SNS_ENDPOINT:http://localstack:4566}
+        enabled: true
+
+logging:
+  level:
+    com.findu.notification: DEBUG

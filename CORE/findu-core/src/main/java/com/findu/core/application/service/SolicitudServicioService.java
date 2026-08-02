@@ -1,6 +1,8 @@
 package com.findu.core.application.service;
 
 import com.findu.core.domain.model.SolicitudServicio;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.Optional;
@@ -12,6 +14,10 @@ public interface SolicitudServicioService {
     Optional<SolicitudServicio> findById(Long id);
 
     List<SolicitudServicio> findByClienteId(Long perfilClienteId);
+
+    Page<SolicitudServicio> findByClienteId(Long perfilClienteId, Pageable pageable);
+
+    Page<SolicitudServicio> findByClienteIdAndEstado(Long perfilClienteId, String estado, Pageable pageable);
 
     boolean existsByClienteIdAndEstadosActivos(Long perfilClienteId, List<String> estados);
 

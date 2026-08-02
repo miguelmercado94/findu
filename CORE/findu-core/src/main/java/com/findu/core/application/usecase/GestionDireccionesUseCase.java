@@ -22,4 +22,6 @@ public interface GestionDireccionesUseCase {
     List<DireccionResponse> listarDireccionesCliente(Long clienteId);
 
     DireccionResponse obtenerDireccionSolicitud(Long solicitudId);
+
+    DireccionResponse marcarComoPrincipal(Long direccionId);
 }
