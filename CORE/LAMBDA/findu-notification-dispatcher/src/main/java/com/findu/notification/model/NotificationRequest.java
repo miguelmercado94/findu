@@ -2,6 +2,7 @@ package com.findu.notification.model;
 
 import lombok.*;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -15,7 +16,7 @@ import java.util.Map;
 @Builder
 public class NotificationRequest {
 
-    /** Tipo: EMAIL, SMS, PUSH */
+    /** Tipo: EMAIL, SMS, PUSH, WHATSAPP */
     private String type;
 
     /** Destinatario: email, teléfono o username según el tipo */
@@ -33,4 +34,7 @@ public class NotificationRequest {
 
     /** Si es PUSH: true = enviar solo cuando el usuario esté conectado (real-time), false = enviar siempre al dispositivo */
     private boolean requiresConnection;
+
+    /** Anexos (solo aplica para EMAIL). URL S3 + nombre + tipo MIME */
+    private List<Attachment> attachments;
 }

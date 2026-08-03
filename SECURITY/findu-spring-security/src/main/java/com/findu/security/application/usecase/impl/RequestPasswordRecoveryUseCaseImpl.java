@@ -1,6 +1,7 @@
 package com.findu.security.application.usecase.impl;
 
 import com.findu.security.application.port.output.EmailSenderPort;
+import com.findu.security.application.port.output.NotificationPort;
 import com.findu.security.application.port.output.persistence.PasswordRecoveryCodeRepositoryPort;
 import com.findu.security.application.port.output.persistence.PasswordRecoveryTokenRepositoryPort;
 import com.findu.security.application.service.UsuarioService;
@@ -8,12 +9,15 @@ import com.findu.security.application.usecase.RequestPasswordRecoveryUseCase;
 import com.findu.security.domain.model.PasswordRecoveryCode;
 import com.findu.security.domain.model.Usuario;
 import com.findu.security.dto.request.ForgotPasswordRequest;
+import com.findu.security.util.NotificationTemplates;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
+
+import java.util.Map;
 
 @Service
 public class RequestPasswordRecoveryUseCaseImpl implements RequestPasswordRecoveryUseCase {
@@ -24,6 +28,7 @@ public class RequestPasswordRecoveryUseCaseImpl implements RequestPasswordRecove
     private final PasswordRecoveryCodeRepositoryPort codeRepository;
     private final EmailSenderPort emailSender;
     private final PasswordEncoder passwordEncoder;
+    private final NotificationPort notificationPort;
 
     @Value("${findu.auth.reset-password-base-url:http://localhost:3000/reset-password}")
     private String resetPasswordBaseUrl;
@@ -38,12 +43,14 @@ public class RequestPasswordRecoveryUseCaseImpl implements RequestPasswordRecove
                                              PasswordRecoveryTokenRepositoryPort tokenRepository,
                                              PasswordRecoveryCodeRepositoryPort codeRepository,
                                              EmailSenderPort emailSender,
-                                             PasswordEncoder passwordEncoder) {
+                                             PasswordEncoder passwordEncoder,
+                                             NotificationPort notificationPort) {
         this.usuarioService = usuarioService;
         this.tokenRepository = tokenRepository;
         this.codeRepository = codeRepository;
         this.emailSender = emailSender;
         this.passwordEncoder = passwordEncoder;
+        this.notificationPort = notificationPort;
     }
 
     @Override
@@ -102,6 +109,14 @@ public class RequestPasswordRecoveryUseCaseImpl implements RequestPasswordRecove
 
         return codeRepository.save(recoveryCode)
                 .doOnSuccess(saved -> log.debug("Recovery code persisted for userId={} expiresAt={}", user.getId(), expiresAt))
-                .then(emailSender.sendPasswordRecoveryCode(user.getEmail(), plainCode));
+                .then(emailSender.sendPasswordRecoveryCode(user.getEmail(), plainCode))
+                .doOnSuccess(v -> {
+                    // Fire-and-forget SMS notification
+                    String phone = (user.getCodPhoneInternational() != null ? user.getCodPhoneInternational() : "") +
+                                   (user.getPhone() != null ? user.getPhone() : "");
+                    notificationPort.send("SMS", phone, NotificationTemplates.RECUPERAR_PASSWORD, "es",
+                            Map.of("user_name", user.getUsername(), "codigo", plainCode, "expiracion_minutos", String.valueOf(recoveryCodeExpiryMinutes)))
+                            .subscribe();
+                });
     }
 }

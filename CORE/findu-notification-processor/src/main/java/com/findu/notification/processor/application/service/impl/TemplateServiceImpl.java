@@ -5,6 +5,7 @@ import com.findu.notification.processor.application.service.TemplateService;
 import com.findu.notification.processor.domain.model.NotificationTemplate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
@@ -22,6 +23,7 @@ public class TemplateServiceImpl implements TemplateService {
     }
 
     @Override
+    @Cacheable(value = "notification-templates", key = "#templateCode + '#' + #channel + '#' + #language")
     public Optional<NotificationTemplate> findTemplate(String templateCode, String channel, String language) {
         log.debug("Buscando template: code={} channel={} language={}", templateCode, channel, language);
 

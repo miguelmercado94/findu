@@ -2,11 +2,12 @@ package com.findu.notification.model;
 
 import lombok.*;
 
+import java.util.List;
 import java.util.Map;
 
 /**
- * Registro de notificación para persistencia.
- * Independiente de la tecnología de almacenamiento (DynamoDB, MongoDB, etc.)
+ * Registro de notificación para persistencia y para el bus de eventos.
+ * Independiente de la tecnología de almacenamiento.
  */
 @Getter
 @Setter
@@ -18,7 +19,7 @@ public class NotificationRecord {
     /** ID único generado por la Lambda */
     private String notificationId;
 
-    /** Tipo: EMAIL, SMS, PUSH */
+    /** Tipo: EMAIL, SMS, PUSH, WHATSAPP */
     private String type;
 
     /** Destinatario */
@@ -30,11 +31,14 @@ public class NotificationRecord {
     /** Idioma */
     private String language;
 
-    /** Parámetros de la plantilla */
+    /** Parámetros de la plantilla (key-value plano) */
     private Map<String, String> params;
 
-    /** Para PUSH: true = solo enviar si el usuario está conectado (WebSocket/SSE), false = enviar siempre via FCM */
+    /** Para PUSH: true = solo enviar si el usuario está conectado */
     private boolean requiresConnection;
+
+    /** Anexos (solo para EMAIL) — URL S3 + nombre + tipo MIME */
+    private List<Attachment> attachments;
 
     /** Si se publicó exitosamente al bus de eventos */
     private boolean dispatched;

@@ -1,5 +1,6 @@
 package com.findu.security.application.usecase.impl;
 
+import com.findu.security.application.port.output.NotificationPort;
 import com.findu.security.application.port.output.persistence.PasswordRecoveryCodeRepositoryPort;
 import com.findu.security.application.port.output.persistence.PasswordRecoveryTokenRepositoryPort;
 import com.findu.security.application.port.output.persistence.UsuarioRepositoryPort;
@@ -8,11 +9,14 @@ import com.findu.security.application.usecase.ResetPasswordUseCase;
 import com.findu.security.domain.model.PasswordRecoveryToken;
 import com.findu.security.domain.model.Usuario;
 import com.findu.security.dto.request.ResetPasswordRequest;
+import com.findu.security.util.NotificationTemplates;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
+
+import java.util.Map;
 
 @Service
 public class ResetPasswordUseCaseImpl implements ResetPasswordUseCase {
@@ -23,17 +27,20 @@ public class ResetPasswordUseCaseImpl implements ResetPasswordUseCase {
     private final UsuarioRepositoryPort usuarioRepository;
     private final UsuarioService usuarioService;
     private final PasswordEncoder passwordEncoder;
+    private final NotificationPort notificationPort;
 
     public ResetPasswordUseCaseImpl(PasswordRecoveryTokenRepositoryPort tokenRepository,
                                    PasswordRecoveryCodeRepositoryPort codeRepository,
                                    UsuarioRepositoryPort usuarioRepository,
                                    UsuarioService usuarioService,
-                                   PasswordEncoder passwordEncoder) {
+                                   PasswordEncoder passwordEncoder,
+                                   NotificationPort notificationPort) {
         this.tokenRepository = tokenRepository;
         this.codeRepository = codeRepository;
         this.usuarioRepository = usuarioRepository;
         this.usuarioService = usuarioService;
         this.passwordEncoder = passwordEncoder;
+        this.notificationPort = notificationPort;
     }
 
     @Override
@@ -83,7 +90,13 @@ public class ResetPasswordUseCaseImpl implements ResetPasswordUseCase {
                 .flatMap(validCode -> {
                     String encodedPassword = passwordEncoder.encode(newPassword);
                     return usuarioRepository.updatePassword(user.getId(), encodedPassword)
-                            .doOnSuccess(v -> log.info("Password updated successfully for userId={} via code", user.getId()))
+                            .doOnSuccess(v -> {
+                                log.info("Password updated successfully for userId={} via code", user.getId());
+                                // Fire-and-forget email notification
+                                notificationPort.send("EMAIL", user.getEmail(), NotificationTemplates.PASSWORD_CAMBIADA, "es",
+                                        Map.of("user_name", user.getUsername()))
+                                        .subscribe();
+                            })
                             .then(codeRepository.markAsUsed(validCode.getId()));
                 });
     }
@@ -99,7 +112,15 @@ public class ResetPasswordUseCaseImpl implements ResetPasswordUseCase {
 
         String encodedPassword = passwordEncoder.encode(newPassword);
         return usuarioRepository.updatePassword(recoveryToken.getUserId(), encodedPassword)
-                .doOnSuccess(v -> log.info("Password updated userId={}", recoveryToken.getUserId()))
+                .doOnSuccess(v -> {
+                    log.info("Password updated userId={}", recoveryToken.getUserId());
+                    // Fire-and-forget email notification via token flow
+                    usuarioService.findById(recoveryToken.getUserId())
+                            .doOnNext(user -> notificationPort.send("EMAIL", user.getEmail(), NotificationTemplates.PASSWORD_CAMBIADA, "es",
+                                    Map.of("user_name", user.getUsername()))
+                                    .subscribe())
+                            .subscribe();
+                })
                 .then(tokenRepository.markAsUsed(recoveryToken.getToken()));
     }
 }

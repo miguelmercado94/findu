@@ -1,10 +1,12 @@
 package com.findu.core.application.usecase.impl;
 
+import com.findu.core.application.port.output.externalapi.NotificationPort;
 import com.findu.core.application.service.DireccionService;
 import com.findu.core.application.service.PerfilClienteService;
 import com.findu.core.application.usecase.GestionDireccionesUseCase;
 import com.findu.core.domain.model.Direccion;
 import com.findu.core.domain.model.constants.EstadoPerfil;
+import com.findu.core.domain.model.constants.NotificationTemplates;
 import com.findu.core.dto.request.ActualizarDireccionRequest;
 import com.findu.core.dto.request.CrearDireccionClienteRequest;
 import com.findu.core.dto.request.CrearDireccionRequest;
@@ -15,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -23,6 +26,7 @@ public class GestionDireccionesUseCaseImpl implements GestionDireccionesUseCase 
 
     private final DireccionService direccionService;
     private final PerfilClienteService perfilClienteService;
+    private final NotificationPort notificationPort;
 
     @Override
     public DireccionResponse crearDireccion(CrearDireccionRequest request) {
@@ -217,6 +221,10 @@ public class GestionDireccionesUseCaseImpl implements GestionDireccionesUseCase 
             if (EstadoPerfil.INCOMPLETO.equals(perfil.getEstado())) {
                 perfil.setEstado(EstadoPerfil.ACTIVO);
                 perfilClienteService.save(perfil);
+
+                // Send welcome notification when profile becomes ACTIVO
+                notificationPort.send("EMAIL", perfil.getEmail(), NotificationTemplates.BIENVENIDA_CLIENTE, "es",
+                        Map.of("user_name", perfil.getNombreCompleto()));
             }
         });
     }

@@ -37,3 +37,8 @@ logging:
   level:
     root: ${LOG_LEVEL_ROOT:INFO}
     com.findu.core: ${LOG_LEVEL_FINDU_CORE:INFO}
+
+findu:
+  notification:
+    enabled: ${FINDU_NOTIFICATION_ENABLED:false}
+    lambda-url: ${FINDU_NOTIFICATION_LAMBDA_URL:http://localhost:9000}

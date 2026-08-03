@@ -1,12 +1,16 @@
 package com.findu.core.application.usecase.impl;
 
+import com.findu.core.application.port.output.externalapi.NotificationPort;
 import com.findu.core.application.service.OfertaService;
+import com.findu.core.application.service.PerfilClienteService;
 import com.findu.core.application.service.PerfilProveedorService;
 import com.findu.core.application.service.SolicitudServicioService;
 import com.findu.core.application.usecase.GestionOfertasUseCase;
 import com.findu.core.domain.model.Oferta;
+import com.findu.core.domain.model.PerfilCliente;
 import com.findu.core.domain.model.PerfilProveedor;
 import com.findu.core.domain.model.SolicitudServicio;
+import com.findu.core.domain.model.constants.NotificationTemplates;
 import com.findu.core.dto.request.CrearOfertaRequest;
 import com.findu.core.dto.response.OfertaResponse;
 import com.findu.core.dto.response.SolicitudResponse;
@@ -16,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -25,6 +30,8 @@ public class GestionOfertasUseCaseImpl implements GestionOfertasUseCase {
     private final OfertaService ofertaService;
     private final SolicitudServicioService solicitudService;
     private final PerfilProveedorService proveedorService;
+    private final PerfilClienteService perfilClienteService;
+    private final NotificationPort notificationPort;
 
     @Override
     public OfertaResponse enviarOferta(CrearOfertaRequest request) {
@@ -56,6 +63,18 @@ public class GestionOfertasUseCaseImpl implements GestionOfertasUseCase {
         }
 
         Oferta saved = ofertaService.save(oferta);
+
+        // Notify client about new offer
+        PerfilProveedor proveedor = proveedorService.findById(request.perfilProveedorId()).orElse(null);
+        String proveedorNombre = proveedor != null ? proveedor.getNombreCompleto() : "Proveedor";
+        PerfilCliente cliente = perfilClienteService.findById(solicitud.getPerfilClienteId()).orElse(null);
+        if (cliente != null) {
+            notificationPort.send("PUSH", cliente.getUsername(), NotificationTemplates.OFERTA_RECIBIDA, "es",
+                    Map.of("proveedor_nombre", proveedorNombre,
+                           "valor_propuesto", saved.getValorPropuesto().toString(),
+                           "servicio_nombre", solicitud.getNombreContacto() != null ? solicitud.getNombreContacto() : ""));
+        }
+
         return toResponse(saved);
     }
 
@@ -94,6 +113,15 @@ public class GestionOfertasUseCaseImpl implements GestionOfertasUseCase {
                 .orElseThrow(() -> new ResourceNotFoundException("Solicitud no encontrada"));
         solicitud.setEstadoSolicitud("PROGRAMADA");
         solicitudService.save(solicitud);
+
+        // Notify provider that offer was accepted
+        PerfilProveedor proveedor = proveedorService.findById(oferta.getPerfilProveedorId()).orElse(null);
+        if (proveedor != null) {
+            String recipient = proveedor.getCelular() != null ? proveedor.getCelular() : proveedor.getNombreCompleto();
+            notificationPort.send("PUSH", recipient, NotificationTemplates.OFERTA_ACEPTADA, "es",
+                    Map.of("servicio_nombre", solicitud.getNombreContacto() != null ? solicitud.getNombreContacto() : "",
+                           "valor_propuesto", oferta.getValorPropuesto().toString()));
+        }
 
         return toResponse(oferta);
     }

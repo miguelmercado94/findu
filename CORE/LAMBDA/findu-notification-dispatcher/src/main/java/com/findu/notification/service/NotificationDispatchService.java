@@ -50,6 +50,7 @@ public class NotificationDispatchService {
                 .language(request.getLanguage())
                 .params(request.getParams())
                 .requiresConnection(request.isRequiresConnection())
+                .attachments(request.getAttachments())
                 .createdAt(now)
                 .build();
 

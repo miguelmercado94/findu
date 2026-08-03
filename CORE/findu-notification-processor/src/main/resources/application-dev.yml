@@ -1,11 +1,26 @@
-# Dev: RabbitMQ en Docker Compose, Firebase test project, LocalStack SES/SNS
+# Dev: RabbitMQ + Redis + LocalStack (SES, SNS, DynamoDB)
+spring:
+  rabbitmq:
+    host: ${RABBITMQ_HOST:rabbitmq}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:findu}
+    password: ${RABBITMQ_PASSWORD:findu}
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:redis}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+
 findu:
   notification:
     firebase:
-      credentials-path: ${FIREBASE_CREDENTIALS_PATH:/app/firebase-credentials.json}
+      credentials-path: ${FIREBASE_CREDENTIALS_PATH:}
     aws:
+      region: us-east-1
+      dynamodb:
+        endpoint: ${DYNAMODB_ENDPOINT:http://localstack:4566}
       ses:
         endpoint: ${SES_ENDPOINT:http://localstack:4566}
+        from-email: no-reply@findu.co
       sns:
         endpoint: ${SNS_ENDPOINT:http://localstack:4566}
         enabled: true
