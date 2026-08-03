@@ -33,6 +33,10 @@ spring:
           uri: lb://AUTORIZATION-SERVER-OAUTH2
           predicates:
             - Path=/authorization-server/**
+        - id: findu-core-route
+          uri: lb://FINDU-CORE
+          predicates:
+            - Path=/findu-core/**
 
 eureka:
   instance:
