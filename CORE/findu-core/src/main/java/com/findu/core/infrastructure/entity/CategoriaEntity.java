@@ -30,8 +30,7 @@ public class CategoriaEntity {
     @Column(name = "categoria_padre_id")
     private Long categoriaPadreId;
 
-    @Column(nullable = false)
-    private boolean active;
+    @Column(nullable = false, columnDefinition = "boolean default true")\n    @Builder.Default\n    private boolean active = true;
 
     @CreatedDate
     @Column(name = "created_at", updatable = false)
@@ -41,3 +40,4 @@ public class CategoriaEntity {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 }
+

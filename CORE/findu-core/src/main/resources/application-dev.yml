@@ -1,7 +1,6 @@
 # =====================================================================
-# Perfil DEV: PostgreSQL local o Docker.
-# Schema se recrea en cada arranque (create-drop) + data.sql de semilla.
-# Usado en Docker Compose para desarrollo integrado.
+# Perfil DEV: PostgreSQL en Docker.
+# Schema y datos controlados por SQL scripts (igual que H2 local).
 # =====================================================================
 
 spring:
@@ -12,9 +11,8 @@ spring:
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: none
     show-sql: true
-    defer-datasource-initialization: true
     properties:
       hibernate:
         format_sql: true
@@ -22,6 +20,7 @@ spring:
   sql:
     init:
       mode: always
+      schema-locations: classpath:db/postgres/schema.sql
       data-locations: classpath:db/postgres/data.sql
 
   redis:

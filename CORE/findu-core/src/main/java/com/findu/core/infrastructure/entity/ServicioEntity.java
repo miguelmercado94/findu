@@ -33,8 +33,7 @@ public class ServicioEntity {
     @Column(name = "categoria_id")
     private Long categoriaId;
 
-    @Column(nullable = false)
-    private boolean active;
+    @Column(nullable = false, columnDefinition = "boolean default true")\n    @Builder.Default\n    private boolean active = true;
 
     @CreatedDate
     @Column(name = "created_at", updatable = false)
@@ -44,3 +43,4 @@ public class ServicioEntity {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 }
+

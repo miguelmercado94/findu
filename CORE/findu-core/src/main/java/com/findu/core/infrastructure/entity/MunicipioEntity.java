@@ -25,6 +25,7 @@ public class MunicipioEntity {
     @Column(nullable = false)
     private String departamento;
 
-    @Column(nullable = false)
-    private boolean active;
+    @Column(nullable = false, columnDefinition = "boolean default true")
+    @Builder.Default
+    private boolean active = true;
 }
