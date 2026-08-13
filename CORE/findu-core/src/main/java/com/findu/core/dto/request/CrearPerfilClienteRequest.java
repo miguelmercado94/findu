@@ -37,5 +37,8 @@ public record CrearPerfilClienteRequest(
         String celular,
 
         @Schema(description = "Código telefónico internacional", example = "+57")
-        String codPhoneInternational
+        String codPhoneInternational,
+
+        @Schema(description = "URL o contenido Base64 de la imagen de perfil")
+        String urlImagenPerfil
 ) {}

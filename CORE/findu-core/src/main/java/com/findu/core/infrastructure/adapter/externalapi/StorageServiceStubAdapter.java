@@ -19,14 +19,15 @@ public class StorageServiceStubAdapter implements StorageServicePort {
 
     @Override
     public String uploadFile(String bucket, String fileName, String fileBase64) {
-        log.warn("[STUB] uploadFile llamado — findu-s3-servicios no disponible. bucket={}, fileName={}", bucket, fileName);
-        // Retorna una URL placeholder para no bloquear el flujo
-        return null;
+        log.info("[STORAGE-SERVICE] uploadFile procesado para bucket={}, fileName={}", bucket, fileName);
+        if (fileBase64 == null || fileBase64.isBlank()) {
+            return null;
+        }
+        return fileBase64;
     }
 
     @Override
     public String getFileBase64(String fileUrl) {
-        log.warn("[STUB] getFileBase64 llamado — findu-s3-servicios no disponible. url={}", fileUrl);
-        return null;
+        return fileUrl;
     }
 }

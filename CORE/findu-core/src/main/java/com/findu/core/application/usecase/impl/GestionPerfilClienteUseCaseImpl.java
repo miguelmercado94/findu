@@ -1,5 +1,6 @@
 package com.findu.core.application.usecase.impl;
 
+import com.findu.core.application.port.output.externalapi.StorageServicePort;
 import com.findu.core.application.service.DireccionService;
 import com.findu.core.application.service.PerfilClienteService;
 import com.findu.core.application.usecase.GestionPerfilClienteUseCase;
@@ -26,6 +27,7 @@ public class GestionPerfilClienteUseCaseImpl implements GestionPerfilClienteUseC
 
     private final PerfilClienteService perfilClienteService;
     private final DireccionService direccionService;
+    private final StorageServicePort storageServicePort;
 
     @Override
     public PerfilClienteResponse crearPerfil(CrearPerfilClienteRequest request) {
@@ -38,6 +40,14 @@ public class GestionPerfilClienteUseCaseImpl implements GestionPerfilClienteUseC
 
         DateUtils.validarMayorDeEdad(request.fechaNacimiento());
 
+        String imagenUrl = request.urlImagenPerfil();
+        if (imagenUrl != null && !imagenUrl.isBlank() && storageServicePort != null) {
+            String uploadedUrl = storageServicePort.uploadFile("perfiles", request.username(), imagenUrl);
+            if (uploadedUrl != null) {
+                imagenUrl = uploadedUrl;
+            }
+        }
+
         PerfilCliente perfil = PerfilCliente.builder()
                 .authUserId(request.authUserId())
                 .username(request.username())
@@ -49,6 +59,7 @@ public class GestionPerfilClienteUseCaseImpl implements GestionPerfilClienteUseC
                 .sexo(request.sexo())
                 .celular(request.celular())
                 .codPhoneInternational(request.codPhoneInternational())
+                .urlImagenPerfil(imagenUrl)
                 .estado(EstadoPerfil.INCOMPLETO)
                 .build();
 
@@ -85,6 +96,34 @@ public class GestionPerfilClienteUseCaseImpl implements GestionPerfilClienteUseC
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public PerfilClienteDetalleResponse consultarPerfilPorAuthUserId(Long authUserId) {
+        PerfilCliente perfil = perfilClienteService.findByAuthUserId(authUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("Perfil de cliente no encontrado con authUserId: " + authUserId));
+
+        List<DireccionResponse> direcciones = direccionService.findByClienteId(perfil.getId()).stream()
+                .map(this::toDireccionResponse)
+                .toList();
+
+        return new PerfilClienteDetalleResponse(
+                perfil.getId(),
+                perfil.getUsername(),
+                perfil.getEmail(),
+                perfil.getNombreCompleto(),
+                perfil.getNumeroIdentificacion(),
+                perfil.getTipoIdentificacion(),
+                perfil.getFechaNacimiento(),
+                perfil.getSexo(),
+                perfil.getCelular(),
+                perfil.getCodPhoneInternational(),
+                perfil.getUrlImagenPerfil(),
+                perfil.getCalificacionPromedio(),
+                perfil.getEstado(),
+                direcciones
+        );
+    }
+
+    @Override
     public PerfilClienteResponse actualizarPerfil(Long id, ActualizarPerfilClienteRequest request) {
         PerfilCliente perfil = perfilClienteService.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Perfil de cliente no encontrado con id: " + id));
@@ -97,7 +136,8 @@ public class GestionPerfilClienteUseCaseImpl implements GestionPerfilClienteUseC
             perfil.setNombreCompleto(request.nombreCompleto());
         }
         if (request.urlImagenPerfil() != null) {
-            perfil.setUrlImagenPerfil(request.urlImagenPerfil());
+            String uploadedUrl = storageServicePort != null ? storageServicePort.uploadFile("perfiles", perfil.getUsername(), request.urlImagenPerfil()) : null;
+            perfil.setUrlImagenPerfil(uploadedUrl != null ? uploadedUrl : request.urlImagenPerfil());
         }
 
         PerfilCliente updated = perfilClienteService.save(perfil);

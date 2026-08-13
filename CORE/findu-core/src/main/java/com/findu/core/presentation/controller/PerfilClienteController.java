@@ -63,6 +63,20 @@ public class PerfilClienteController {
         return ResponseEntity.ok(perfilClienteUseCase.consultarPerfil(id));
     }
 
+    @GetMapping("/usuario/{authUserId}")
+    @Operation(summary = "Consultar perfil de cliente por Auth User ID", description = "Obtiene el detalle completo de un perfil de cliente usando su ID de autenticación")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Perfil de cliente encontrado",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = PerfilClienteDetalleResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Perfil de cliente no encontrado", content = @Content),
+            @ApiResponse(responseCode = "500", description = "Error interno del servidor", content = @Content)
+    })
+    public ResponseEntity<PerfilClienteDetalleResponse> consultarPerfilPorAuthUserId(
+            @Parameter(description = "ID del usuario de autenticación", required = true, example = "4")
+            @PathVariable Long authUserId) {
+        return ResponseEntity.ok(perfilClienteUseCase.consultarPerfilPorAuthUserId(authUserId));
+    }
+
     @PutMapping("/{id}")
     @Operation(summary = "Actualizar perfil de cliente", description = "Actualiza los datos del perfil de un cliente existente")
     @ApiResponses(value = {

@@ -142,68 +142,54 @@ INSERT INTO categoria (nombre, descripcion) VALUES ('Transporte y Mudanzas', 'Ac
 INSERT INTO categoria (nombre, descripcion) VALUES ('Eventos', 'Organización, catering, decoración y animación de eventos');
 INSERT INTO categoria (nombre, descripcion) VALUES ('Asistencia Legal', 'Asesoría legal básica, trámites y notaría a domicilio');
 
--- Subcategorías (categoria_padre_id referencia las de arriba — IDs 1-10)
-INSERT INTO categoria (nombre, descripcion, categoria_padre_id) VALUES ('Enfermería', 'Cuidados de enfermería profesional', 1);
-INSERT INTO categoria (nombre, descripcion, categoria_padre_id) VALUES ('Fisioterapia', 'Rehabilitación física y terapia', 1);
-INSERT INTO categoria (nombre, descripcion, categoria_padre_id) VALUES ('Nutrición', 'Asesoría nutricional a domicilio', 1);
-INSERT INTO categoria (nombre, descripcion, categoria_padre_id) VALUES ('Limpieza', 'Limpieza general y profunda de espacios', 2);
-INSERT INTO categoria (nombre, descripcion, categoria_padre_id) VALUES ('Plomería', 'Reparación e instalación de tuberías', 2);
-INSERT INTO categoria (nombre, descripcion, categoria_padre_id) VALUES ('Electricidad', 'Instalaciones y reparaciones eléctricas', 2);
-INSERT INTO categoria (nombre, descripcion, categoria_padre_id) VALUES ('Pintura', 'Pintura interior y exterior', 2);
-INSERT INTO categoria (nombre, descripcion, categoria_padre_id) VALUES ('Cerrajería', 'Apertura, cambio de chapas y cerraduras', 2);
-INSERT INTO categoria (nombre, descripcion, categoria_padre_id) VALUES ('Peluquería', 'Corte, peinado y tratamientos capilares', 3);
-INSERT INTO categoria (nombre, descripcion, categoria_padre_id) VALUES ('Manicure y Pedicure', 'Cuidado y decoración de uñas', 3);
-INSERT INTO categoria (nombre, descripcion, categoria_padre_id) VALUES ('Maquillaje', 'Maquillaje profesional para eventos', 3);
-INSERT INTO categoria (nombre, descripcion, categoria_padre_id) VALUES ('Niñera', 'Cuidado de niños por horas o jornada', 4);
-INSERT INTO categoria (nombre, descripcion, categoria_padre_id) VALUES ('Cuidador Adulto Mayor', 'Acompañamiento y cuidado de adultos mayores', 4);
-INSERT INTO categoria (nombre, descripcion, categoria_padre_id) VALUES ('Soporte PC/Laptop', 'Diagnóstico y reparación de computadores', 5);
-INSERT INTO categoria (nombre, descripcion, categoria_padre_id) VALUES ('Redes e Internet', 'Configuración de redes WiFi y cableado', 5);
-INSERT INTO categoria (nombre, descripcion, categoria_padre_id) VALUES ('Instalación de Software', 'Instalación y configuración de programas', 5);
+-- ─── SERVICIOS (vinculados directamente a Categorías Principales) ─────────
 
--- ─── SERVICIOS (vinculados a subcategorías) ───────────────────────────
+-- 1. Salud y Bienestar
+INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Enfermería a Domicilio', 'Atención de enfermería profesional en casa: curaciones, inyecciones, control de signos', 'POR_HORA', 1);
+INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Cuidados Postoperatorios', 'Atención especializada post-cirugía a domicilio', 'POR_HORA', 1);
+INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Toma de Muestras', 'Extracción de sangre y muestras de laboratorio a domicilio', 'POR_SERVICIO', 1);
+INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Fisioterapia Rehabilitación', 'Sesiones de rehabilitación física muscular y articular', 'POR_SERVICIO', 1);
+INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Consulta Nutricional', 'Plan alimentario personalizado a domicilio', 'POR_SERVICIO', 1);
 
--- Salud (subcategoría IDs: 11=Enfermería, 12=Fisioterapia, 13=Nutrición)
-INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Enfermería a Domicilio', 'Atención de enfermería profesional en casa: curaciones, inyecciones, control de signos', 'POR_HORA', 11);
-INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Cuidados Postoperatorios', 'Atención especializada post-cirugía', 'POR_HORA', 11);
-INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Toma de Muestras', 'Extracción de sangre y muestras a domicilio', 'POR_SERVICIO', 11);
-INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Fisioterapia Rehabilitación', 'Sesiones de rehabilitación física muscular y articular', 'POR_SESION', 12);
-INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Fisioterapia Respiratoria', 'Terapia respiratoria para pacientes en casa', 'POR_SESION', 12);
-INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Consulta Nutricional', 'Plan alimentario personalizado a domicilio', 'POR_SERVICIO', 13);
+-- 2. Hogar
+INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Limpieza General de Hogar', 'Limpieza completa de apartamento o casa', 'POR_SERVICIO', 2);
+INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Limpieza Profunda y Desinfección', 'Desinfección profunda de espacios, muebles y alfombras', 'POR_SERVICIO', 2);
+INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Plomería y Reparación de Tuberías', 'Reparación de fugas, destape de cañerías e instalación de grifería', 'POR_SERVICIO', 2);
+INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Instalación y Revisión Eléctrica', 'Instalación de tomas, interruptores y luminarias', 'POR_SERVICIO', 2);
+INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Pintura de Interiores y Exteriores', 'Pintura de paredes, techos y fachadas', 'POR_SERVICIO', 2);
+INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Cerrajería y Cambio de Chapas', 'Apertura de puertas sin daño y cambio de cerraduras', 'POR_SERVICIO', 2);
 
--- Hogar (subcategoría IDs: 14=Limpieza, 15=Plomería, 16=Electricidad, 17=Pintura, 18=Cerrajería)
-INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Limpieza General', 'Limpieza completa de apartamento o casa', 'POR_SERVICIO', 14);
-INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Limpieza Profunda', 'Desinfección profunda de espacios, incluye muebles', 'POR_SERVICIO', 14);
-INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Limpieza por Horas', 'Servicio de limpieza contratado por hora', 'POR_HORA', 14);
-INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Reparación de Tuberías', 'Reparación de fugas y daños en tubería', 'POR_SERVICIO', 15);
-INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Instalación Sanitaria', 'Instalación de lavamanos, inodoros, duchas', 'POR_SERVICIO', 15);
-INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Destape de Cañerías', 'Destape profesional de desagües y sifones', 'POR_SERVICIO', 15);
-INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Instalación Eléctrica', 'Instalación de tomas, interruptores y luminarias', 'POR_SERVICIO', 16);
-INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Revisión Eléctrica General', 'Diagnóstico del estado eléctrico del hogar', 'POR_SERVICIO', 16);
-INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Pintura Interior', 'Pintura de habitaciones y espacios interiores', 'POR_SERVICIO', 17);
-INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Pintura Exterior', 'Pintura de fachadas y exteriores', 'POR_SERVICIO', 17);
-INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Apertura de Cerraduras', 'Apertura de puertas sin daño', 'POR_SERVICIO', 18);
-INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Cambio de Chapas', 'Reemplazo de cerraduras y chapas de seguridad', 'POR_SERVICIO', 18);
+-- 3. Belleza y Estética
+INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Corte de Cabello y Peinado', 'Corte moderno o clásico a domicilio para hombre o mujer', 'POR_SERVICIO', 3);
+INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Tinte, Mechas y Keratina', 'Aplicación de tinte, balayage y tratamientos capilares', 'POR_SERVICIO', 3);
+INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Manicure y Pedicure Completo', 'Cuidado, esmaltado y diseño de uñas de manos y pies', 'POR_SERVICIO', 3);
+INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Maquillaje Social y Novias', 'Maquillaje profesional para eventos y bodas', 'POR_SERVICIO', 3);
 
--- Belleza (subcategoría IDs: 19=Peluquería, 20=Manicure, 21=Maquillaje)
-INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Corte de Cabello', 'Corte y peinado a domicilio para hombre o mujer', 'POR_SERVICIO', 19);
-INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Tinte y Color', 'Aplicación de tinte, mechas o balayage', 'POR_SERVICIO', 19);
-INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Alisado y Keratina', 'Tratamientos de alisado y keratina profesional', 'POR_SERVICIO', 19);
-INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Manicure Clásico', 'Cuidado y esmaltado de uñas de manos', 'POR_SERVICIO', 20);
-INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Pedicure Completo', 'Cuidado completo de pies y uñas', 'POR_SERVICIO', 20);
-INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Uñas en Gel/Acrílico', 'Aplicación de uñas postizas y diseño', 'POR_SERVICIO', 20);
-INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Maquillaje Social', 'Maquillaje para eventos sociales', 'POR_SERVICIO', 21);
-INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Maquillaje Novias', 'Maquillaje nupcial profesional', 'POR_SERVICIO', 21);
+-- 4. Cuidado de Personas
+INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Niñera por Horas', 'Cuidado de niños por horas con actividades lúdicas', 'POR_HORA', 4);
+INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Niñera Jornada Completa', 'Cuidado de niños durante jornada completa (8h)', 'POR_SERVICIO', 4);
+INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Cuidador Adulto Mayor por Horas', 'Acompañamiento y asistencia para adultos mayores', 'POR_HORA', 4);
 
--- Cuidado de Personas (subcategoría IDs: 22=Niñera, 23=Cuidador)
-INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Niñera por Horas', 'Cuidado de niños por horas con actividades lúdicas', 'POR_HORA', 22);
-INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Niñera Jornada Completa', 'Cuidado de niños durante jornada completa (8h)', 'POR_SERVICIO', 22);
-INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Cuidador Adulto Mayor por Horas', 'Acompañamiento y asistencia por horas', 'POR_HORA', 23);
-INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Cuidador Adulto Mayor Jornada', 'Acompañamiento jornada completa', 'POR_SERVICIO', 23);
+-- 5. Tecnología
+INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Mantenimiento y Reparación de PC/Laptop', 'Diagnóstico, limpieza física, formateo e instalación de software', 'POR_SERVICIO', 5);
+INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Configuración WiFi y Redes', 'Instalación de redes inalámbricas, repetidores y cableado', 'POR_SERVICIO', 5);
+INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Instalación de Software y Office', 'Instalación y configuración de programas y antivirus', 'POR_SERVICIO', 5);
 
--- Tecnología (subcategoría IDs: 24=Soporte PC, 25=Redes, 26=Software)
-INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Reparación de PC/Laptop', 'Diagnóstico y reparación de hardware y software', 'POR_SERVICIO', 24);
-INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Formateo e Instalación de SO', 'Formateo, instalación de Windows/Linux y drivers', 'POR_SERVICIO', 24);
-INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Configuración WiFi', 'Instalación y configuración de redes inalámbricas', 'POR_SERVICIO', 25);
-INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Cableado de Red', 'Instalación de puntos de red y cableado estructurado', 'POR_SERVICIO', 25);
-INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Instalación de Office', 'Instalación y activación de Microsoft Office', 'POR_SERVICIO', 26);
-INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Configuración de Impresoras', 'Instalación y configuración de impresoras', 'POR_SERVICIO', 26);
+-- 6. Educación y Formación
+INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Tutorías de Matemáticas y Ciencias', 'Clases particulares personalizadas a domicilio', 'POR_HORA', 6);
+INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Clases de Idiomas (Inglés/Francés)', 'Refuerzo de conversaciones y gramática a domicilio', 'POR_HORA', 6);
+
+-- 7. Mascotas
+INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Paseo Canino por Hora', 'Paseo individual o en grupo pequeño con reporte GPS', 'POR_HORA', 7);
+INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Consulta Veterinaria Domiciliaria', 'Chequeo general y vacunación de mascotas en casa', 'POR_SERVICIO', 7);
+
+-- 8. Transporte y Mudanzas
+INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Servicio de Mudanza y Acarreo', 'Transporte de muebles, cargue y descargue', 'POR_SERVICIO', 8);
+
+-- 9. Eventos
+INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Catering y Servicio de Meseros', 'Atención gastronómica y meseros para eventos privados', 'POR_SERVICIO', 9);
+
+-- 10. Asistencia Legal
+INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Asesoría Jurídica Básica', 'Consulta con abogado profesional a domicilio o virtual', 'POR_HORA', 10);
+
+

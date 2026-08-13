@@ -9,4 +9,5 @@ public class NotificationResult {
     private NotificationChannel channel;
     private String recipient;
     private String error;
+    private int retries;
 }

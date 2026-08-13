@@ -1,10 +1,12 @@
 package com.findu.security.application.usecase.impl;
 
+import com.findu.security.application.port.output.NotificationPort;
 import com.findu.security.application.port.output.persistence.PasswordRecoveryCodeRepositoryPort;
 import com.findu.security.application.port.output.persistence.PasswordRecoveryTokenRepositoryPort;
 import com.findu.security.application.port.output.persistence.UsuarioRepositoryPort;
 import com.findu.security.application.service.UsuarioService;
 import com.findu.security.domain.model.PasswordRecoveryToken;
+import com.findu.security.domain.model.Usuario;
 import com.findu.security.dto.request.ResetPasswordRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,6 +19,7 @@ import reactor.test.StepVerifier;
 
 import java.time.Instant;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
@@ -34,12 +37,14 @@ class ResetPasswordUseCaseImplTest {
     private UsuarioService usuarioService;
     @Mock
     private PasswordEncoder passwordEncoder;
+    @Mock
+    private NotificationPort notificationPort;
 
     private ResetPasswordUseCaseImpl useCase;
 
     @BeforeEach
     void setUp() {
-        useCase = new ResetPasswordUseCaseImpl(tokenRepository, codeRepository, usuarioRepository, usuarioService, passwordEncoder);
+        useCase = new ResetPasswordUseCaseImpl(tokenRepository, codeRepository, usuarioRepository, usuarioService, passwordEncoder, notificationPort);
     }
 
     @Test
@@ -58,12 +63,19 @@ class ResetPasswordUseCaseImplTest {
         t.setUsed(false);
         t.setExpiresAt(Instant.now().plusSeconds(3600));
 
+        Usuario user = new Usuario();
+        user.setId(1L);
+        user.setUsername("username");
+        user.setEmail("e@e.com");
+
         ResetPasswordRequest req = new ResetPasswordRequest("tok", null, null, null, null, "new");
 
         when(tokenRepository.findByToken("tok")).thenReturn(Mono.just(t));
         when(passwordEncoder.encode("new")).thenReturn("hash");
         when(usuarioRepository.updatePassword(1L, "hash")).thenReturn(Mono.empty());
         when(tokenRepository.markAsUsed("tok")).thenReturn(Mono.empty());
+        when(usuarioService.findById(1L)).thenReturn(Mono.just(user));
+        when(notificationPort.send(any(), any(), any(), any(), any())).thenReturn(Mono.empty());
 
         StepVerifier.create(useCase.resetPassword(req))
                 .verifyComplete();

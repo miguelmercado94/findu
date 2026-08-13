@@ -93,8 +93,8 @@ public class RequestPasswordRecoveryUseCaseImpl implements RequestPasswordRecove
     private Mono<Void> createCodeAndSendEmail(Usuario user) {
         log.debug("Creating 6-digit recovery code for userId={} email={}", user.getId(), user.getEmail());
         
-        // El código de 6 dígitos quemado por el momento es "123456"
-        String plainCode = "123456";
+        // Generar OTP aleatorio de 6 dígitos
+        String plainCode = String.format("%06d", new java.security.SecureRandom().nextInt(999999));
         String hashedCode = passwordEncoder.encode(plainCode);
         
         long now = System.currentTimeMillis();

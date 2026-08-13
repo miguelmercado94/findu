@@ -24,7 +24,6 @@ public class CatalogoServiceImpl implements CatalogoService {
     private final MunicipioRepositoryPort municipioPort;
 
     @Override
-    @Cacheable(value = "categorias", unless = "#result.isEmpty()")
     public List<Categoria> findAllCategorias() {
         return categoriaPort.findAll();
     }
@@ -36,13 +35,11 @@ public class CatalogoServiceImpl implements CatalogoService {
     }
 
     @Override
-    @Cacheable(value = "subcategorias", key = "#categoriaPadreId + '-' + #pageable.pageNumber + '-' + #pageable.pageSize")
     public Page<Categoria> findSubcategorias(Long categoriaPadreId, Pageable pageable) {
         return categoriaPort.findSubcategorias(categoriaPadreId, pageable);
     }
 
     @Override
-    @Cacheable(value = "servicios-categoria", key = "#categoriaId")
     public List<Servicio> findServiciosByCategoria(Long categoriaId) {
         return servicioPort.findByCategoriaId(categoriaId);
     }

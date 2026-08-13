@@ -82,7 +82,7 @@ public class CatalogoController {
             @RequestParam(defaultValue = "10") int size) {
         Pageable pageable = PageRequest.of(page, size);
         Page<ServicioResponse> response = catalogoService.findServicios(categoriaId, pageable)
-                .map(s -> new ServicioResponse(s.getId(), s.getNombre(), s.getDescripcion(), s.getTipoCobro()));
+                .map(s -> new ServicioResponse(s.getId(), s.getNombre(), s.getDescripcion(), s.getTipoCobro(), s.getUrlImagen()));
         return ResponseEntity.ok(response);
     }
 

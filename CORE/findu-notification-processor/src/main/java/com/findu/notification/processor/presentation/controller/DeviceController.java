@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Mono;
 
 /**
  * Endpoint para que los clientes móviles registren su device token de Firebase.
@@ -22,18 +23,18 @@ public class DeviceController {
 
     @PostMapping("/register")
     @Operation(summary = "Registrar device token", description = "El frontend móvil registra su token de Firebase para recibir push notifications")
-    public ResponseEntity<Void> registerDevice(@Valid @RequestBody DeviceTokenRegistration registration) {
+    public Mono<ResponseEntity<Void>> registerDevice(@Valid @RequestBody DeviceTokenRegistration registration) {
         // TODO: Persistir en BD (tabla device_tokens) para lookup cuando se envíe push
         log.info("Device token registered: username={} platform={} token={}...",
                 registration.getUsername(), registration.getPlatform(),
                 registration.getDeviceToken().substring(0, Math.min(20, registration.getDeviceToken().length())));
-        return ResponseEntity.ok().build();
+        return Mono.just(ResponseEntity.ok().build());
     }
 
     @DeleteMapping("/unregister")
     @Operation(summary = "Desregistrar device token", description = "Elimina el token del dispositivo (logout o desinstalación)")
-    public ResponseEntity<Void> unregisterDevice(@RequestParam String username, @RequestParam String deviceToken) {
+    public Mono<ResponseEntity<Void>> unregisterDevice(@RequestParam String username, @RequestParam String deviceToken) {
         log.info("Device token unregistered: username={}", username);
-        return ResponseEntity.noContent().build();
+        return Mono.just(ResponseEntity.noContent().build());
     }
 }

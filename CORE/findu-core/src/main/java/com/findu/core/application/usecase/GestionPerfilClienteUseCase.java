@@ -11,6 +11,8 @@ public interface GestionPerfilClienteUseCase {
 
     PerfilClienteDetalleResponse consultarPerfil(Long id);
 
+    PerfilClienteDetalleResponse consultarPerfilPorAuthUserId(Long authUserId);
+
     PerfilClienteResponse actualizarPerfil(Long id, ActualizarPerfilClienteRequest request);
 
     void cambiarEstado(Long id, String nuevoEstado);

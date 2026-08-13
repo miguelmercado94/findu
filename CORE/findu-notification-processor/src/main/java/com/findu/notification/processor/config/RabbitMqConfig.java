@@ -21,6 +21,9 @@ public class RabbitMqConfig {
     @Value("${findu.notification.queue.sms}")
     private String smsQueue;
 
+    @Value("${findu.notification.queue.whatsapp:findu.notifications.whatsapp}")
+    private String whatsappQueue;
+
     @Bean
     public TopicExchange notificationExchange() {
         return new TopicExchange(exchange, true, false);
@@ -42,6 +45,11 @@ public class RabbitMqConfig {
     }
 
     @Bean
+    public Queue whatsappQueue() {
+        return QueueBuilder.durable(whatsappQueue).build();
+    }
+
+    @Bean
     public Binding pushBinding() {
         return BindingBuilder.bind(pushQueue()).to(notificationExchange()).with("notification.push");
     }
@@ -52,8 +60,23 @@ public class RabbitMqConfig {
     }
 
     @Bean
+    public Binding emailBindingAlt() {
+        return BindingBuilder.bind(emailQueue()).to(notificationExchange()).with("notification.email");
+    }
+
+    @Bean
     public Binding smsBinding() {
         return BindingBuilder.bind(smsQueue()).to(notificationExchange()).with("notification.celular");
+    }
+
+    @Bean
+    public Binding smsBindingAlt() {
+        return BindingBuilder.bind(smsQueue()).to(notificationExchange()).with("notification.sms");
+    }
+
+    @Bean
+    public Binding whatsappBinding() {
+        return BindingBuilder.bind(whatsappQueue()).to(notificationExchange()).with("notification.whatsapp");
     }
 
     @Bean

@@ -8,6 +8,8 @@ import java.util.List;
  * Perfil del usuario autenticado (sin tokens; para GET /api/v1/profile).
  */
 public record UserProfileResponse(
+        @Schema(example = "1")
+        Long id,
         @Schema(example = "juan.perez2")
         String username,
         @Schema(example = "juan.perez2@ejemplo.com")

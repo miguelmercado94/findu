@@ -3,6 +3,8 @@ package com.findu.notification.processor.config;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.ses.SesClient;
@@ -31,7 +33,10 @@ public class AwsConfig {
 
     @Bean
     public DynamoDbClient dynamoDbClient() {
-        var builder = DynamoDbClient.builder().region(Region.of(region));
+        var builder = DynamoDbClient.builder()
+                .region(Region.of(region))
+                .credentialsProvider(StaticCredentialsProvider.create(
+                        AwsBasicCredentials.create("test", "test")));
         if (dynamoEndpoint != null && !dynamoEndpoint.isBlank()) {
             builder.endpointOverride(URI.create(dynamoEndpoint));
         }
@@ -40,7 +45,10 @@ public class AwsConfig {
 
     @Bean
     public SesClient sesClient() {
-        var builder = SesClient.builder().region(Region.of(region));
+        var builder = SesClient.builder()
+                .region(Region.of(region))
+                .credentialsProvider(StaticCredentialsProvider.create(
+                        AwsBasicCredentials.create("test", "test")));
         if (sesEndpoint != null && !sesEndpoint.isBlank()) {
             builder.endpointOverride(URI.create(sesEndpoint));
         }
@@ -49,7 +57,10 @@ public class AwsConfig {
 
     @Bean
     public SnsClient snsClient() {
-        var builder = SnsClient.builder().region(Region.of(region));
+        var builder = SnsClient.builder()
+                .region(Region.of(region))
+                .credentialsProvider(StaticCredentialsProvider.create(
+                        AwsBasicCredentials.create("test", "test")));
         if (snsEndpoint != null && !snsEndpoint.isBlank()) {
             builder.endpointOverride(URI.create(snsEndpoint));
         }

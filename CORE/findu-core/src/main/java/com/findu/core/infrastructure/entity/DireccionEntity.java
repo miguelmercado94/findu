@@ -53,7 +53,9 @@ public class DireccionEntity {
     @Column(name = "es_principal")
     private boolean esPrincipal;
 
-    @Column(nullable = false, columnDefinition = "boolean default true")\n    @Builder.Default\n    private boolean active = true;
+    @Column(nullable = false, columnDefinition = "boolean default true")
+    @Builder.Default
+    private boolean active = true;
 
     @CreatedDate
     @Column(name = "created_at", updatable = false)

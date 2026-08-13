@@ -7,6 +7,7 @@ import com.findu.notification.processor.domain.model.NotificationResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Mono;
 
 /**
  * Orquestador principal. Usa el Factory para obtener el Template correcto
@@ -23,11 +24,20 @@ public class NotificationProcessorService {
         this.factory = factory;
     }
 
-    public NotificationResult process(NotificationMessage message) {
+    public Mono<NotificationResult> process(NotificationMessage message) {
         log.info("Processing notification: id={} type={} recipient={}",
                 message.getNotificationId(), message.getType(), message.getRecipient());
 
-        AbstractNotificationTemplate template = factory.create(message.getType());
-        return template.execute(message);
+        try {
+            AbstractNotificationTemplate template = factory.create(message.getType());
+            return template.execute(message);
+        } catch (Exception e) {
+            log.error("Error creating template processor: {}", e.getMessage());
+            return Mono.just(NotificationResult.builder()
+                    .notificationId(message.getNotificationId())
+                    .success(false)
+                    .error(e.getMessage())
+                    .build());
+        }
     }
 }

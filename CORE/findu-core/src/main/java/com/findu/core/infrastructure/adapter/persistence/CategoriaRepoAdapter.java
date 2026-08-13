@@ -34,7 +34,7 @@ public class CategoriaRepoAdapter implements CategoriaRepositoryPort {
 
     @Override
     public Page<Categoria> findRootCategorias(Pageable pageable) {
-        return repository.findAllByActiveTrueAndCategoriaPadreIdIsNull(pageable)
+        return repository.findCategoriesWithActiveServices(pageable)
                 .map(mapper::toDomain);
     }
 

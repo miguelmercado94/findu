@@ -79,9 +79,9 @@ INSERT INTO rol_operation (role_id, operation_id, active) VALUES (4, 10, TRUE);
 INSERT INTO rol_operation (role_id, operation_id, active) VALUES (4, 11, TRUE);
 INSERT INTO rol_operation (role_id, operation_id, active) VALUES (4, 12, TRUE);
 
-INSERT INTO "user" (phone, username, password, email, active) VALUES (NULL, 'lmarquez', '$2a$10$QHLrXJ8nlnDlOXEDUnV6iefGNOkKaW9pqJwZcpF.5HrO42PRPzjcO', 'lmarquez@example.com', TRUE);
-INSERT INTO "user" (phone, username, password, email, active) VALUES (NULL, 'fperez', '$2a$10$QHLrXJ8nlnDlOXEDUnV6iefGNOkKaW9pqJwZcpF.5HrO42PRPzjcO', 'fperez@example.com', TRUE);
-INSERT INTO "user" (phone, username, password, email, active) VALUES (NULL, 'mhernandez', '$2a$10$QHLrXJ8nlnDlOXEDUnV6iefGNOkKaW9pqJwZcpF.5HrO42PRPzjcO', 'mhernandez@example.com', TRUE);
+INSERT INTO "user" (phone, cod_phone_international, username, password, email, active) VALUES ('3003763300', '+57', 'lmarquez', '$2a$10$QHLrXJ8nlnDlOXEDUnV6iefGNOkKaW9pqJwZcpF.5HrO42PRPzjcO', 'lmarquez@example.com', TRUE);
+INSERT INTO "user" (phone, cod_phone_international, username, password, email, active) VALUES ('3115551234', '+57', 'fperez', '$2a$10$QHLrXJ8nlnDlOXEDUnV6iefGNOkKaW9pqJwZcpF.5HrO42PRPzjcO', 'fperez@example.com', TRUE);
+INSERT INTO "user" (phone, cod_phone_international, username, password, email, active) VALUES ('3209876543', '+57', 'mhernandez', '$2a$10$QHLrXJ8nlnDlOXEDUnV6iefGNOkKaW9pqJwZcpF.5HrO42PRPzjcO', 'mhernandez@example.com', TRUE);
 
 -- lmarquez tendrá el rol de Cliente (ID 1) y de Proveedor (ID 4) simultáneamente
 INSERT INTO user_rol (role_id, user_id, active) VALUES (1, 1, TRUE);

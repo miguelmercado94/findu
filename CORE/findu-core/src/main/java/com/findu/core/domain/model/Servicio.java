@@ -13,5 +13,6 @@ public class Servicio {
     private String descripcion;
     private String tipoCobro;
     private Long categoriaId;
+    private String urlImagen;
     private boolean active;
 }

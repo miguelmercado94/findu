@@ -332,6 +332,7 @@ public class JwtManagerImpl implements JwtManager {
     private static UserProfileResponse toUserProfileResponse(Usuario u) {
         String roleName = u.getRol() != null ? u.getRol().getName() : null;
         return new UserProfileResponse(
+                u.getId(),
                 u.getUsername(),
                 u.getEmail(),
                 u.getPhone(),
@@ -375,6 +376,7 @@ public class JwtManagerImpl implements JwtManager {
 
     private Map<String, Object> generateExtraClaims(Usuario user) {
         Map<String, Object> extraClaims = new HashMap<>();
+        extraClaims.put("userId", user.getId());
         extraClaims.put("name", user.getUsername());
         extraClaims.put("role", user.getRol() != null ? user.getRol().getName() : null);
         List<String> authorities = user.getAuthorities().stream()

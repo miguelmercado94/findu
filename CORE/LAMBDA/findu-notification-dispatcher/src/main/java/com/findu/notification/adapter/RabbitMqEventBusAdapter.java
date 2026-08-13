@@ -19,18 +19,21 @@ public class RabbitMqEventBusAdapter implements EventBusPort {
 
     private final RabbitTemplate rabbitTemplate;
     private final String routingKeyPrefix;
+    private final String exchange;
 
     public RabbitMqEventBusAdapter(RabbitTemplate rabbitTemplate,
-                                   @Value("${findu.notification.routing-key-prefix:notification.}") String routingKeyPrefix) {
+                                   @Value("${findu.notification.routing-key-prefix:notification.}") String routingKeyPrefix,
+                                   @Value("${findu.notification.exchange:findu.notifications}") String exchange) {
         this.rabbitTemplate = rabbitTemplate;
         this.routingKeyPrefix = routingKeyPrefix;
+        this.exchange = exchange;
     }
 
     @Override
     public void publish(NotificationRecord record) {
         String routingKey = routingKeyPrefix + record.getType().toLowerCase();
-        log.info("Publishing to bus: routingKey={} notificationId={} recipient={}",
-                routingKey, record.getNotificationId(), record.getRecipient());
-        rabbitTemplate.convertAndSend(routingKey, record);
+        log.info("Publishing to bus: exchange={} routingKey={} notificationId={} recipient={}",
+                exchange, routingKey, record.getNotificationId(), record.getRecipient());
+        rabbitTemplate.convertAndSend(exchange, routingKey, record);
     }
 }

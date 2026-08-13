@@ -1,5 +1,6 @@
 package com.findu.security.application.usecase.impl;
 
+import com.findu.security.application.port.output.NotificationPort;
 import com.findu.security.application.port.output.EmailSenderPort;
 import com.findu.security.application.port.output.persistence.PasswordRecoveryCodeRepositoryPort;
 import com.findu.security.application.port.output.persistence.PasswordRecoveryTokenRepositoryPort;
@@ -33,12 +34,14 @@ class RequestPasswordRecoveryUseCaseImplTest {
     private EmailSenderPort emailSender;
     @Mock
     private PasswordEncoder passwordEncoder;
+    @Mock
+    private NotificationPort notificationPort;
 
     private RequestPasswordRecoveryUseCaseImpl useCase;
 
     @BeforeEach
     void setUp() {
-        useCase = new RequestPasswordRecoveryUseCaseImpl(usuarioService, tokenRepository, codeRepository, emailSender, passwordEncoder);
+        useCase = new RequestPasswordRecoveryUseCaseImpl(usuarioService, tokenRepository, codeRepository, emailSender, passwordEncoder, notificationPort);
         ReflectionTestUtils.setField(useCase, "resetPasswordBaseUrl", "http://localhost/reset");
         ReflectionTestUtils.setField(useCase, "recoveryTokenExpiryMinutes", 60);
         ReflectionTestUtils.setField(useCase, "recoveryCodeExpiryMinutes", 3);
@@ -55,6 +58,7 @@ class RequestPasswordRecoveryUseCaseImplTest {
     void requestRecovery_sendsEmail() {
         Usuario u = new Usuario();
         u.setId(1L);
+        u.setUsername("testuser");
         u.setEmail("e@e.com");
         ForgotPasswordRequest req = new ForgotPasswordRequest("e@e.com", null, null);
         
@@ -62,6 +66,7 @@ class RequestPasswordRecoveryUseCaseImplTest {
         when(passwordEncoder.encode(anyString())).thenReturn("hashed_code");
         when(codeRepository.save(any())).thenAnswer(inv -> Mono.just(inv.getArgument(0)));
         when(emailSender.sendPasswordRecoveryCode(any(), any())).thenReturn(Mono.empty());
+        when(notificationPort.send(any(), any(), any(), any(), any())).thenReturn(Mono.empty());
 
         StepVerifier.create(useCase.requestRecovery(req))
                 .verifyComplete();

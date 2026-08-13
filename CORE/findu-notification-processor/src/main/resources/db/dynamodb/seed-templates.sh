@@ -11,7 +11,7 @@ ENDPOINT="http://localhost:4566"
 TABLE="notification_templates"
 REGION="us-east-1"
 
-AWS="aws --endpoint-url=$ENDPOINT --region=$REGION"
+AWS="env AWS_ACCESS_KEY_ID=mock AWS_SECRET_ACCESS_KEY=mock aws --endpoint-url=$ENDPOINT --region=$REGION"
 
 echo "=== Creando tabla $TABLE ==="
 $AWS dynamodb create-table \
@@ -20,6 +20,14 @@ $AWS dynamodb create-table \
   --key-schema AttributeName=id,KeyType=HASH \
   --billing-mode PAY_PER_REQUEST \
   2>/dev/null || echo "Tabla ya existe"
+
+echo "=== Creando tabla findu_notifications ==="
+$AWS dynamodb create-table \
+  --table-name findu_notifications \
+  --attribute-definitions AttributeName=notification_id,AttributeType=S \
+  --key-schema AttributeName=notification_id,KeyType=HASH \
+  --billing-mode PAY_PER_REQUEST \
+  2>/dev/null || echo "Tabla findu_notifications ya existe"
 
 echo "=== Insertando plantillas de ejemplo ==="
 

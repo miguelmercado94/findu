@@ -42,6 +42,7 @@ CREATE TABLE servicio (
     descripcion VARCHAR(500),
     tipo_cobro VARCHAR(20) NOT NULL DEFAULT 'POR_HORA',
     categoria_id BIGINT NOT NULL REFERENCES categoria(id),
+    url_imagen VARCHAR(500),
     active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

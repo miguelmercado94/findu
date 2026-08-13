@@ -30,7 +30,9 @@ public class CategoriaEntity {
     @Column(name = "categoria_padre_id")
     private Long categoriaPadreId;
 
-    @Column(nullable = false, columnDefinition = "boolean default true")\n    @Builder.Default\n    private boolean active = true;
+    @Column(nullable = false, columnDefinition = "boolean default true")
+    @Builder.Default
+    private boolean active = true;
 
     @CreatedDate
     @Column(name = "created_at", updatable = false)
