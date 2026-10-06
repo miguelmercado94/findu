@@ -215,7 +215,7 @@ services:
   autorization-server-oauth2:
     image: mmercado94/findu-autorization-server-oauth2:1.0.0
     build:
-      context: ./SECURITY/autorization-server-oauth2
+      context: ./SECURITY/findu-autorization-server-oauth2
       dockerfile: Dockerfile
     container_name: findu-autorization-server-oauth2
     hostname: findu-autorization-server-oauth2

@@ -7,7 +7,7 @@ $projects = @(
   "ARCHITECTURE\findu-eureka-server",
   "ARCHITECTURE\findu-api-gateway",
   "SECURITY\findu-spring-security",
-  "SECURITY\autorization-server-oauth2",
+  "SECURITY\findu-autorization-server-oauth2",
   "CORE\findu-core",
   "CORE\findu-transaction",
   "CORE\findu-help-v2",
