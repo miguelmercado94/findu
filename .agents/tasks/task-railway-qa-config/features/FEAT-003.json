@@ -1,0 +1,27 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "qa profiles for the CORE/LAMBDA services: notification-dispatcher (Rabbit+Redis+WebSocket, has eureka-client), transaction-daily-balance (Postgres JPA, no eureka), and the two skeleton lambdas transaction-provider-payout and transaction-refund (minimal, no external deps — do NOT invent dependencies). Independent of FEAT-001 and FEAT-002 at the file level.",
+  "status": "completed",
+  "steps": [
+    "Read context.json first for ports and dependency flags.",
+    "Create CORE/LAMBDA/findu-notification-dispatcher/src/main/resources/application-qa.yml: server.port: ${PORT:9000}; spring.data.redis.host/port from SPRING_DATA_REDIS_HOST/PORT; spring.rabbitmq host/port/username/password from RABBITMQ_HOST/PORT/USERNAME/PASSWORD; findu.jwt.secret from JWT_SECRET; add the Eureka-disable block. Do NOT remove @EnableDiscoveryClient from the application class. Keep config.import optional.",
+    "Create CORE/LAMBDA/findu-transaction-daily-balance/src/main/resources/application-qa.yml: server.port: ${PORT:8089} (base yml says 8087 but Dockerfile EXPOSE is 8089 — use 8089); spring.datasource url/username/password from SPRING_DATASOURCE_URL/USERNAME/PASSWORD with org.postgresql.Driver; spring.jpa.hibernate.ddl-auto: none; keep findu.daily-balance.cron and findu.timezone env-driven. NO Eureka block (no eureka-client dependency). Keep config.import optional.",
+    "Create CORE/LAMBDA/findu-transaction-provider-payout/src/main/resources/application-qa.yml: minimal — server.port: ${PORT:8088} and findu.transaction.url default http://findu-transaction.railway.internal:8084 (overridable via FINDU_TRANSACTION_URL). NO Eureka/Config blocks (neither dependency present). Do NOT invent dependencies.",
+    "Create CORE/LAMBDA/findu-transaction-refund/src/main/resources/application-qa.yml: minimal — server.port: ${PORT:8089} and findu.transaction.url default http://findu-transaction.railway.internal:8084 (overridable via FINDU_TRANSACTION_URL). NO Eureka/Config blocks. Do NOT invent dependencies."
+  ],
+  "acceptance_criteria": [
+    "All four files exist: dispatcher, daily-balance, payout, refund application-qa.yml.",
+    "dispatcher contains the Eureka-disable block; daily-balance, payout and refund do NOT contain a Eureka block.",
+    "payout and refund files are minimal (server.port + findu.transaction.url only) with no invented dependencies.",
+    "`.\\gradlew.bat clean compileJava -x test --no-daemon` succeeds in all four modules."
+  ],
+  "verification": [
+    "cd CORE/LAMBDA/findu-notification-dispatcher && .\\gradlew.bat clean compileJava -x test --no-daemon",
+    "cd CORE/LAMBDA/findu-transaction-daily-balance && .\\gradlew.bat clean compileJava -x test --no-daemon",
+    "cd CORE/LAMBDA/findu-transaction-provider-payout && .\\gradlew.bat clean compileJava -x test --no-daemon",
+    "cd CORE/LAMBDA/findu-transaction-refund && .\\gradlew.bat clean compileJava -x test --no-daemon  (expect BUILD SUCCESSFUL for each)"
+  ],
+  "blocked_reason": null,
+  "findings": "Created 4 application-qa.yml files; all 4 modules build BUILD SUCCESSFUL via `.\\gradlew.bat clean compileJava -x test --no-daemon`.\n\nFiles created:\n- CORE/LAMBDA/findu-notification-dispatcher/src/main/resources/application-qa.yml: server.port ${PORT:9000}; spring.data.redis.host/port (SPRING_DATA_REDIS_HOST / SPRING_DATA_REDIS_PORT:6379); spring.rabbitmq host/port/username/password (RABBITMQ_HOST / RABBITMQ_PORT:5672 / RABBITMQ_USERNAME / RABBITMQ_PASSWORD); findu.jwt.secret (JWT_SECRET); Eureka-disable block present. @EnableDiscoveryClient left untouched in the application class.\n- CORE/LAMBDA/findu-transaction-daily-balance/src/main/resources/application-qa.yml: server.port ${PORT:8089} (Dockerfile EXPOSE 8089, not base 8087); spring.datasource url/username/password (SPRING_DATASOURCE_*) with org.postgresql.Driver; spring.jpa.hibernate.ddl-auto none; findu.daily-balance.cron/timezone env-driven. NO Eureka block.\n- CORE/LAMBDA/findu-transaction-provider-payout/src/main/resources/application-qa.yml: minimal — server.port ${PORT:8088}; findu.transaction.url default http://findu-transaction.railway.internal:8084 (override FINDU_TRANSACTION_URL). No Eureka/Config blocks.\n- CORE/LAMBDA/findu-transaction-refund/src/main/resources/application-qa.yml: minimal — server.port ${PORT:8089}; findu.transaction.url default http://findu-transaction.railway.internal:8084 (override FINDU_TRANSACTION_URL). No Eureka/Config blocks.\n\nRequired Railway env vars (qa): dispatcher -> SPRING_DATA_REDIS_HOST, RABBITMQ_HOST, RABBITMQ_USERNAME, RABBITMQ_PASSWORD, JWT_SECRET (optional ports default); daily-balance -> SPRING_DATASOURCE_URL, SPRING_DATASOURCE_USERNAME, SPRING_DATASOURCE_PASSWORD; payout/refund -> none required (PORT injected by Railway; FINDU_TRANSACTION_URL optional). Note: payout/refund qa default transaction URL differs from base yml (base uses http://localhost:8086)."
+}

@@ -1,0 +1,9 @@
+# QA / integración (Railway). Activación: --spring.profiles.active=qa
+# Railway inyecta PORT; sin dependencias externas (skeleton).
+
+server:
+  port: ${PORT:8089}
+
+findu:
+  transaction:
+    url: ${FINDU_TRANSACTION_URL:http://findu-transaction.railway.internal:8084}

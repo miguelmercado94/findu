@@ -1,0 +1,21 @@
+# QA / integración (Railway). Activación: --spring.profiles.active=qa
+# Railway inyecta PORT; conexiones vía variables de entorno (sin hosts hardcodeados).
+# Sin bloque Eureka (este servicio no tiene dependencia eureka-client).
+
+server:
+  port: ${PORT:8089}
+
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: none
+
+findu:
+  daily-balance:
+    cron: "${FINDU_DAILY_BALANCE_CRON:0 0 22 * * *}"
+    timezone: "${FINDU_TIMEZONE:America/Bogota}"
