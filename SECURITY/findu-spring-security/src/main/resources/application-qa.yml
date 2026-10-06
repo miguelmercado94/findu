@@ -28,6 +28,12 @@ findu:
     eviction-interval-ms: ${FINDU_REDIS_EVICTION_INTERVAL_MS:3600000}
     key-prefix: ${FINDU_REDIS_KEY_PREFIX:findu:revoked:}
 
+eureka:
+  client:
+    enabled: false
+    register-with-eureka: false
+    fetch-registry: false
+
 management:
   health:
     redis:

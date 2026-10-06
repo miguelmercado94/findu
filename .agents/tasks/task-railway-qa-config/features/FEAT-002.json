@@ -1,0 +1,29 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "qa profiles for the remaining core/security microservices: oauth2, spring-security (add Eureka-disable only), transaction, help-v2, notification-processor. Each file follows the same qa pattern but with its own dependency set. Independent of FEAT-001 and FEAT-003 at the file level.",
+  "status": "completed",
+  "steps": [
+    "Read context.json first for the per-service port and dependency table, and SECURITY/findu-spring-security/src/main/resources/application-qa.yml as the style reference.",
+    "Create SECURITY/findu-autorization-server-oauth2/src/main/resources/application-qa.yml: server.port: ${PORT:9595}; spring.datasource url/username/password from SPRING_DATASOURCE_URL/USERNAME/PASSWORD with org.postgresql.Driver; spring.jpa.hibernate.ddl-auto: none; spring.sql.init.mode: ${SPRING_SQL_INIT_MODE:never}; findu.security-api.base-url default http://findu-spring-security.railway.internal:8081/security-auth; add the Eureka-disable block. Do NOT remove @EnableDiscoveryClient from the application class.",
+    "Edit SECURITY/findu-spring-security/src/main/resources/application-qa.yml: ADD only the Eureka-disable block (eureka.client.enabled/register-with-eureka/fetch-registry all false). Leave the existing r2dbc, dynamodb, redis, management and logging blocks untouched.",
+    "Create CORE/findu-transaction/src/main/resources/application-qa.yml: server.port: ${PORT:8084} (base yml says 8086 but Dockerfile EXPOSE is 8084 — use 8084); spring.datasource url/username/password from SPRING_DATASOURCE_URL/USERNAME/PASSWORD with org.postgresql.Driver; spring.jpa.hibernate.ddl-auto: none; spring.sql.init.mode: ${SPRING_SQL_INIT_MODE:never}. NO Eureka block (no eureka-client dependency). Keep config.import optional.",
+    "Create CORE/findu-help-v2/src/main/resources/application-qa.yml: server.port: ${PORT:8085}; spring.data.mongodb.uri from SPRING_DATA_MONGODB_URI; findu.help.aws.s3 bucket/region/access-key/secret-key from S3_BUCKET/AWS_REGION/AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY and DO NOT set s3 endpoint (omit or leave empty so real AWS S3 is used); findu.notification.dispatcher.url default http://findu-notification-dispatcher.railway.internal:9000 and findu.notification.processor.url default http://findu-notification-processor.railway.internal:8083, both overridable by env. NO Eureka block (no eureka-client dependency; the base yml eureka block is inert).",
+    "Create CORE/findu-notification-processor/src/main/resources/application-qa.yml: server.port: ${PORT:8083}; spring.rabbitmq host/port/username/password from RABBITMQ_HOST/PORT/USERNAME/PASSWORD; spring.data.redis.host/port from SPRING_DATA_REDIS_HOST/PORT; findu.notification.templates.table from DYNAMODB_TEMPLATES_TABLE; findu.notification.aws.region from AWS_REGION; findu.notification.aws.ses.from-email from SES_FROM_EMAIL; findu.notification.aws.sns.enabled from SNS_ENABLED; do NOT set the dynamodb/ses/sns *_ENDPOINT values (omit/leave empty so real AWS is used); add the Eureka-disable block."
+  ],
+  "acceptance_criteria": [
+    "All five files exist: oauth2, spring-security (edited), transaction, help-v2, notification-processor application-qa.yml.",
+    "oauth2, notification-processor and spring-security each contain the Eureka-disable block; transaction and help-v2 do NOT contain a Eureka block.",
+    "No hardcoded hosts: Postgres/Redis/Rabbit/Mongo and AWS settings all read from the env-var keys in context.json; no *_ENDPOINT values are set.",
+    "`.\\gradlew.bat clean compileJava -x test --no-daemon` succeeds in oauth2, transaction, help-v2, notification-processor; `.\\gradlew.bat clean bootJar -x test --no-daemon` succeeds in findu-spring-security."
+  ],
+  "verification": [
+    "cd SECURITY/findu-autorization-server-oauth2 && .\\gradlew.bat clean compileJava -x test --no-daemon",
+    "cd SECURITY/findu-spring-security && .\\gradlew.bat clean bootJar -x test --no-daemon",
+    "cd CORE/findu-transaction && .\\gradlew.bat clean compileJava -x test --no-daemon",
+    "cd CORE/findu-help-v2 && .\\gradlew.bat clean compileJava -x test --no-daemon",
+    "cd CORE/findu-notification-processor && .\\gradlew.bat clean compileJava -x test --no-daemon  (expect BUILD SUCCESSFUL for each)"
+  ],
+  "blocked_reason": null,
+  "findings": "Created 4 new application-qa.yml files (oauth2, transaction, help-v2, notification-processor) and edited findu-spring-security's existing qa.yml to add only the Eureka-disable block. All five builds pass: oauth2/transaction/help-v2/notification-processor via `clean compileJava -x test --no-daemon`, spring-security via `clean bootJar -x test --no-daemon`. Env vars Railway must inject: oauth2 -> SPRING_DATASOURCE_URL/USERNAME/PASSWORD (optional FINDU_SECURITY_API_BASE_URL, defaults to http://findu-spring-security.railway.internal:8081/security-auth); transaction -> SPRING_DATASOURCE_URL/USERNAME/PASSWORD; help-v2 -> SPRING_DATA_MONGODB_URI, S3_BUCKET/AWS_REGION/AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY (NOTIFICATION_DISPATCHER_URL/NOTIFICATION_PROCESSOR_URL default to .railway.internal); notification-processor -> RABBITMQ_HOST/PORT/USERNAME/PASSWORD, SPRING_DATA_REDIS_HOST/PORT, SES_FROM_EMAIL, plus optional DYNAMODB_TEMPLATES_TABLE/AWS_REGION/SNS_ENABLED. All services use PORT (Railway-injected) with Dockerfile EXPOSE fallbacks: oauth2 9595, transaction 8084, help-v2 8085, notification-processor 8083. Eureka-disable block present in oauth2, spring-security, notification-processor; NOT in transaction or help-v2 (no eureka-client dependency). No *_ENDPOINT values set so real AWS (SES/SNS/DynamoDB/S3) is used. No hardcoded hosts; no Java changes; @EnableDiscoveryClient left intact. Note: notification-processor keeps unset SES/SNS/DynamoDB endpoints absent from qa (SDK default endpoints), and SES_FROM_EMAIL has no default so it must be provided (e.g. the verified sender m.mercado.t.94@gmail.com)."
+}

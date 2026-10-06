@@ -1,0 +1,28 @@
+# QA / integración: Railway (PORT inyectado, sin recrear esquema por arranque).
+# Activación: --spring.profiles.active=qa
+
+server:
+  port: ${PORT:9595}
+
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: none
+  sql:
+    init:
+      mode: ${SPRING_SQL_INIT_MODE:never}
+
+findu:
+  security-api:
+    base-url: ${FINDU_SECURITY_API_BASE_URL:http://findu-spring-security.railway.internal:8081/security-auth}
+
+eureka:
+  client:
+    enabled: false
+    register-with-eureka: false
+    fetch-registry: false

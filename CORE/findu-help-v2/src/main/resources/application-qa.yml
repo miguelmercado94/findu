@@ -1,0 +1,24 @@
+# QA / integración: Railway (PORT inyectado, MongoDB + S3 real de AWS).
+# Activación: --spring.profiles.active=qa
+
+server:
+  port: ${PORT:8085}
+
+spring:
+  data:
+    mongodb:
+      uri: ${SPRING_DATA_MONGODB_URI}
+
+findu:
+  help:
+    aws:
+      s3:
+        bucket: ${S3_BUCKET:findu-help-bucket}
+        region: ${AWS_REGION:us-east-1}
+        access-key: ${AWS_ACCESS_KEY_ID:}
+        secret-key: ${AWS_SECRET_ACCESS_KEY:}
+  notification:
+    dispatcher:
+      url: ${NOTIFICATION_DISPATCHER_URL:http://findu-notification-dispatcher.railway.internal:9000}
+    processor:
+      url: ${NOTIFICATION_PROCESSOR_URL:http://findu-notification-processor.railway.internal:8083}

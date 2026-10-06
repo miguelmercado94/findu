@@ -1,0 +1,33 @@
+# QA / integración: Railway (PORT inyectado, RabbitMQ + Redis + AWS real SES/SNS/DynamoDB).
+# Activación: --spring.profiles.active=qa
+
+server:
+  port: ${PORT:8083}
+
+spring:
+  rabbitmq:
+    host: ${RABBITMQ_HOST}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME}
+    password: ${RABBITMQ_PASSWORD:}
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+
+findu:
+  notification:
+    templates:
+      table: ${DYNAMODB_TEMPLATES_TABLE:notification_templates}
+    aws:
+      region: ${AWS_REGION:us-east-1}
+      ses:
+        from-email: ${SES_FROM_EMAIL}
+      sns:
+        enabled: ${SNS_ENABLED:false}
+
+eureka:
+  client:
+    enabled: false
+    register-with-eureka: false
+    fetch-registry: false
