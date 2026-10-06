@@ -1,6 +1,9 @@
 # QA / integración: sin recrear esquema por arranque (init desactivado salvo override explícito).
 # Activación: --spring.profiles.active=qa
 
+server:
+  port: ${PORT:8081}
+
 spring:
   sql:
     init:
