@@ -19,10 +19,13 @@ spring:
   sql:
     init:
       mode: ${SPRING_SQL_INIT_MODE:never}
+      schema-locations: classpath:db/postgres/schema.sql
+      data-locations: classpath:db/postgres/data.sql
   data:
     redis:
       host: ${SPRING_DATA_REDIS_HOST}
       port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD:}
 
 findu:
   cache:
