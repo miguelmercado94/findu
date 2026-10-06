@@ -33,7 +33,11 @@ public class ServicioEntity {
     @Column(name = "categoria_id")
     private Long categoriaId;
 
-    @Column(name = "url_imagen")
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "categoria_id", insertable = false, updatable = false)
+    private CategoriaEntity categoria;
+
+    @Column(name = "url_imagen", columnDefinition = "TEXT")
     private String urlImagen;
 
     @Column(nullable = false, columnDefinition = "boolean default true")

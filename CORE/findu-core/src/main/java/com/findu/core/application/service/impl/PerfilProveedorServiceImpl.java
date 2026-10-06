@@ -33,4 +33,14 @@ public class PerfilProveedorServiceImpl implements PerfilProveedorService {
     public boolean existsByAuthUserId(Long authUserId) {
         return port.existsByAuthUserId(authUserId);
     }
+
+    @Override
+    public java.util.List<PerfilProveedor> findEligibleProviders(Long servicioId, Long municipioId) {
+        return port.findEligibleProviders(servicioId, municipioId);
+    }
+
+    @Override
+    public java.util.List<PerfilProveedor> findAvailableProviders() {
+        return port.findAvailableProviders();
+    }
 }

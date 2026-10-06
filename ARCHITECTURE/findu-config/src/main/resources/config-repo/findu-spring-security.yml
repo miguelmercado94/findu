@@ -1,0 +1,22 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: findu-spring-security
+  webflux:
+    base-path: /security-auth
+  r2dbc:
+    pool:
+      initial-size: 2
+      max-size: 10
+
+jwt:
+  access-expiration-seconds: ${JWT_ACCESS_EXPIRATION_SECONDS:300}
+  refresh-expiration-seconds: ${JWT_REFRESH_EXPIRATION_SECONDS:604800}
+
+findu:
+  auth:
+    recovery-code-expiry-minutes: ${FINDU_AUTH_RECOVERY_CODE_EXPIRY_MINUTES:3}
+    recovery-token-expiry-minutes: ${FINDU_AUTH_RECOVERY_TOKEN_EXPIRY_MINUTES:60}
+    reset-password-base-url: ${FINDU_AUTH_RESET_PASSWORD_BASE_URL:http://localhost:3000/reset-password}

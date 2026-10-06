@@ -1,0 +1,22 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://postgres-core:5432/findu_core
+    username: findu_core
+    password: findu_core
+    driver-class-name: org.postgresql.Driver
+  data:
+    redis:
+      host: redis
+      port: 6379
+
+findu:
+  aws:
+    s3:
+      bucket: findu-media-assets-local
+      endpoint: http://localstack:4566
+      region: us-east-1
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://eureka-server:8761/eureka/

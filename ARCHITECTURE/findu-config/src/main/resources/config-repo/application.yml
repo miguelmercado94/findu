@@ -1,0 +1,17 @@
+# =====================================================================
+# CONFIGURACIÓN GENERAL COMPARTIDA - FINDU CONFIG SERVER
+# Perfil por defecto (común a todos los entornos)
+# =====================================================================
+
+eureka:
+  instance:
+    prefer-ip-address: true
+  client:
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://localhost:8761/eureka/}
+
+findu:
+  jwt:
+    secret: ${JWT_SECRET:secret-key-at-least-32-bytes-long-for-findu-security-environment!}
+    access-expiration-seconds: ${JWT_ACCESS_EXPIRATION_SECONDS:300}
+    refresh-expiration-seconds: ${JWT_REFRESH_EXPIRATION_SECONDS:604800}

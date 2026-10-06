@@ -79,9 +79,12 @@ INSERT INTO rol_operation (role_id, operation_id, active) VALUES (4, 10, TRUE);
 INSERT INTO rol_operation (role_id, operation_id, active) VALUES (4, 11, TRUE);
 INSERT INTO rol_operation (role_id, operation_id, active) VALUES (4, 12, TRUE);
 
-INSERT INTO "user" (phone, cod_phone_international, username, password, email, active) VALUES ('3003763300', '+57', 'lmarquez', '$2a$10$QHLrXJ8nlnDlOXEDUnV6iefGNOkKaW9pqJwZcpF.5HrO42PRPzjcO', 'lmarquez@example.com', TRUE);
-INSERT INTO "user" (phone, cod_phone_international, username, password, email, active) VALUES ('3115551234', '+57', 'fperez', '$2a$10$QHLrXJ8nlnDlOXEDUnV6iefGNOkKaW9pqJwZcpF.5HrO42PRPzjcO', 'fperez@example.com', TRUE);
-INSERT INTO "user" (phone, cod_phone_international, username, password, email, active) VALUES ('3209876543', '+57', 'mhernandez', '$2a$10$QHLrXJ8nlnDlOXEDUnV6iefGNOkKaW9pqJwZcpF.5HrO42PRPzjcO', 'mhernandez@example.com', TRUE);
+INSERT INTO "user" (phone, cod_phone_international, username, password, email, estado, active) VALUES ('3003763301', '+57', 'lmarquez', '$2a$10$QHLrXJ8nlnDlOXEDUnV6iefGNOkKaW9pqJwZcpF.5HrO42PRPzjcO', 'lmarquez@example.com', 'COMPLETO', TRUE);
+INSERT INTO "user" (phone, cod_phone_international, username, password, email, estado, active) VALUES ('3115551234', '+57', 'fperez', '$2a$10$QHLrXJ8nlnDlOXEDUnV6iefGNOkKaW9pqJwZcpF.5HrO42PRPzjcO', 'fperez@example.com', 'COMPLETO', TRUE);
+INSERT INTO "user" (phone, cod_phone_international, username, password, email, estado, active) VALUES ('3209876543', '+57', 'mhernandez', '$2a$10$QHLrXJ8nlnDlOXEDUnV6iefGNOkKaW9pqJwZcpF.5HrO42PRPzjcO', 'mhernandez@example.com', 'COMPLETO', TRUE);
+INSERT INTO "user" (phone, cod_phone_international, username, password, email, estado, active) VALUES ('3003763300', '+57', 'm_mercado_t_94', '$2a$10$QHLrXJ8nlnDlOXEDUnV6iefGNOkKaW9pqJwZcpF.5HrO42PRPzjcO', 'm.mercado.t.94@gmail.com', 'COMPLETO', TRUE);
+INSERT INTO "user" (phone, cod_phone_international, username, password, email, estado, active) VALUES ('3052346740', '+57', 'cliente01', '$2a$10$x4u9s00aRZ1iWy0x/z6bEewVayMbSXWlErmYW.uxYe19m4E0ETEzy', 'miguel.mercado@samtel.eu', 'COMPLETO', TRUE);
+INSERT INTO "user" (phone, cod_phone_international, username, password, email, estado, active) VALUES ('3052686363', '+57', 'Celinda.Cueto', '$2a$10$ozofZ0iGlJ5TiSr4bW354.XrOa0wlWw/6Ie6D.POz2y6paJPlP7zq', 'celindacuetodelahoz@gmail.com', 'COMPLETO', TRUE);
 
 -- lmarquez tendrá el rol de Cliente (ID 1) y de Proveedor (ID 4) simultáneamente
 INSERT INTO user_rol (role_id, user_id, active) VALUES (1, 1, TRUE);
@@ -92,3 +95,13 @@ INSERT INTO user_rol (role_id, user_id, active) VALUES (2, 2, TRUE);
 
 -- mhernandez es Administrador (ID 3)
 INSERT INTO user_rol (role_id, user_id, active) VALUES (3, 3, TRUE);
+
+-- m_mercado_t_94 es Proveedor (ID 4)
+INSERT INTO user_rol (role_id, user_id, active) VALUES (4, 4, TRUE);
+
+-- cliente01 es Cliente (ID 1)
+INSERT INTO user_rol (role_id, user_id, active) VALUES (1, 5, TRUE);
+
+-- Celinda.Cueto es Cliente (ID 1)
+INSERT INTO user_rol (role_id, user_id, active) VALUES (1, 6, TRUE);
+

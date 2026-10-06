@@ -1,0 +1,5 @@
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres-transaction-prod:5432/findu_transaction_db}
+    username: ${SPRING_DATASOURCE_USERNAME:findu_transaction}
+    password: ${SPRING_DATASOURCE_PASSWORD:findu_transaction}

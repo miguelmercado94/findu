@@ -23,6 +23,7 @@ public class Usuario implements UserDetails {
     private String phone;
     private String codPhoneInternational;
     private String password;
+    private String estado = "INCOMPLETO";
     private boolean active = true;
     private Rol rol;
     private List<GrantedAuthority> grantedAuthorities;

@@ -1,0 +1,17 @@
+server:
+  port: 9000
+
+spring:
+  application:
+    name: notification-dispatcher
+
+findu:
+  websocket:
+    endpoint: /ws/events
+    ping-interval-seconds: 30
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info

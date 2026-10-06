@@ -1,0 +1,11 @@
+spring:
+  r2dbc:
+    url: ${SPRING_R2DBC_URL:r2dbc:postgresql://postgres-security-stage:5432/findu}
+    username: ${SPRING_R2DBC_USERNAME:findu}
+    password: ${SPRING_R2DBC_PASSWORD:findu}
+
+findu:
+  deployment: stage
+  aws:
+    dynamodb:
+      enabled: true

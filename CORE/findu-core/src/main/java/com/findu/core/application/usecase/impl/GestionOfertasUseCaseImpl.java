@@ -1,16 +1,19 @@
 package com.findu.core.application.usecase.impl;
 
 import com.findu.core.application.port.output.externalapi.NotificationPort;
+import com.findu.core.application.service.DireccionService;
 import com.findu.core.application.service.OfertaService;
 import com.findu.core.application.service.PerfilClienteService;
 import com.findu.core.application.service.PerfilProveedorService;
 import com.findu.core.application.service.SolicitudServicioService;
 import com.findu.core.application.usecase.GestionOfertasUseCase;
+import com.findu.core.domain.model.Direccion;
 import com.findu.core.domain.model.Oferta;
 import com.findu.core.domain.model.PerfilCliente;
 import com.findu.core.domain.model.PerfilProveedor;
 import com.findu.core.domain.model.SolicitudServicio;
 import com.findu.core.domain.model.constants.NotificationTemplates;
+import com.findu.core.domain.observer.SolicitudEventPublisher;
 import com.findu.core.dto.request.CrearOfertaRequest;
 import com.findu.core.dto.response.OfertaResponse;
 import com.findu.core.dto.response.SolicitudResponse;
@@ -31,20 +34,24 @@ public class GestionOfertasUseCaseImpl implements GestionOfertasUseCase {
     private final SolicitudServicioService solicitudService;
     private final PerfilProveedorService proveedorService;
     private final PerfilClienteService perfilClienteService;
+    private final DireccionService direccionService;
     private final NotificationPort notificationPort;
+    private final SolicitudEventPublisher eventPublisher;
 
     @Override
     public OfertaResponse enviarOferta(CrearOfertaRequest request) {
         SolicitudServicio solicitud = solicitudService.findById(request.solicitudServicioId())
                 .orElseThrow(() -> new ResourceNotFoundException("Solicitud no encontrada"));
 
-        if (!"ABIERTA".equals(solicitud.getEstadoSolicitud()) &&
-                !"EN_NEGOCIACION".equals(solicitud.getEstadoSolicitud())) {
-            throw new IllegalStateException("La solicitud no acepta ofertas en estado: " + solicitud.getEstadoSolicitud());
-        }
-
         if (ofertaService.existsBySolicitudIdAndProveedorId(request.solicitudServicioId(), request.perfilProveedorId())) {
             throw new IllegalStateException("Ya enviaste una oferta para esta solicitud.");
+        }
+
+        if (Boolean.TRUE.equals(solicitud.getEsPresupuestoEstricto()) &&
+                solicitud.getPresupuestoMaximo() != null &&
+                request.valorPropuesto() != null &&
+                request.valorPropuesto().compareTo(solicitud.getPresupuestoMaximo()) > 0) {
+            throw new IllegalStateException("El cliente ha fijado un tope máximo estricto ($" + solicitud.getPresupuestoMaximo() + "). Tu oferta ($" + request.valorPropuesto() + ") excede este límite.");
         }
 
         Oferta oferta = Oferta.builder()
@@ -56,24 +63,17 @@ public class GestionOfertasUseCaseImpl implements GestionOfertasUseCase {
                 .estadoOferta("ENVIADA")
                 .build();
 
-        // Transition solicitud to EN_NEGOCIACION if it was ABIERTA
-        if ("ABIERTA".equals(solicitud.getEstadoSolicitud())) {
-            solicitud.setEstadoSolicitud("EN_NEGOCIACION");
-            solicitudService.save(solicitud);
-        }
+        // Delegate state transition logic to domain entity via State Pattern
+        solicitud.recibirOferta(oferta);
+        solicitudService.save(solicitud);
 
         Oferta saved = ofertaService.save(oferta);
 
-        // Notify client about new offer
+        // Notify client and observers
         PerfilProveedor proveedor = proveedorService.findById(request.perfilProveedorId()).orElse(null);
-        String proveedorNombre = proveedor != null ? proveedor.getNombreCompleto() : "Proveedor";
         PerfilCliente cliente = perfilClienteService.findById(solicitud.getPerfilClienteId()).orElse(null);
-        if (cliente != null) {
-            notificationPort.send("PUSH", cliente.getUsername(), NotificationTemplates.OFERTA_RECIBIDA, "es",
-                    Map.of("proveedor_nombre", proveedorNombre,
-                           "valor_propuesto", saved.getValorPropuesto().toString(),
-                           "servicio_nombre", solicitud.getNombreContacto() != null ? solicitud.getNombreContacto() : ""));
-        }
+
+        eventPublisher.notifyOfertaRecibida(solicitud, saved, cliente, proveedor);
 
         return toResponse(saved);
     }
@@ -95,6 +95,12 @@ public class GestionOfertasUseCaseImpl implements GestionOfertasUseCase {
             throw new IllegalStateException("Solo se pueden aceptar ofertas en estado ENVIADA.");
         }
 
+        SolicitudServicio solicitud = solicitudService.findById(oferta.getSolicitudServicioId())
+                .orElseThrow(() -> new ResourceNotFoundException("Solicitud no encontrada"));
+
+        // Delegate state transition via State Pattern
+        solicitud.aceptarOferta(oferta);
+
         // Accept this offer
         oferta.setEstadoOferta("ACEPTADA");
         ofertaService.save(oferta);
@@ -108,20 +114,18 @@ public class GestionOfertasUseCaseImpl implements GestionOfertasUseCase {
             ofertaService.saveAll(otrasOfertas);
         }
 
-        // Transition solicitud to PROGRAMADA
-        SolicitudServicio solicitud = solicitudService.findById(oferta.getSolicitudServicioId())
-                .orElseThrow(() -> new ResourceNotFoundException("Solicitud no encontrada"));
-        solicitud.setEstadoSolicitud("PROGRAMADA");
         solicitudService.save(solicitud);
 
-        // Notify provider that offer was accepted
-        PerfilProveedor proveedor = proveedorService.findById(oferta.getPerfilProveedorId()).orElse(null);
-        if (proveedor != null) {
-            String recipient = proveedor.getCelular() != null ? proveedor.getCelular() : proveedor.getNombreCompleto();
-            notificationPort.send("PUSH", recipient, NotificationTemplates.OFERTA_ACEPTADA, "es",
-                    Map.of("servicio_nombre", solicitud.getNombreContacto() != null ? solicitud.getNombreContacto() : "",
-                           "valor_propuesto", oferta.getValorPropuesto().toString()));
+        // Notify observers (Winning provider gets notification, all other eligible/offering providers get SOLICITUD_CERRADA dissipation event)
+        PerfilProveedor proveedorAceptado = proveedorService.findById(oferta.getPerfilProveedorId()).orElse(null);
+        Long municipioId = null;
+        if (solicitud.getDireccionId() != null) {
+            municipioId = direccionService.findById(solicitud.getDireccionId())
+                    .map(Direccion::getMunicipioId)
+                    .orElse(null);
         }
+        List<PerfilProveedor> proveedoresNotificados = proveedorService.findEligibleProviders(solicitud.getServicioId(), municipioId);
+        eventPublisher.notifyOfertaAceptada(solicitud, oferta, otrasOfertas, proveedorAceptado, proveedoresNotificados);
 
         return toResponse(oferta);
     }
@@ -132,18 +136,20 @@ public class GestionOfertasUseCaseImpl implements GestionOfertasUseCase {
         return solicitudService.findByEstado("ABIERTA").stream()
                 .map(s -> new SolicitudResponse(
                         s.getId(), null, null, s.getFechaProgramada(), s.getNombreContacto(),
-                        s.getTelefonoContacto(), s.getPrioridad(), s.getPresupuestoMaximo(), s.getEstadoSolicitud()
+                        s.getTelefonoContacto(), s.getPrioridad(), s.getPresupuestoMaximo(), s.getEsPresupuestoEstricto(),
+                        s.getDetalles(), s.getFotos(), s.getEstadoSolicitud()
                 ))
                 .toList();
     }
 
     private OfertaResponse toResponse(Oferta o) {
         PerfilProveedor proveedor = proveedorService.findById(o.getPerfilProveedorId()).orElse(null);
-        String nombreProveedor = proveedor != null ? proveedor.getNombreCompleto() : null;
+        String nombreProveedor = proveedor != null ? proveedor.getNombreCompleto() : "Proveedor FINDU";
+        String fotoProveedor = proveedor != null ? proveedor.getUrlImagenPerfil() : null;
         var calificacion = proveedor != null ? proveedor.getCalificacionPromedio() : null;
 
         return new OfertaResponse(
-                o.getId(), nombreProveedor, calificacion,
+                o.getId(), o.getPerfilProveedorId(), nombreProveedor, fotoProveedor, calificacion,
                 o.getValorPropuesto(), o.getTiempoEstimado(),
                 o.getMensajePresentacion(), o.getEstadoOferta()
         );

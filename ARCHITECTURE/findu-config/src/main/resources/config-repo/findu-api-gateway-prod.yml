@@ -1,0 +1,5 @@
+# API Gateway - Configuración Prod / PDN
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://eureka-server-prod:8761/eureka/}

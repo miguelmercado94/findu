@@ -9,6 +9,8 @@ DROP TABLE IF EXISTS factura;
 DROP TABLE IF EXISTS oferta;
 DROP TABLE IF EXISTS solicitud_servicio;
 DROP TABLE IF EXISTS direccion;
+DROP TABLE IF EXISTS proveedor_cobertura;
+DROP TABLE IF EXISTS especialista_credenciales;
 DROP TABLE IF EXISTS portafolio_item;
 DROP TABLE IF EXISTS perfil_especialista;
 DROP TABLE IF EXISTS perfil_proveedor;
@@ -84,6 +86,7 @@ CREATE TABLE perfil_proveedor (
     url_imagen_perfil VARCHAR(500),
     calificacion_promedio DECIMAL(3,2) DEFAULT 0.00,
     estado VARCHAR(20) DEFAULT 'ACTIVO',
+    disponible BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -94,6 +97,7 @@ CREATE TABLE perfil_especialista (
     servicio_id BIGINT NOT NULL,
     descripcion VARCHAR(500),
     experiencia_anios INT DEFAULT 0,
+    calificacion_promedio DECIMAL(3,2) DEFAULT 0.00,
     active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -104,9 +108,24 @@ CREATE TABLE perfil_especialista (
 CREATE TABLE portafolio_item (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     perfil_especialista_id BIGINT NOT NULL,
+    titulo VARCHAR(100),
     descripcion VARCHAR(500),
-    url_imagen VARCHAR(500) NOT NULL,
+    url_imagen TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (perfil_especialista_id) REFERENCES perfil_especialista(id)
+);
+
+CREATE TABLE especialista_credenciales (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    perfil_especialista_id BIGINT NOT NULL,
+    tipo_certificado VARCHAR(30) NOT NULL,
+    nombre_titulo VARCHAR(200) NOT NULL,
+    institucion VARCHAR(200) NOT NULL,
+    fecha_inicio DATE,
+    fecha_fin DATE NOT NULL,
+    url_certificado_s3 TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (perfil_especialista_id) REFERENCES perfil_especialista(id)
 );
 

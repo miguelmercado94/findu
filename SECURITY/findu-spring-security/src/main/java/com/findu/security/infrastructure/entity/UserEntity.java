@@ -35,6 +35,7 @@ public class UserEntity {
     private String password;
     /** Único en la tabla. */
     private String email;
+    private String estado = "INCOMPLETO";
     private boolean active = true;
 
     @Column("created_at")

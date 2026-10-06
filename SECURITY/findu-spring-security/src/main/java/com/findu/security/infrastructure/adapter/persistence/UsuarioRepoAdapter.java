@@ -74,6 +74,7 @@ public class UsuarioRepoAdapter implements UsuarioRepositoryPort {
                         existingEntity.setPhone(usuario.getPhone());
                         existingEntity.setCodPhoneInternational(usuario.getCodPhoneInternational());
                         existingEntity.setPassword(usuario.getPassword());
+                        existingEntity.setEstado(usuario.getEstado());
                         existingEntity.setActive(usuario.isActive());
                         existingEntity.setUpdatedAt(LocalDateTime.now());
                         existingEntity.setUpdatedBy(AUDIT_USER);
@@ -96,6 +97,11 @@ public class UsuarioRepoAdapter implements UsuarioRepositoryPort {
     @Override
     public Mono<Boolean> existsByPhone(String phone) {
         return userRepository.existsByPhone(phone);
+    }
+
+    @Override
+    public Mono<Usuario> getUserByPhone(String phone) {
+        return userRepository.findByPhone(phone).map(usuarioMapper::toDomain);
     }
 
     @Override

@@ -2,10 +2,12 @@ package com.findu.core.dto.response;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+import java.util.List;
+
 /**
- * Detalle de una especialidad del proveedor (con nombre del servicio).
+ * Detalle de una especialidad del proveedor (con nombre del servicio y credenciales acreditadas).
  */
-@Schema(description = "Detalle de especialidad del proveedor")
+@Schema(description = "Detalle de especialidad del proveedor con sus credenciales")
 public record PerfilEspecialistaDetalleResponse(
         @Schema(description = "Nombre del servicio", example = "Enfermería a Domicilio")
         String servicioNombre,
@@ -14,5 +16,8 @@ public record PerfilEspecialistaDetalleResponse(
         String descripcion,
 
         @Schema(description = "Años de experiencia", example = "5")
-        Integer experienciaAnios
+        Integer experienciaAnios,
+
+        @Schema(description = "Lista de credenciales y certificados acreditados")
+        List<EspecialistaCredencialResponse> credenciales
 ) {}

@@ -60,6 +60,22 @@ public class PerfilProveedorController {
         return ResponseEntity.ok(proveedorUseCase.consultarPerfil(id));
     }
 
+    @GetMapping("/auth/{authUserId}")
+    @Operation(summary = "Consultar perfil de proveedor por Auth User ID", description = "Obtiene el detalle completo de un perfil de proveedor usando su ID de autenticación")
+    public ResponseEntity<PerfilProveedorDetalleResponse> consultarPerfilPorAuthUserId(
+            @Parameter(description = "ID del usuario de autenticación", required = true, example = "4")
+            @PathVariable Long authUserId) {
+        return ResponseEntity.ok(proveedorUseCase.consultarPerfilPorAuthUserId(authUserId));
+    }
+
+    @GetMapping("/usuario/{authUserId}")
+    @Operation(summary = "Consultar perfil de proveedor por Auth User ID (Alias)", description = "Obtiene el detalle completo de un perfil de proveedor usando su ID de autenticación")
+    public ResponseEntity<PerfilProveedorDetalleResponse> consultarPerfilPorAuthUserIdAlias(
+            @Parameter(description = "ID del usuario de autenticación", required = true, example = "4")
+            @PathVariable Long authUserId) {
+        return ResponseEntity.ok(proveedorUseCase.consultarPerfilPorAuthUserId(authUserId));
+    }
+
     @PutMapping("/{id}")
     @Operation(summary = "Actualizar perfil de proveedor", description = "Actualiza los datos del perfil de un proveedor existente")
     @ApiResponses(value = {
@@ -106,6 +122,16 @@ public class PerfilProveedorController {
             @RequestBody List<String> codigosDane) {
         proveedorUseCase.actualizarCobertura(id, codigosDane);
         return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{id}/disponibilidad")
+    @Operation(summary = "Cambiar disponibilidad en línea del proveedor", description = "Activa o desactiva la recepción de solicitudes en tiempo real (Estilo Rappi/InDrive)")
+    public ResponseEntity<PerfilProveedorResponse> cambiarDisponibilidad(
+            @Parameter(description = "ID del perfil de proveedor", required = true, example = "1")
+            @PathVariable Long id,
+            @RequestBody Map<String, Boolean> body) {
+        boolean disponible = body.getOrDefault("disponible", true);
+        return ResponseEntity.ok(proveedorUseCase.actualizarDisponibilidad(id, disponible));
     }
 
     @GetMapping("/{id}/publico")

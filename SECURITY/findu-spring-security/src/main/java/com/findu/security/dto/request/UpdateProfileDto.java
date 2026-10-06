@@ -10,5 +10,7 @@ public record UpdateProfileDto(
         String phone,
 
         @NotBlank(message = "codPhoneInternational es requerido")
-        String codPhoneInternational
+        String codPhoneInternational,
+
+        String estado
 ) {}

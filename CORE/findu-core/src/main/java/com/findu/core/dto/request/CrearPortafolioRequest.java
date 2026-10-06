@@ -5,5 +5,6 @@ import jakarta.validation.constraints.NotBlank;
 public record CrearPortafolioRequest(
         @NotBlank String titulo,
         String descripcion,
-        String urlImagen
+        String urlImagen,
+        String urlFolderImagen
 ) {}

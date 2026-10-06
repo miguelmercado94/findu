@@ -54,6 +54,7 @@ public class CustomerManagerImpl implements CustomerManager {
             usuario.setPhone(request.phone());
             usuario.setCodPhoneInternational(request.codPhoneInternational());
             usuario.setPassword(passwordEncoder.encode(request.password()));
+            usuario.setEstado("INCOMPLETO");
             usuario.setActive(true);
             return usuarioService.save(usuario)
                     .flatMap(savedUser -> rolRepositoryPort.findByName(request.roleName())
@@ -70,16 +71,25 @@ public class CustomerManagerImpl implements CustomerManager {
     private Mono<Void> validateUserNotExists(String username, String email, String phone) {
         Mono<Boolean> byUser = usuarioService.existsByUsername(username);
         Mono<Boolean> byEmail = usuarioService.existsByEmail(email);
-        Mono<Boolean> byPhone = usuarioService.existsByPhone(phone);
-        return Mono.zip(byUser, byEmail, byPhone).flatMap(tuple -> {
+        Mono<java.util.Optional<Usuario>> byPhoneUser = usuarioService.getUserByPhone(phone)
+                .map(java.util.Optional::of)
+                .defaultIfEmpty(java.util.Optional.empty());
+
+        return Mono.zip(byUser, byEmail, byPhoneUser).flatMap(tuple -> {
             if (Boolean.TRUE.equals(tuple.getT1())) {
                 return Mono.<Void>error(new IllegalArgumentException("El username ya está registrado"));
             }
             if (Boolean.TRUE.equals(tuple.getT2())) {
                 return Mono.<Void>error(new IllegalArgumentException("El email ya está registrado"));
             }
-            if (Boolean.TRUE.equals(tuple.getT3())) {
-                return Mono.<Void>error(new IllegalArgumentException("El teléfono ya está registrado"));
+            java.util.Optional<Usuario> phoneOpt = tuple.getT3();
+            if (phoneOpt.isPresent()) {
+                Usuario existing = phoneOpt.get();
+                boolean samePerson = existing.getEmail().equalsIgnoreCase(email) || existing.getUsername().equalsIgnoreCase(username);
+                boolean isCompleted = "COMPLETO".equalsIgnoreCase(existing.getEstado());
+                if (!samePerson || isCompleted) {
+                    return Mono.<Void>error(new IllegalArgumentException("El teléfono ya está registrado por otro usuario"));
+                }
             }
             return Mono.<Void>empty();
         });

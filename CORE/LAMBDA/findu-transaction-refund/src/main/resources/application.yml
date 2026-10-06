@@ -1,0 +1,15 @@
+server:
+  port: 8089
+
+spring:
+  application:
+    name: findu-transaction-refund
+
+findu:
+  transaction:
+    url: ${FINDU_TRANSACTION_URL:http://localhost:8086}
+
+logging:
+  level:
+    root: INFO
+    com.findu: DEBUG

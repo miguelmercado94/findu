@@ -1,0 +1,5 @@
+# API Gateway - Configuración Stage
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://eureka-server-stage:8761/eureka/}

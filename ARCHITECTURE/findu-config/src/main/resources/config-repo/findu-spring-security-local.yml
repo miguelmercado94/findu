@@ -1,0 +1,23 @@
+spring:
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+      data-locations: classpath:data.sql
+  r2dbc:
+    url: r2dbc:postgresql://postgres-security:5432/findu
+    username: findu
+    password: findu
+
+findu:
+  deployment: local
+  aws:
+    dynamodb:
+      enabled: false
+      endpoint: http://localstack:4566
+      region: us-east-1
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://eureka-server:8761/eureka/

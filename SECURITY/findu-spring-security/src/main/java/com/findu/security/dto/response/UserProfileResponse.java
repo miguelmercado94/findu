@@ -20,6 +20,8 @@ public record UserProfileResponse(
         String codPhoneInternational,
         @Schema(example = "ROLE_CUSTOMER")
         String roleName,
+        @Schema(example = "INCOMPLETO")
+        String estado,
         @Schema(description = "Operaciones/autorizaciones del rol")
         List<String> operationNames
 ) {}

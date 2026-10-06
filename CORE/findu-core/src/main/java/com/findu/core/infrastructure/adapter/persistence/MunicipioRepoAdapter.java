@@ -25,6 +25,11 @@ public class MunicipioRepoAdapter implements MunicipioRepositoryPort {
     }
 
     @Override
+    public Optional<Municipio> findById(Long id) {
+        return repository.findById(id).map(mapper::toDomain);
+    }
+
+    @Override
     public Optional<Municipio> findByCodigoDane(String codigoDane) {
         return repository.findByCodigoDane(codigoDane).map(mapper::toDomain);
     }

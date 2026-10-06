@@ -192,4 +192,40 @@ INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Ca
 -- 10. Asistencia Legal
 INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Asesoría Jurídica Básica', 'Consulta con abogado profesional a domicilio o virtual', 'POR_HORA', 10);
 
+-- ─── PROVEEDOR DE PRUEBA VERIFICADO ──────────────────────────────────
+INSERT INTO perfil_proveedor (id, auth_user_id, nombre_completo, numero_identificacion, tipo_identificacion, fecha_nacimiento, sexo, celular, cod_phone_international, estado, estado_verificacion, disponible)
+VALUES (1, 4, 'm_mercado_t_94', '1143378452', 'CC', '1995-05-15', 'MASCULINO', '3003763300', '+57', 'ACTIVO', 'VERIFICADO', true)
+ON CONFLICT (id) DO UPDATE SET estado_verificacion = 'VERIFICADO', disponible = true;
+
+INSERT INTO perfil_especialista (id, perfil_proveedor_id, servicio_id, experiencia_anios, descripcion, active)
+VALUES (1, 1, 1, 9, 'Enfermería a Domicilio - Cuidado de ancianos', true)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO proveedor_cobertura (id, perfil_proveedor_id, municipio_id) VALUES (1, 1, 2) ON CONFLICT (id) DO NOTHING;
+INSERT INTO proveedor_cobertura (id, perfil_proveedor_id, municipio_id) VALUES (2, 1, 3) ON CONFLICT (id) DO NOTHING;
+INSERT INTO proveedor_cobertura (id, perfil_proveedor_id, municipio_id) VALUES (3, 1, 4) ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO direccion (id, perfil_proveedor_id, direccion_texto, municipio_id, es_principal, active)
+VALUES (1, 1, 'Vereda carrizales 17 km via palmas', 2, true, true)
+ON CONFLICT (id) DO NOTHING;
+
+-- ─── CLIENTE DE PRUEBA ───────────────────────────────────────────────
+INSERT INTO perfil_cliente (id, auth_user_id, username, email, nombre_completo, numero_identificacion, tipo_identificacion, fecha_nacimiento, sexo, celular, cod_phone_international, estado)
+VALUES (1, 6, 'Celinda.Cueto', 'celindacuetodelahoz@gmail.com', 'Celinda cueto de la Hoz', '1143337852', 'CC', '1994-11-01', 'F', '3052686363', '+57', 'ACTIVO')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO direccion (id, perfil_cliente_id, etiqueta, direccion_texto, municipio_id, latitud, longitud, es_principal, active)
+VALUES (2, 1, 'Principal', 'Vereda a', 2, 6.2086000, -75.5659000, true, true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Sincronizar secuencias para IDs generados
+SELECT setval('perfil_cliente_id_seq', (SELECT GREATEST(MAX(id), 1) FROM perfil_cliente));
+SELECT setval('perfil_proveedor_id_seq', (SELECT GREATEST(MAX(id), 1) FROM perfil_proveedor));
+SELECT setval('perfil_especialista_id_seq', (SELECT GREATEST(MAX(id), 1) FROM perfil_especialista));
+SELECT setval('proveedor_cobertura_id_seq', (SELECT GREATEST(MAX(id), 1) FROM proveedor_cobertura));
+SELECT setval('direccion_id_seq', (SELECT GREATEST(MAX(id), 1) FROM direccion));
+
+
+
+
 

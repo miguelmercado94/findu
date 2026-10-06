@@ -52,7 +52,7 @@ public class PerfilClienteEntity {
     @Column(name = "cod_phone_international")
     private String codPhoneInternational;
 
-    @Column(name = "url_imagen_perfil")
+    @Column(name = "url_imagen_perfil", columnDefinition = "TEXT")
     private String urlImagenPerfil;
 
     @Column(name = "calificacion_promedio")

@@ -1,30 +1,22 @@
 package com.findu.core.application.usecase.impl;
 
 import com.findu.core.application.port.output.persistence.MunicipioRepositoryPort;
-import com.findu.core.application.service.DireccionService;
-import com.findu.core.application.service.PerfilEspecialistaService;
-import com.findu.core.application.service.PerfilProveedorService;
-import com.findu.core.application.service.PortafolioService;
-import com.findu.core.application.service.ProveedorCoberturaService;
+import com.findu.core.application.service.*;
 import com.findu.core.application.usecase.GestionPerfilProveedorUseCase;
 import com.findu.core.domain.model.*;
 import com.findu.core.dto.request.ActualizarPerfilProveedorRequest;
 import com.findu.core.dto.request.CrearPerfilProveedorRequest;
-import com.findu.core.dto.response.DireccionResponse;
-import com.findu.core.dto.response.PerfilEspecialistaDetalleResponse;
-import com.findu.core.dto.response.PerfilEspecialistaResponse;
-import com.findu.core.dto.response.PerfilProveedorDetalleResponse;
-import com.findu.core.dto.response.PerfilProveedorPublicoResponse;
-import com.findu.core.dto.response.PerfilProveedorResponse;
-import com.findu.core.dto.response.PortafolioItemResponse;
+import com.findu.core.dto.response.*;
 import com.findu.core.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -34,8 +26,10 @@ public class GestionPerfilProveedorUseCaseImpl implements GestionPerfilProveedor
     private final PerfilEspecialistaService perfilEspecialistaService;
     private final DireccionService direccionService;
     private final PortafolioService portafolioService;
+    private final EspecialistaCredencialService credencialService;
     private final ProveedorCoberturaService coberturaService;
     private final MunicipioRepositoryPort municipioPort;
+    private final com.findu.core.application.port.output.persistence.ServicioRepositoryPort servicioPort;
 
     @Override
     public PerfilProveedorResponse crearPerfil(CrearPerfilProveedorRequest request) {
@@ -66,8 +60,19 @@ public class GestionPerfilProveedorUseCaseImpl implements GestionPerfilProveedor
         PerfilProveedor perfil = perfilProveedorService.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Perfil de proveedor no encontrado con id: " + id));
 
+        // Mapa servicioId -> nombre para resolver el nombre real del servicio de cada especialidad.
+        java.util.Map<Long, String> nombresServicio = servicioPort.findAll().stream()
+                .collect(java.util.stream.Collectors.toMap(Servicio::getId, Servicio::getNombre, (a, b) -> a));
+
         List<PerfilEspecialistaResponse> especialidades = perfilEspecialistaService.findByProveedorId(id).stream()
-                .map(e -> new PerfilEspecialistaResponse(e.getId(), null, e.getDescripcion(), e.getExperienciaAnios(), e.isActive()))
+                .map(e -> new PerfilEspecialistaResponse(
+                        e.getId(),
+                        e.getServicioId(),
+                        nombresServicio.getOrDefault(e.getServicioId(), null),
+                        e.getDescripcion(),
+                        e.getExperienciaAnios(),
+                        e.getCalificacionPromedio(),
+                        e.isActive()))
                 .toList();
 
         List<DireccionResponse> direcciones = direccionService.findByProveedorId(id).stream()
@@ -75,13 +80,27 @@ public class GestionPerfilProveedorUseCaseImpl implements GestionPerfilProveedor
                         d.getLatitud(), d.getLongitud(), d.getPiso(), d.getApartamento(), d.getReferencia(), d.isEsPrincipal()))
                 .toList();
 
+        List<MunicipioResponse> cobertura = coberturaService.findByProveedorId(id).stream()
+                .map(c -> municipioPort.findById(c.getMunicipioId()).orElse(null))
+                .filter(java.util.Objects::nonNull)
+                .map(m -> new MunicipioResponse(m.getId(), m.getCodigoDane(), m.getNombre(), m.getDepartamento()))
+                .toList();
+
         return new PerfilProveedorDetalleResponse(
                 perfil.getId(), perfil.getNombreCompleto(), perfil.getNumeroIdentificacion(),
                 perfil.getTipoIdentificacion(), perfil.getFechaNacimiento(), perfil.getSexo(),
                 perfil.getCelular(), perfil.getCodPhoneInternational(), perfil.getUrlImagenPerfil(),
                 perfil.getCalificacionPromedio(), perfil.getEstado(), perfil.getEstadoVerificacion(),
-                especialidades, direcciones
+                especialidades, direcciones, cobertura, perfil.isDisponible()
         );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PerfilProveedorDetalleResponse consultarPerfilPorAuthUserId(Long authUserId) {
+        PerfilProveedor perfil = perfilProveedorService.findByAuthUserId(authUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("Perfil de proveedor no encontrado para authUserId: " + authUserId));
+        return consultarPerfil(perfil.getId());
     }
 
     @Override
@@ -100,14 +119,28 @@ public class GestionPerfilProveedorUseCaseImpl implements GestionPerfilProveedor
         List<PortafolioItemResponse> portafolioResponse = List.of();
 
         if (especialidad != null) {
+            List<EspecialistaCredencialResponse> credencialesResponse = credencialService.findByEspecialistaId(especialidad.getId()).stream()
+                    .map(c -> new EspecialistaCredencialResponse(
+                            c.getId(), c.getPerfilEspecialistaId(), c.getTipoCertificado(),
+                            c.getNombreTitulo(), c.getInstitucion(), c.getFechaInicio(),
+                            c.getFechaFin(), c.getUrlCertificadoS3()))
+                    .toList();
+
+            String servNombre = servicioPort.findAll().stream()
+                    .filter(s -> s.getId().equals(especialidad.getServicioId()))
+                    .map(Servicio::getNombre)
+                    .findFirst()
+                    .orElse(null);
+
             especialidadResponse = new PerfilEspecialistaDetalleResponse(
-                    null,
+                    servNombre,
                     especialidad.getDescripcion(),
-                    especialidad.getExperienciaAnios()
+                    especialidad.getExperienciaAnios(),
+                    credencialesResponse
             );
 
             portafolioResponse = portafolioService.findByEspecialistaId(especialidad.getId()).stream()
-                    .map(p -> new PortafolioItemResponse(p.getId(), p.getTitulo(), p.getDescripcion(), p.getUrlImagen()))
+                    .map(p -> new PortafolioItemResponse(p.getId(), p.getTitulo(), p.getDescripcion(), p.getUrlImagen(), p.getUrlFolderImagen()))
                     .toList();
         }
 
@@ -115,7 +148,7 @@ public class GestionPerfilProveedorUseCaseImpl implements GestionPerfilProveedor
                 perfil.getNombreCompleto(),
                 perfil.getNombreCompleto(),
                 perfil.getUrlImagenPerfil(),
-                perfil.getCalificacionPromedio(),
+                especialidad != null && especialidad.getCalificacionPromedio() != null ? especialidad.getCalificacionPromedio() : perfil.getCalificacionPromedio(),
                 especialidadResponse,
                 portafolioResponse
         );
@@ -160,10 +193,36 @@ public class GestionPerfilProveedorUseCaseImpl implements GestionPerfilProveedor
         coberturaService.replaceCobertura(id, municipioIds);
     }
 
+    @Override
+    public PerfilProveedorResponse actualizarDisponibilidad(Long id, boolean disponible) {
+        PerfilProveedor perfil = perfilProveedorService.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Perfil de proveedor no encontrado con id: " + id));
+
+        perfil.setDisponible(disponible);
+        PerfilProveedor saved = perfilProveedorService.save(perfil);
+
+        notificarDispatcherDisponibilidad(id, disponible);
+
+        return toResponse(saved);
+    }
+
+    private void notificarDispatcherDisponibilidad(Long proveedorId, boolean disponible) {
+        try {
+            org.springframework.web.client.RestTemplate restTemplate = new org.springframework.web.client.RestTemplate();
+            String url = "http://findu-notification-processor:8083/api/v1/canales/proveedor/disponibilidad";
+            java.util.Map<String, Object> req = java.util.Map.of("proveedorId", proveedorId, "disponible", disponible);
+            restTemplate.put(url, req);
+            log.info("Canal en dispatcher actualizado exitosamente para proveedor {}: disponible={}", proveedorId, disponible);
+        } catch (Exception e) {
+            log.warn("No se pudo notificar al dispatcher sobre cambio de disponibilidad del proveedor {}: {}", proveedorId, e.getMessage());
+        }
+    }
+
     private PerfilProveedorResponse toResponse(PerfilProveedor p) {
         return new PerfilProveedorResponse(
                 p.getId(), p.getNombreCompleto(), p.getCelular(), p.getCodPhoneInternational(),
-                p.getSexo(), p.getUrlImagenPerfil(), p.getCalificacionPromedio(), p.getEstado(), p.getEstadoVerificacion()
+                p.getSexo(), p.getUrlImagenPerfil(), p.getCalificacionPromedio(), p.getEstado(), p.getEstadoVerificacion(),
+                p.isDisponible()
         );
     }
 }

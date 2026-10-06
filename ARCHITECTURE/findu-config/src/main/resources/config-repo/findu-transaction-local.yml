@@ -1,0 +1,11 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://postgres-transaction:5432/findu_transaction_db
+    username: findu_transaction
+    password: findu_transaction
+    driver-class-name: org.postgresql.Driver
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://eureka-server:8761/eureka/

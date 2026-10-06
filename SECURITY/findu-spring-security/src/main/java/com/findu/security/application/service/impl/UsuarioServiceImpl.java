@@ -80,6 +80,11 @@ public class UsuarioServiceImpl implements UsuarioService {
     }
 
     @Override
+    public Mono<Usuario> getUserByPhone(String phone) {
+        return usuarioRepoAdapter.getUserByPhone(phone);
+    }
+
+    @Override
     public Mono<Usuario> getUserByPhoneAndCountry(String countryCode, String phone) {
         log.debug("DB lookup user by phone={} countryCode={}", phone, countryCode);
         return usuarioRepoAdapter.findByCodPhoneInternationalAndPhone(countryCode, phone);

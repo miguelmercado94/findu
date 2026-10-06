@@ -14,6 +14,8 @@ public interface GestionPerfilProveedorUseCase {
 
     PerfilProveedorDetalleResponse consultarPerfil(Long id);
 
+    PerfilProveedorDetalleResponse consultarPerfilPorAuthUserId(Long authUserId);
+
     /**
      * Vista pública del proveedor para el cliente.
      * Filtra por servicioId para mostrar solo la especialidad relevante.
@@ -28,4 +30,6 @@ public interface GestionPerfilProveedorUseCase {
     void cambiarEstado(Long id, String nuevoEstado);
 
     void actualizarCobertura(Long id, List<String> codigosDane);
+
+    PerfilProveedorResponse actualizarDisponibilidad(Long id, boolean disponible);
 }

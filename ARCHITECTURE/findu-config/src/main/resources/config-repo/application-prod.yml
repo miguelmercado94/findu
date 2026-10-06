@@ -1,0 +1,15 @@
+# =====================================================================
+# CONFIGURACIÓN GENERAL - ENTORNO PROD / PDN
+# =====================================================================
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://eureka-server-prod:8761/eureka/}
+
+findu:
+  aws:
+    dynamodb:
+      region: ${AWS_REGION:us-east-1}
+    s3:
+      region: ${AWS_REGION:us-east-1}

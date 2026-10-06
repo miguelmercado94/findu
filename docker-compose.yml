@@ -23,9 +23,33 @@ services:
   # ARQUITECTURA (expuestos al host)
   # ─────────────────────────────────────────────────────────────────────
 
-  eureka-server:
+  findu-config:
+    image: mmercado94/findu-config:1.0.0
+    build:
+      context: ./ARCHITECTURE/findu-config
+      dockerfile: Dockerfile
+    container_name: findu-config
+    hostname: findu-config
+    networks:
+      - findu-internal
+    ports:
+      - "8888:8888"
+    environment:
+      SPRING_PROFILES_ACTIVE: native
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8888/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 25s
+
+  findu-eureka-server:
     image: mmercado94/findu-eureka-server:1.0.0
+    build:
+      context: ./ARCHITECTURE/findu-eureka-server
+      dockerfile: Dockerfile
     container_name: findu-eureka-server
+    hostname: findu-eureka-server
     networks:
       - findu-internal
     ports:
@@ -46,21 +70,27 @@ services:
       retries: 10
       start_period: 30s
 
-  api-gateway:
+  findu-api-gateway:
     image: mmercado94/findu-api-gateway:1.0.0
     build:
-      context: ./ARCHITECTURE/api-gateway
+      context: ./ARCHITECTURE/findu-api-gateway
       dockerfile: Dockerfile
     container_name: findu-api-gateway
+    hostname: findu-api-gateway
     depends_on:
-      eureka-server:
+      findu-eureka-server:
+        condition: service_healthy
+      findu-config:
         condition: service_healthy
     networks:
       - findu-internal
     ports:
-      - "8080:8080"
+      - "0.0.0.0:8000:8080"
+      - "0.0.0.0:8080:8080"
     environment:
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      SPRING_PROFILES_ACTIVE: local
+      SPRING_CLOUD_CONFIG_URI: http://findu-config:8888
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://findu-eureka-server:8761/eureka/
       EUREKA_CLIENT_REGISTRY_FETCH_INTERVAL_SECONDS: "5"
       SPRING_CLOUD_GATEWAY_DISCOVERY_LOCATOR_ENABLED: "false"
       # LoadBalancer cache TTL reducido (default 35s) — evita routing a instancias stale
@@ -113,7 +143,7 @@ services:
       start_period: 10s
 
   # ─────────────────────────────────────────────────────────────────────
-  # SEGURIDAD (red privada, perfil dev, sin puertos expuestos al host)
+  # SEGURIDAD (red privada, perfil local, sin puertos expuestos al host)
   # ─────────────────────────────────────────────────────────────────────
 
   findu-spring-security:
@@ -126,7 +156,9 @@ services:
     # y Eureka lo registre con este valor (resuelto via DNS Docker)
     hostname: findu-spring-security
     depends_on:
-      eureka-server:
+      findu-eureka-server:
+        condition: service_healthy
+      findu-config:
         condition: service_healthy
       postgres-security:
         condition: service_healthy
@@ -137,11 +169,12 @@ services:
     networks:
       - findu-internal
     environment:
-      SPRING_PROFILES_ACTIVE: dev
+      SPRING_PROFILES_ACTIVE: local
+      SPRING_CLOUD_CONFIG_URI: http://findu-config:8888
       SPRING_R2DBC_URL: r2dbc:postgresql://postgres-security:5432/findu
       SPRING_R2DBC_USERNAME: findu
       SPRING_R2DBC_PASSWORD: findu
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://findu-eureka-server:8761/eureka/
       # --- EUREKA INSTANCE: hostname-based registration (CLAVE para Docker) ---
       # prefer-ip-address=false → Eureka registra el hostname, no la IP
       # hostname=findu-spring-security → coincide con el DNS de Docker Compose
@@ -181,10 +214,15 @@ services:
 
   autorization-server-oauth2:
     image: mmercado94/findu-autorization-server-oauth2:1.0.0
+    build:
+      context: ./SECURITY/autorization-server-oauth2
+      dockerfile: Dockerfile
     container_name: findu-autorization-server-oauth2
     hostname: findu-autorization-server-oauth2
     depends_on:
-      eureka-server:
+      findu-eureka-server:
+        condition: service_healthy
+      findu-config:
         condition: service_healthy
       postgres-oauth2:
         condition: service_healthy
@@ -193,11 +231,12 @@ services:
     networks:
       - findu-internal
     environment:
-      SPRING_PROFILES_ACTIVE: dev
+      SPRING_PROFILES_ACTIVE: local
+      SPRING_CLOUD_CONFIG_URI: http://findu-config:8888
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-oauth2:5432/findu_oauth2
       SPRING_DATASOURCE_USERNAME: findu_oauth2
       SPRING_DATASOURCE_PASSWORD: findu_oauth2_password
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://findu-eureka-server:8761/eureka/
       # --- EUREKA INSTANCE: hostname-based (mismo patrón) ---
       EUREKA_INSTANCE_PREFER_IP_ADDRESS: "false"
       EUREKA_INSTANCE_HOSTNAME: findu-autorization-server-oauth2
@@ -242,7 +281,9 @@ services:
     container_name: findu-core
     hostname: findu-core
     depends_on:
-      eureka-server:
+      findu-eureka-server:
+        condition: service_healthy
+      findu-config:
         condition: service_healthy
       postgres-core:
         condition: service_healthy
@@ -251,11 +292,12 @@ services:
     networks:
       - findu-internal
     environment:
-      SPRING_PROFILES_ACTIVE: dev
+      SPRING_PROFILES_ACTIVE: local
+      SPRING_CLOUD_CONFIG_URI: http://findu-config:8888
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-core:5432/findu_core
       SPRING_DATASOURCE_USERNAME: findu_core
       SPRING_DATASOURCE_PASSWORD: findu_core
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://findu-eureka-server:8761/eureka/
       EUREKA_INSTANCE_PREFER_IP_ADDRESS: "false"
       EUREKA_INSTANCE_HOSTNAME: findu-core
       EUREKA_INSTANCE_LEASE_RENEWAL_INTERVAL_IN_SECONDS: "5"
@@ -280,7 +322,9 @@ services:
     container_name: findu-notification-processor
     hostname: findu-notification-processor
     depends_on:
-      eureka-server:
+      findu-eureka-server:
+        condition: service_healthy
+      findu-config:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
@@ -291,14 +335,15 @@ services:
     networks:
       - findu-internal
     environment:
-      SPRING_PROFILES_ACTIVE: dev
+      SPRING_PROFILES_ACTIVE: local
+      SPRING_CLOUD_CONFIG_URI: http://findu-config:8888
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: "5672"
       RABBITMQ_USERNAME: findu
       RABBITMQ_PASSWORD: findu
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: "6379"
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://findu-eureka-server:8761/eureka/
       EUREKA_INSTANCE_PREFER_IP_ADDRESS: "false"
       EUREKA_INSTANCE_HOSTNAME: findu-notification-processor
       DYNAMODB_ENDPOINT: http://localstack:4566
@@ -330,9 +375,9 @@ services:
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
-      timeout: 5s
+      timeout: 10s
       retries: 5
-      start_period: 20s
+      start_period: 30s
 
   redis:
     image: redis:7-alpine
@@ -374,18 +419,28 @@ services:
     networks:
       - findu-internal
     ports:
-      - "9000:9000"
+      - "0.0.0.0:9000:9000"
     depends_on:
+      findu-eureka-server:
+        condition: service_healthy
+      findu-config:
+        condition: service_healthy
       rabbitmq:
         condition: service_healthy
       localstack:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
-      SPRING_PROFILES_ACTIVE: dev
+      SPRING_PROFILES_ACTIVE: local
+      SPRING_CLOUD_CONFIG_URI: http://findu-config:8888
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: "6379"
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: "5672"
       RABBITMQ_USERNAME: findu
       RABBITMQ_PASSWORD: findu
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://findu-eureka-server:8761/eureka/
       DYNAMODB_ENDPOINT: http://localstack:4566
       AWS_REGION: us-east-1
     healthcheck:
@@ -394,6 +449,137 @@ services:
       timeout: 5s
       retries: 10
       start_period: 45s
+
+  # ─────────────────────────────────────────────────────────────────────
+  # TRANSACCIONES & BALANCES
+  # ─────────────────────────────────────────────────────────────────────
+
+  postgres-transaction:
+    image: postgres:16-alpine
+    container_name: findu-postgres-transaction
+    networks:
+      - findu-internal
+    environment:
+      POSTGRES_USER: findu_transaction
+      POSTGRES_PASSWORD: findu_transaction
+      POSTGRES_DB: findu_transaction_db
+    volumes:
+      - findu-pg-transaction-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U findu_transaction -d findu_transaction_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  findu-transaction:
+    build:
+      context: ./CORE/findu-transaction
+      dockerfile: Dockerfile
+    container_name: findu-transaction
+    hostname: findu-transaction
+    depends_on:
+      findu-eureka-server:
+        condition: service_healthy
+      findu-config:
+        condition: service_healthy
+      postgres-transaction:
+        condition: service_healthy
+    networks:
+      - findu-internal
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      SPRING_CLOUD_CONFIG_URI: http://findu-config:8888
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-transaction:5432/findu_transaction_db
+      SPRING_DATASOURCE_USERNAME: findu_transaction
+      SPRING_DATASOURCE_PASSWORD: findu_transaction
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://findu-eureka-server:8761/eureka/
+      EUREKA_INSTANCE_PREFER_IP_ADDRESS: "false"
+      EUREKA_INSTANCE_HOSTNAME: findu-transaction
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8086/actuator/health || exit 0"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  findu-transaction-daily-balance:
+    build:
+      context: ./CORE/LAMBDA/findu-transaction-daily-balance
+      dockerfile: Dockerfile
+    container_name: findu-transaction-daily-balance
+    hostname: findu-transaction-daily-balance
+    depends_on:
+      findu-eureka-server:
+        condition: service_healthy
+      findu-config:
+        condition: service_healthy
+      postgres-transaction:
+        condition: service_healthy
+    networks:
+      - findu-internal
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      SPRING_CLOUD_CONFIG_URI: http://findu-config:8888
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-transaction:5432/findu_transaction_db
+      SPRING_DATASOURCE_USERNAME: findu_transaction
+      SPRING_DATASOURCE_PASSWORD: findu_transaction
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://findu-eureka-server:8761/eureka/
+      EUREKA_INSTANCE_PREFER_IP_ADDRESS: "false"
+      EUREKA_INSTANCE_HOSTNAME: findu-transaction-daily-balance
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8087/actuator/health || exit 0"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  # ─────────────────────────────────────────────────────────────────────
+  # HELP & SOPORTE TÉCNICO
+  # ─────────────────────────────────────────────────────────────────────
+
+  mongo-help:
+    image: mongo:7-jammy
+    container_name: findu-mongo-help
+    networks:
+      - findu-internal
+    volumes:
+      - findu-mongo-help-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 15s
+      retries: 5
+      start_period: 10s
+
+  findu-help-v2:
+    build:
+      context: ./CORE/findu-help-v2
+      dockerfile: Dockerfile
+    container_name: findu-help-v2
+    hostname: findu-help-v2
+    depends_on:
+      findu-eureka-server:
+        condition: service_healthy
+      findu-config:
+        condition: service_healthy
+      mongo-help:
+        condition: service_healthy
+    networks:
+      - findu-internal
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      SPRING_CLOUD_CONFIG_URI: http://findu-config:8888
+      SPRING_DATA_MONGODB_URI: mongodb://mongo-help:27017/findu_help
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://findu-eureka-server:8761/eureka/
+      EUREKA_INSTANCE_PREFER_IP_ADDRESS: "false"
+      EUREKA_INSTANCE_HOSTNAME: findu-help-v2
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8085/api/v1/tickets || exit 0"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
 
 # ─────────────────────────────────────────────────────────────────────
 # REDES Y VOLÚMENES
@@ -407,3 +593,5 @@ volumes:
   findu-pg-security-data:
   findu-pg-oauth2-data:
   findu-pg-core-data:
+  findu-pg-transaction-data:
+  findu-mongo-help-data:

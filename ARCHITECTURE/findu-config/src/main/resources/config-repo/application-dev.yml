@@ -1,0 +1,26 @@
+# =====================================================================
+# CONFIGURACIÓN GENERAL - ENTORNO DEV (Desarrollo / Cloud Railway)
+# =====================================================================
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://eureka-server:8761/eureka/}
+
+spring:
+  data:
+    redis:
+      host: ${REDIS_HOST:redis.railway.internal}
+      port: ${REDIS_PORT:6379}
+  rabbitmq:
+    host: ${RABBITMQ_HOST:rabbitmq.railway.internal}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:findu}
+    password: ${RABBITMQ_PASSWORD:findu}
+
+findu:
+  aws:
+    dynamodb:
+      region: ${AWS_REGION:us-east-1}
+    s3:
+      region: ${AWS_REGION:us-east-1}

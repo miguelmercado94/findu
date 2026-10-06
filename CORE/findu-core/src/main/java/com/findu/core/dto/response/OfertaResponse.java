@@ -7,7 +7,9 @@ import java.math.BigDecimal;
 @Schema(description = "Respuesta de oferta")
 public record OfertaResponse(
         @Schema(description = "ID") Long id,
+        @Schema(description = "ID del perfil de proveedor") Long perfilProveedorId,
         @Schema(description = "Nombre del proveedor") String proveedorNombre,
+        @Schema(description = "Foto de perfil del proveedor") String proveedorFoto,
         @Schema(description = "Calificación del proveedor") BigDecimal calificacionProveedor,
         @Schema(description = "Valor propuesto") BigDecimal valorPropuesto,
         @Schema(description = "Tiempo estimado") String tiempoEstimado,

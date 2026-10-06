@@ -10,6 +10,7 @@ DROP TABLE IF EXISTS oferta CASCADE;
 DROP TABLE IF EXISTS solicitud_servicio CASCADE;
 DROP TABLE IF EXISTS direccion CASCADE;
 DROP TABLE IF EXISTS proveedor_cobertura CASCADE;
+DROP TABLE IF EXISTS especialista_credenciales CASCADE;
 DROP TABLE IF EXISTS portafolio_item CASCADE;
 DROP TABLE IF EXISTS perfil_especialista CASCADE;
 DROP TABLE IF EXISTS perfil_proveedor CASCADE;
@@ -42,7 +43,7 @@ CREATE TABLE servicio (
     descripcion VARCHAR(500),
     tipo_cobro VARCHAR(20) NOT NULL DEFAULT 'POR_HORA',
     categoria_id BIGINT NOT NULL REFERENCES categoria(id),
-    url_imagen VARCHAR(500),
+    url_imagen TEXT,
     active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -60,7 +61,7 @@ CREATE TABLE perfil_cliente (
     sexo VARCHAR(10),
     celular VARCHAR(20) NOT NULL,
     cod_phone_international VARCHAR(5) DEFAULT '+57',
-    url_imagen_perfil VARCHAR(500),
+    url_imagen_perfil TEXT,
     calificacion_promedio DECIMAL(3,2) DEFAULT 0.00,
     estado VARCHAR(20) NOT NULL DEFAULT 'INCOMPLETO',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -77,10 +78,11 @@ CREATE TABLE perfil_proveedor (
     sexo VARCHAR(10),
     celular VARCHAR(20) NOT NULL,
     cod_phone_international VARCHAR(5) DEFAULT '+57',
-    url_imagen_perfil VARCHAR(500),
-    calificacion_promedio DECIMAL(3,2) DEFAULT 0.00,
+    url_imagen_perfil TEXT,
+    calificacion_promedio DECIMAL(3,2) DEFAULT 5.00,
     estado VARCHAR(20) NOT NULL DEFAULT 'ACTIVO',
     estado_verificacion VARCHAR(30) NOT NULL DEFAULT 'PENDIENTE',
+    disponible BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -91,6 +93,7 @@ CREATE TABLE perfil_especialista (
     servicio_id BIGINT NOT NULL REFERENCES servicio(id),
     descripcion VARCHAR(500),
     experiencia_anios INT DEFAULT 0,
+    calificacion_promedio DECIMAL(3,2) DEFAULT 5.00,
     active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -101,8 +104,22 @@ CREATE TABLE portafolio_item (
     perfil_especialista_id BIGINT NOT NULL REFERENCES perfil_especialista(id),
     titulo VARCHAR(100),
     descripcion VARCHAR(500),
-    url_imagen VARCHAR(500) NOT NULL,
+    url_imagen TEXT,
+    url_folder_imagen TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE especialista_credenciales (
+    id BIGSERIAL PRIMARY KEY,
+    perfil_especialista_id BIGINT NOT NULL REFERENCES perfil_especialista(id),
+    tipo_certificado VARCHAR(30) NOT NULL,
+    nombre_titulo VARCHAR(200) NOT NULL,
+    institucion VARCHAR(200) NOT NULL,
+    fecha_inicio DATE,
+    fecha_fin DATE NOT NULL,
+    url_certificado_s3 TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE proveedor_cobertura (
@@ -141,6 +158,8 @@ CREATE TABLE solicitud_servicio (
     prioridad INT DEFAULT 3,
     presupuesto_maximo DECIMAL(12,2),
     cantidad_estimada INT DEFAULT 1,
+    detalles TEXT,
+    fotos TEXT,
     estado_solicitud VARCHAR(30) NOT NULL DEFAULT 'ABIERTA',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

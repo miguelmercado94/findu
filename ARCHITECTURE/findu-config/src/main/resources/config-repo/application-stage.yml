@@ -1,0 +1,15 @@
+# =====================================================================
+# CONFIGURACIÓN GENERAL - ENTORNO STAGE / QA
+# =====================================================================
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://eureka-server-stage:8761/eureka/}
+
+findu:
+  aws:
+    dynamodb:
+      region: ${AWS_REGION:us-east-1}
+    s3:
+      region: ${AWS_REGION:us-east-1}

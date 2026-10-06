@@ -2,28 +2,57 @@ server:
   port: 9000
 
 spring:
+  application:
+    name: notification-dispatcher
+  config:
+    import: "optional:configserver:${SPRING_CLOUD_CONFIG_URI:http://localhost:8888}"
   profiles:
-    active: ${SPRING_PROFILES_ACTIVE:local}
-  cloud:
-    function:
-      definition: dispatchNotification
+    active: dev
+
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
     port: ${RABBITMQ_PORT:5672}
-    username: ${RABBITMQ_USERNAME:guest}
-    password: ${RABBITMQ_PASSWORD:guest}
+    username: ${RABBITMQ_USERNAME:findu}
+    password: ${RABBITMQ_PASSWORD:findu}
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://localhost:8761/eureka/}
+    registry-fetch-interval-seconds: 5
+  instance:
+    prefer-ip-address: false
+    instance-id: ${spring.application.name}:${random.uuid}
+    lease-renewal-interval-in-seconds: 5
+    lease-expiration-duration-in-seconds: 15
 
 findu:
-  notification:
-    exchange: findu.notifications
-    routing-key-prefix: notification.
-    dynamodb:
-      table-name: ${DYNAMODB_TABLE:findu_notifications}
-      endpoint: ${DYNAMODB_ENDPOINT:}
-      region: ${AWS_REGION:us-east-1}
+  jwt:
+    secret: ${JWT_SECRET:secret-key-at-least-32-bytes-long-for-findu-security-environment!}
+  websocket:
+    endpoint: /ws/events
+    ping-interval-seconds: 30
+  rabbitmq:
+    exchanges:
+      events: findu.events.exchange
+      fallback: findu.notifications.fallback.exchange
+    queues:
+      dispatcher: findu.dispatcher.events.queue
+      fallback: findu.notifications.fallback.queue
+    routing-keys:
+      event: findu.event.#
+      fallback: findu.fallback.notification
 
 management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always

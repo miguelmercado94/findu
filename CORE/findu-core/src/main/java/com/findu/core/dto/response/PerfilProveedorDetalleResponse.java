@@ -21,5 +21,7 @@ public record PerfilProveedorDetalleResponse(
         @Schema(description = "Estado del perfil") String estado,
         @Schema(description = "Estado de verificación") String estadoVerificacion,
         @Schema(description = "Especialidades") List<PerfilEspecialistaResponse> especialidades,
-        @Schema(description = "Direcciones") List<DireccionResponse> direcciones
+        @Schema(description = "Direcciones") List<DireccionResponse> direcciones,
+        @Schema(description = "Cobertura geográfica (municipios)") List<MunicipioResponse> cobertura,
+        @Schema(description = "Disponibilidad en línea") boolean disponible
 ) {}

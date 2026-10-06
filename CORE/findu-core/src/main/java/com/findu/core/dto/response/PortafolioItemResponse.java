@@ -7,5 +7,6 @@ public record PortafolioItemResponse(
         @Schema(description = "ID") Long id,
         @Schema(description = "Título") String titulo,
         @Schema(description = "Descripción") String descripcion,
-        @Schema(description = "URL de la imagen") String urlImagen
+        @Schema(description = "URL de la imagen principal") String urlImagen,
+        @Schema(description = "URLs de carpeta/múltiples imágenes del portafolio (delimitadas por coma)") String urlFolderImagen
 ) {}

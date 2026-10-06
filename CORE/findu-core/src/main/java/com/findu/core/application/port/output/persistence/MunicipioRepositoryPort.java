@@ -9,5 +9,7 @@ public interface MunicipioRepositoryPort {
 
     List<Municipio> findAll();
 
+    Optional<Municipio> findById(Long id);
+
     Optional<Municipio> findByCodigoDane(String codigoDane);
 }

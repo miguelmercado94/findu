@@ -1,0 +1,15 @@
+spring:
+  rabbitmq:
+    host: rabbitmq
+    port: 5672
+    username: findu
+    password: findu
+  data:
+    redis:
+      host: redis
+      port: 6379
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://eureka-server:8761/eureka/

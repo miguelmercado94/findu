@@ -1,0 +1,12 @@
+server:
+  port: 8089
+
+spring:
+  application:
+    name: findu-transaction-daily-balance
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info

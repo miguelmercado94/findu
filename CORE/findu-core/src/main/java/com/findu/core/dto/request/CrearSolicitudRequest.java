@@ -14,5 +14,8 @@ public record CrearSolicitudRequest(
         String telefonoContacto,
         Integer prioridad,
         BigDecimal presupuestoMaximo,
-        Integer cantidadEstimada
+        Boolean esPresupuestoEstricto,
+        Integer cantidadEstimada,
+        String detalles,
+        String fotos
 ) {}

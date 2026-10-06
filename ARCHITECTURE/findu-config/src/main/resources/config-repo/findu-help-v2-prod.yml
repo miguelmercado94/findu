@@ -1,0 +1,4 @@
+spring:
+  data:
+    mongodb:
+      uri: ${SPRING_DATA_MONGODB_URI:mongodb://mongo-help-prod:27017/findu_help}

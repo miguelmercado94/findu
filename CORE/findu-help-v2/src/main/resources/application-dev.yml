@@ -1,0 +1,24 @@
+server:
+  port: 8085
+
+spring:
+  data:
+    mongodb:
+      uri: ${SPRING_DATA_MONGODB_URI:mongodb://findu-mongo:27017/findu_help_v2_db}
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://eureka-server:8761/eureka/}
+
+findu:
+  help:
+    aws:
+      s3:
+        bucket: ${S3_BUCKET:findu-help-bucket-dev}
+        region: ${AWS_REGION:us-east-1}
+  notification:
+    dispatcher:
+      url: ${NOTIFICATION_DISPATCHER_URL:http://notification-dispatcher:9000}
+    processor:
+      url: ${NOTIFICATION_PROCESSOR_URL:http://findu-notification-processor:8083}

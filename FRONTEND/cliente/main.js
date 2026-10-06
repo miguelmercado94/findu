@@ -1,4 +1,4 @@
-import './style.css';
+// CSS import manejado via index.html
 
 // Variables de entorno
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -24,6 +24,21 @@ const DEFAULT_SERVICE_IMAGES = {
   mascotas: 'https://images.unsplash.com/photo-1548767797-d8c844163c4c?auto=format&fit=crop&w=500&q=80',
   default: 'https://images.unsplash.com/photo-1521791136064-7986c2920216?auto=format&fit=crop&w=500&q=80'
 };
+
+function getTodayLocalDateString() {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getCurrentLocalTimeString() {
+  const d = new Date();
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  return `${hours}:${minutes}`;
+}
 
 function getServiceImage(service) {
   if (service.urlImagen) return service.urlImagen;
@@ -57,9 +72,9 @@ let state = {
   activeTab: 'services', // 'services', 'requests', 'profile'
   googleData: null,
   alert: { type: '', message: '' },
-  fechaNacimiento: '',
-  regPhone: '',
-  regPhoneCode: '+57',
+  fechaNacimiento: localStorage.getItem('findu_birthdate') || '',
+  regPhone: localStorage.getItem('findu_reg_phone') || '',
+  regPhoneCode: localStorage.getItem('findu_reg_phone_code') || '+57',
   regUsername: '',
   regEmail: '',
   avatarBase64: null,
@@ -83,9 +98,10 @@ let state = {
   selectedServiceForRequest: null,
   wizardStep: 1, // 1: Dirección, 2: Detalles & Presupuesto, 3: Fotos, 4: Resumen
   requestAddressId: null,
-  requestDate: new Date().toISOString().split('T')[0],
+  requestDate: getTodayLocalDateString(),
   requestTime: '09:00',
   requestMaxHours: 2,
+  requestHasMaxBudget: false,
   requestMaxBudget: '',
   requestDetails: '',
   requestPhotos: [], // Array de cadenas Base64 (máx 10)
@@ -105,6 +121,26 @@ let state = {
   },
 
   requests: [],
+  editingRequest: null,
+  showEditRequestModal: false,
+  editRequestForm: {
+    direccionId: '',
+    hasMaxBudget: true,
+    presupuestoMaximo: '',
+    detalles: '',
+    fotos: []
+  },
+  pastRequestsPage: 0,
+  hasMorePastRequests: false,
+  isLoadingPastRequests: false,
+  showOffersModal: false,
+  selectedRequestForOffers: null,
+  requestOffersList: [],
+  isLoadingOffers: false,
+  showProviderProfileModal: false,
+  selectedProviderPublicProfile: null,
+  selectedOfferForAcceptance: null,
+  isLoadingProviderProfile: false,
   recoveryStep: 1,
   recoveryMethod: 'email',
   recoveryEmail: '',
@@ -161,8 +197,65 @@ async function safeParseJson(response) {
   return {};
 }
 
+let wsCliente = null;
+
+function initWebSocketForCliente(username) {
+  if (!username) return;
+  if (wsCliente && (wsCliente.readyState === WebSocket.OPEN || wsCliente.readyState === WebSocket.CONNECTING)) {
+    return;
+  }
+
+  const wsUrl = `ws://localhost:9000/ws/events?userId=${username}`;
+  try {
+    wsCliente = new WebSocket(wsUrl);
+
+    wsCliente.onopen = () => {
+      console.log(`⚡ Real-time WebSocket conectado para Cliente ${username}`);
+    };
+
+    wsCliente.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'PING' || data.tipoEvento === 'PING') return;
+
+        const payload = data.payload || data;
+        const tipo = payload.tipoEvento || data.tipoEvento;
+
+        if (tipo === 'NUEVA_OFERTA') {
+          const provNom = payload.proveedorNombre || 'Un proveedor';
+          const val = payload.valorPropuesto ? `$${Number(payload.valorPropuesto).toLocaleString()} COP` : '';
+          showAlert('success', `🏷️ ¡Has recibido una nueva oferta de ${provNom} ${val}!`);
+
+          if (typeof fetchUserRequests === 'function') {
+            fetchUserRequests(0);
+          }
+          if (state.selectedRequestForOffers && state.selectedRequestForOffers.dbId == payload.solicitudId) {
+            if (typeof window.openOffersModal === 'function') {
+              window.openOffersModal(state.selectedRequestForOffers.dbId);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Error leyendo mensaje WebSocket Cliente:", err);
+      }
+    };
+
+    wsCliente.onclose = () => {
+      setTimeout(() => initWebSocketForCliente(username), 5000);
+    };
+
+    wsCliente.onerror = (err) => {
+      console.warn("WebSocket Cliente error:", err);
+    };
+  } catch (e) {
+    console.warn("No se pudo conectar WebSocket Cliente:", e);
+  }
+}
+
 // Cargar perfil del usuario y sus direcciones
 async function fetchProfile(retries = 3) {
+  if (!state.token) return;
+
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const res = await fetch(`${API_GATEWAY_URL}/security-auth/api/v1/profile`, {
@@ -184,13 +277,23 @@ async function fetchProfile(retries = 3) {
 
       const data = await safeParseJson(res);
       state.profile = data;
+      if (data.username) {
+        state.regUsername = data.username;
+        initWebSocketForCliente(data.username);
+      }
 
-      if (data.phone) state.regPhone = data.phone;
-      if (data.codPhoneInternational) state.regPhoneCode = data.codPhoneInternational;
+      if (data.phone) {
+        state.regPhone = data.phone;
+        localStorage.setItem('findu_reg_phone', data.phone);
+      }
+      if (data.codPhoneInternational) {
+        state.regPhoneCode = data.codPhoneInternational;
+        localStorage.setItem('findu_reg_phone_code', data.codPhoneInternational);
+      }
       if (data.username) state.regUsername = data.username;
       if (data.email) state.regEmail = data.email;
 
-      if (!data.phone && state.googleData) {
+      if (!data.phone) {
         setView('register');
         showAlert('success', 'Autenticado con Google con éxito. Por favor, completa tu teléfono para finalizar el registro.');
         return;
@@ -213,11 +316,12 @@ async function fetchProfile(retries = 3) {
               state.requestAddressId = principal.id;
             }
 
-            if (coreProfile.estado === 'INCOMPLETO') {
+            if (data.estado === 'INCOMPLETO' || coreProfile.estado === 'INCOMPLETO') {
               setView('complete-profile');
               return;
             } else {
               setView('services');
+              fetchUserRequests(0);
               return;
             }
           } else if (coreRes.status === 404) {
@@ -239,9 +343,243 @@ async function fetchProfile(retries = 3) {
         await new Promise(r => setTimeout(r, 2000));
         continue;
       }
+      // Si falla por 503/red, no desloguear si tenemos token en localStorage
+      if (state.token) {
+        showAlert('error', 'Conectando con los servicios. Por favor intenta nuevamente.');
+        return;
+      }
       logout();
     }
   }
+}
+
+// Consultar historial de solicitudes del cliente con paginación y conteo de ofertas
+async function fetchUserRequests(page = 0, append = false) {
+  if (!state.coreProfile?.id) return;
+  state.isLoadingPastRequests = true;
+  try {
+    const res = await fetch(`${API_GATEWAY_URL}/findu-core/api/v1/solicitudes/cliente/${state.coreProfile.id}?page=${page}&size=5`, {
+      headers: { 'Authorization': `Bearer ${state.token}` }
+    });
+
+    if (res.ok) {
+      const pageData = await res.json();
+      const rawContent = pageData.content || pageData || [];
+      
+      const fetchedItems = await Promise.all(rawContent.map(async s => {
+        const chosenAddr = state.coreProfile?.direcciones?.find(d => d.id == s.direccionId);
+        const addressSummary = chosenAddr 
+          ? `${chosenAddr.direccionTexto} (${chosenAddr.municipioNombre || 'Ciudad'})`
+          : (s.direccionTexto || 'Dirección Registrada');
+
+        let photosArr = [];
+        if (s.fotos) {
+          try { photosArr = JSON.parse(s.fotos); } catch (e) { photosArr = []; }
+        }
+
+        let offersCount = 0;
+        try {
+          const offRes = await fetch(`${API_GATEWAY_URL}/findu-core/api/v1/solicitudes/${s.id}/ofertas`, {
+            headers: { 'Authorization': `Bearer ${state.token}` }
+          });
+          if (offRes.ok) {
+            const offList = await offRes.json();
+            offersCount = offList ? offList.length : 0;
+          }
+        } catch (err) {
+          offersCount = 0;
+        }
+
+        return {
+          id: 'REQ-' + (s.id || Math.floor(100000 + Math.random() * 900000)),
+          dbId: s.id,
+          servicioId: s.servicioId,
+          direccionId: s.direccionId,
+          serviceName: s.servicioNombre || 'Servicio General',
+          status: s.estadoSolicitud || 'ABIERTA',
+          date: s.fechaProgramada ? s.fechaProgramada.replace('T', ' ') : 'N/A',
+          address: addressSummary,
+          maxHours: '2 Horas',
+          maxBudget: s.presupuestoMaximo ? `$ ${s.presupuestoMaximo} COP` : 'A convenir',
+          rawMaxBudget: s.presupuestoMaximo || '',
+          notes: s.detalles || '',
+          photosCount: photosArr.length,
+          photos: photosArr,
+          priceType: 'Tarifa Fija',
+          offersCount: offersCount
+        };
+      }));
+
+      if (!append) {
+        const localOnly = state.requests.filter(l => !l.dbId);
+        state.requests = [...localOnly];
+      }
+
+      fetchedItems.forEach(item => {
+        if (!state.requests.some(r => (r.dbId && r.dbId === item.dbId) || r.id === item.id)) {
+          state.requests.push(item);
+        }
+      });
+
+      state.pastRequestsPage = page;
+      state.hasMorePastRequests = pageData.totalPages ? (page + 1 < pageData.totalPages) : false;
+    }
+  } catch (e) {
+    console.error("Error fetching user requests:", e);
+  } finally {
+    state.isLoadingPastRequests = false;
+    render();
+  }
+}
+
+// Consultar ofertas para una solicitud específica y abrir modal
+async function handleFetchOffersForRequest(request) {
+  state.selectedRequestForOffers = request;
+  state.showOffersModal = true;
+  state.isLoadingOffers = true;
+  render();
+
+  try {
+    const res = await fetch(`${API_GATEWAY_URL}/findu-core/api/v1/solicitudes/${request.dbId}/ofertas`, {
+      headers: { 'Authorization': `Bearer ${state.token}` }
+    });
+
+    if (res.ok) {
+      const list = await res.json();
+      state.requestOffersList = list || [];
+    } else {
+      state.requestOffersList = [];
+    }
+  } catch (e) {
+    console.error("Error fetching offers:", e);
+    state.requestOffersList = [];
+  } finally {
+    state.isLoadingOffers = false;
+    render();
+  }
+}
+
+// Consultar perfil público del proveedor filtrado por servicio y abrir modal
+async function handleFetchProviderPublicProfile(proveedorId, servicioId, offer) {
+  state.isLoadingProviderProfile = true;
+  state.selectedOfferForAcceptance = offer;
+  try {
+    const res = await fetch(`${API_GATEWAY_URL}/findu-core/api/v1/perfil-proveedor/${proveedorId || 1}/publico?servicioId=${servicioId || 1}`, {
+      headers: { 'Authorization': `Bearer ${state.token}` }
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      state.selectedProviderPublicProfile = data;
+      state.showProviderProfileModal = true;
+    } else {
+      state.selectedProviderPublicProfile = {
+        username: offer.proveedorNombre ? offer.proveedorNombre.toLowerCase().replace(/\s+/g, '.') : 'proveedor',
+        nombreCompleto: offer.proveedorNombre || 'Especialista FINDU',
+        urlImagenPerfil: offer.proveedorFoto || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+        calificacionPromedio: offer.calificacionProveedor || 5.0,
+        especialidad: { descripcionEspecialidad: 'Técnico profesional certificado con amplia experiencia y excelentes valoraciones en FINDU.' },
+        portafolio: []
+      };
+      state.showProviderProfileModal = true;
+    }
+  } catch (e) {
+    console.error("Error fetching provider public profile:", e);
+    state.selectedProviderPublicProfile = {
+      username: 'proveedor',
+      nombreCompleto: offer.proveedorNombre || 'Especialista FINDU',
+      urlImagenPerfil: offer.proveedorFoto || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+      calificacionPromedio: offer.calificacionProveedor || 5.0,
+      especialidad: { descripcionEspecialidad: 'Técnico profesional certificado.' },
+      portafolio: []
+    };
+    state.showProviderProfileModal = true;
+  } finally {
+    state.isLoadingProviderProfile = false;
+    render();
+  }
+}
+
+// Aceptar una oferta seleccionada
+async function handleAcceptOffer(ofertaId) {
+  try {
+    const res = await fetch(`${API_GATEWAY_URL}/findu-core/api/v1/ofertas/${ofertaId}/aceptar`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${state.token}`
+      }
+    });
+
+    if (res.ok) {
+      showAlert('success', '¡Oferta aceptada con éxito! El servicio ha sido programado con el proveedor.');
+      state.showOffersModal = false;
+      state.showProviderProfileModal = false;
+      state.selectedRequestForOffers = null;
+      state.selectedProviderPublicProfile = null;
+      state.selectedOfferForAcceptance = null;
+      fetchUserRequests(0);
+    } else {
+      const data = await safeParseJson(res);
+      throw new Error(data.message || 'No se pudo aceptar la oferta');
+    }
+  } catch (e) {
+    showAlert('error', e.message);
+  }
+}
+
+// Renderizador Clásico & Elegante para Tarjetas de Solicitud (Seleccionable + Badge de Ofertas)
+function renderClassicRequestCard(r) {
+  const isCancelable = r.status === 'SOLICITADO' || r.status === 'ABIERTA' || r.status === 'PROGRAMADA';
+  const isEditable = r.status === 'SOLICITADO' || r.status === 'ABIERTA';
+  const isCancelled = (r.status || '').includes('CANCELAD');
+
+  return `
+    <div class="view-request-offers-card" data-id="${r.id}" style="background: rgba(15,23,42,0.65); padding: 16px 20px; border-radius: 18px; border: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 8px; transition: all 0.25s; cursor: pointer;" onmouseover="this.style.borderColor='var(--accent-color)'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 20px rgba(0,0,0,0.3)'" onmouseout="this.style.borderColor='var(--border-color)'; this.style.transform='translateY(0)'; this.style.boxShadow='none'">
+      
+      <!-- Fila Superior: Código | Estado | Iconos Minimalistas de Acción (✏️ y ❌) -->
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 0.82rem; font-weight: 800; color: #818cf8; background: rgba(99,102,241,0.15); padding: 3px 10px; border-radius: 10px; letter-spacing: 0.5px;">${r.id}</span>
+          <span style="font-size: 0.72rem; padding: 3px 10px; border-radius: 10px; background: ${isCancelled ? 'rgba(239, 68, 68, 0.15)' : 'rgba(34, 197, 94, 0.15)'}; color: ${isCancelled ? '#f87171' : '#4ade80'}; font-weight: 700; border: 1px solid ${isCancelled ? 'rgba(239,68,68,0.3)' : 'rgba(34,197,94,0.3)'}; text-transform: uppercase;">${r.status}</span>
+        </div>
+
+        <!-- Acciones Minimalistas (✏️ y ❌) -->
+        <div style="display: flex; align-items: center; gap: 6px;" onclick="event.stopPropagation()">
+          ${isEditable ? `
+            <button type="button" class="open-edit-request-btn" data-id="${r.id}" title="Editar Solicitud" style="background: rgba(99,102,241,0.12); border: 1px solid rgba(99,102,241,0.25); color: #a5b4fc; width: 32px; height: 32px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.85rem;">✏️</button>
+          ` : ''}
+          ${isCancelable ? `
+            <button type="button" class="trigger-cancel-request-btn" data-id="${r.id}" title="Cancelar Solicitud" style="background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.25); color: #fca5a5; width: 32px; height: 32px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.85rem;">❌</button>
+          ` : ''}
+        </div>
+      </div>
+
+      <!-- Fila 2: Título de la Categoría/Servicio & Presupuesto -->
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-top: 2px;">
+        <h4 style="font-size: 1.05rem; font-weight: 700; color: #fff; margin: 0; line-height: 1.3;">${r.serviceName}</h4>
+        <span style="font-size: 0.9rem; font-weight: 800; color: #38bdf8; background: rgba(56,189,248,0.1); padding: 3px 10px; border-radius: 10px; border: 1px solid rgba(56,189,248,0.25); white-space: nowrap; margin-left: 12px;">${r.maxBudget}</span>
+      </div>
+
+      <!-- Fila 3: Dirección de Atención -->
+      <div style="font-size: 0.85rem; color: var(--text-secondary); display: flex; align-items: center; gap: 6px;">
+        <span>📍</span>
+        <span>${r.address}</span>
+      </div>
+
+      <!-- Fila 4: Fecha/Hora, Notas & Badge Contador de Ofertas en Esquina Inferior Derecha -->
+      <div style="font-size: 0.78rem; color: #94a3b8; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 8px; margin-top: 4px;">
+        <div>📅 ${r.date} &nbsp;•&nbsp; ⏱ ${r.priceType} (${r.maxHours})</div>
+        
+        <div style="display: flex; align-items: center; gap: 8px; margin-left: auto;">
+          ${r.notes ? `<span style="font-style: italic; color: #cbd5e1; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">📝 ${r.notes}</span>` : ''}
+          <span style="font-size: 0.78rem; font-weight: 800; background: rgba(99,102,241,0.2); border: 1px solid rgba(99,102,241,0.4); color: #a5b4fc; padding: 4px 12px; border-radius: 12px; display: inline-flex; align-items: center; gap: 6px;">
+            🏷️ ${r.offersCount || 0} ${r.offersCount === 1 ? 'Oferta' : 'Ofertas'}
+          </span>
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 // Refrescar direcciones del cliente desde findu-core
@@ -313,15 +651,18 @@ async function handleLogin(e) {
   }
 }
 
-// Registro tradicional
+// Registro tradicional (o complementando usuario de Google)
 async function handleRegister(e) {
   e.preventDefault();
-  const username = document.getElementById('reg-username').value.trim();
-  const email = document.getElementById('reg-email').value.trim();
-  const phone = document.getElementById('reg-phone').value.trim();
-  const codPhoneInternational = document.getElementById('reg-phone-code').value;
-  const password = state.googleData ? 'GoogleAccountLinked123*' : document.getElementById('reg-password').value;
-  const birthdateVal = document.getElementById('reg-birthdate').value;
+  const inputUsername = (document.getElementById('reg-username')?.value || '').trim();
+  const inputEmail = (document.getElementById('reg-email')?.value || '').trim();
+  const phone = (document.getElementById('reg-phone')?.value || state.regPhone || '').trim();
+  const codPhoneInternational = document.getElementById('reg-phone-code')?.value || state.regPhoneCode || '+57';
+  const birthdateVal = document.getElementById('reg-birthdate')?.value || state.fechaNacimiento || '';
+
+  const email = inputEmail || state.profile?.email || state.regEmail || state.googleData?.email || '';
+  const username = inputUsername || state.profile?.username || state.regUsername || (email ? email.split('@')[0] : '');
+  const password = (state.googleData || state.token) ? 'GoogleAccountLinked123*' : document.getElementById('reg-password')?.value || 'Password123*';
 
   try {
     if (!birthdateVal) throw new Error('La fecha de nacimiento es obligatoria');
@@ -338,22 +679,35 @@ async function handleRegister(e) {
     state.regPhone = phone;
     state.regPhoneCode = codPhoneInternational;
 
-    if (state.token && state.googleData) {
+    localStorage.setItem('findu_birthdate', birthdateVal);
+    localStorage.setItem('findu_reg_phone', phone);
+    localStorage.setItem('findu_reg_phone_code', codPhoneInternational);
+
+    // Caso 1: El usuario ya existe / autenticado con Google y ya tenemos token
+    const tokenToUse = state.token || localStorage.getItem('findu_token');
+    if (tokenToUse) {
+      state.token = tokenToUse;
       const updateRes = await fetch(`${API_GATEWAY_URL}/security-auth/api/v1/profile`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${state.token}`
+          'Authorization': `Bearer ${tokenToUse}`
         },
         body: JSON.stringify({ username, phone, codPhoneInternational })
       });
+      const updateData = await safeParseJson(updateRes);
       if (updateRes.ok) {
         state.googleData = null;
-        fetchProfile();
+        setView('complete-profile');
         return;
+      } else if (updateRes.status === 503 || updateRes.status === 500) {
+        throw new Error('El servicio de seguridad se está reconectando. Por favor presiona Siguiente de nuevo en unos segundos.');
+      } else {
+        throw new Error(updateData.message || `Error al actualizar el teléfono en el perfil de seguridad (${updateRes.status})`);
       }
     }
 
+    // Caso 2: Intento de registro normal en customers
     const res = await fetch(`${API_GATEWAY_URL}/security-auth/api/v1/customers`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -369,9 +723,42 @@ async function handleRegister(e) {
 
     const data = await safeParseJson(res);
     if (!res.ok) {
+      // Si el usuario ya existe y venimos de Google, re-intentar federated para obtener token y actualizar perfil
+      if ((state.googleData || state.token) && (data.message || '').toLowerCase().includes('ya')) {
+        const fedRes = await fetch(`${API_GATEWAY_URL}/security-auth/api/v1/auth/federated`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            providerName: 'google',
+            providerUserId: state.googleData?.sub || 'google-user',
+            email: email,
+            username: username,
+            role: ROLE_NAME
+          })
+        });
+        const fedData = await safeParseJson(fedRes);
+        if (fedRes.ok && fedData.jwt) {
+          localStorage.setItem('findu_token', fedData.jwt);
+          state.token = fedData.jwt;
+          
+          await fetch(`${API_GATEWAY_URL}/security-auth/api/v1/profile`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${fedData.jwt}`
+            },
+            body: JSON.stringify({ username, phone, codPhoneInternational })
+          });
+
+          state.googleData = null;
+          setView('complete-profile');
+          return;
+        }
+      }
       throw new Error(data.message || `Error en el registro (${res.status})`);
     }
 
+    // Caso 3: Registro exitoso por primera vez, hacer login automático
     const loginRes = await fetch(`${API_GATEWAY_URL}/security-auth/api/v1/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -383,7 +770,7 @@ async function handleRegister(e) {
       state.token = loginData.jwt;
     }
 
-    fetchProfile();
+    setView('complete-profile');
   } catch (err) {
     showAlert('error', err.message);
   }
@@ -611,10 +998,22 @@ async function handleCompleteProfile(e) {
       body: JSON.stringify(profilePayload)
     });
 
+    let profileId;
     const profileData = await safeParseJson(profileRes);
-    if (!profileRes.ok) throw new Error(profileData.message || 'Error al guardar el perfil');
-
-    const profileId = profileData.id;
+    if (!profileRes.ok) {
+      // Si ya existe el perfil de cliente en core, consultar su id
+      const checkRes = await fetch(`${API_GATEWAY_URL}/findu-core/api/v1/perfil-cliente/usuario/${authUserId}`, {
+        headers: { 'Authorization': `Bearer ${state.token}` }
+      });
+      if (checkRes.ok) {
+        const existingCore = await checkRes.json();
+        profileId = existingCore.id;
+      } else {
+        throw new Error(profileData.message || 'Error al guardar el perfil');
+      }
+    } else {
+      profileId = profileData.id;
+    }
     const addressPayload = {
       etiqueta: "Principal",
       direccionTexto: direccionTexto,
@@ -639,6 +1038,27 @@ async function handleCompleteProfile(e) {
     if (!addressRes.ok) {
       const addressData = await safeParseJson(addressRes);
       throw new Error(addressData.message || 'Error al registrar la dirección principal');
+    }
+
+    // Al completar perfil y dirección en core, actualizar estado en findu-spring-security a 'COMPLETO'
+    const finalUsername = state.regUsername || state.profile?.username || payload.sub;
+    const secRes = await fetch(`${API_GATEWAY_URL}/security-auth/api/v1/profile`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${state.token}`
+      },
+      body: JSON.stringify({
+        username: finalUsername,
+        phone: celularVal,
+        codPhoneInternational: codPhoneIntVal,
+        estado: 'COMPLETO'
+      })
+    });
+
+    if (!secRes.ok) {
+      const secData = await safeParseJson(secRes);
+      console.warn("Advertencia al actualizar el estado a COMPLETO en seguridad:", secData);
     }
 
     state.alert = { type: 'success', message: '¡Perfil y dirección configurados con éxito!' };
@@ -766,8 +1186,8 @@ async function handleDeleteAddress(direccionId) {
 function handleStartServiceRequest(servicio) {
   state.selectedServiceForRequest = servicio;
   state.wizardStep = 1;
-  state.requestDate = new Date().toISOString().split('T')[0];
-  state.requestTime = '09:00';
+  state.requestDate = getTodayLocalDateString();
+  state.requestTime = getCurrentLocalTimeString();
   state.requestMaxHours = 2;
   state.requestMaxBudget = '';
   state.requestDetails = '';
@@ -782,7 +1202,7 @@ function handleStartServiceRequest(servicio) {
 }
 
 // Finalizar Solicitud de Servicio (Submit del Wizard)
-function submitServiceRequestWizard(e) {
+async function submitServiceRequestWizard(e) {
   e.preventDefault();
   const serv = state.selectedServiceForRequest;
   if (!serv) return;
@@ -794,6 +1214,9 @@ function submitServiceRequestWizard(e) {
 
   const newRequest = {
     id: 'REQ-' + Math.floor(100000 + Math.random() * 900000),
+    dbId: null,
+    servicioId: serv.id,
+    direccionId: state.requestAddressId,
     serviceName: serv.nombre,
     category: serv.descripcion || 'General',
     status: 'SOLICITADO',
@@ -801,11 +1224,46 @@ function submitServiceRequestWizard(e) {
     address: addressSummary,
     maxHours: serv.tipoCobro === 'POR_HORA' ? `${state.requestMaxHours} Horas` : 'N/A',
     maxBudget: state.requestMaxBudget ? `$ ${state.requestMaxBudget} COP` : 'A convenir',
+    rawMaxBudget: state.requestMaxBudget || '',
     notes: state.requestDetails,
     photosCount: state.requestPhotos.length,
-    photos: state.requestPhotos,
+    photos: [...state.requestPhotos],
     priceType: serv.tipoCobro === 'POR_HORA' ? 'Por Hora' : 'Tarifa Fija'
   };
+
+  if (state.token && state.coreProfile?.id && state.requestAddressId) {
+    try {
+      const res = await fetch(`${API_GATEWAY_URL}/findu-core/api/v1/solicitudes`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${state.token}`
+        },
+        body: JSON.stringify({
+          perfilClienteId: state.coreProfile.id,
+          servicioId: serv.id,
+          direccionId: parseInt(state.requestAddressId),
+          fechaProgramada: `${state.requestDate}T${state.requestTime}:00`,
+          nombreContacto: state.coreProfile.nombreCompleto || 'Cliente',
+          telefonoContacto: state.regPhone || state.profile?.phone || '3000000000',
+          prioridad: 3,
+          presupuestoMaximo: state.requestMaxBudget ? parseFloat(state.requestMaxBudget) : null,
+          esPresupuestoEstricto: Boolean(state.requestHasMaxBudget),
+          cantidadEstimada: 1,
+          detalles: state.requestDetails || null,
+          fotos: state.requestPhotos.length > 0 ? JSON.stringify(state.requestPhotos) : null
+        })
+      });
+      if (res.ok) {
+        const savedCoreReq = await res.json();
+        if (savedCoreReq && savedCoreReq.id) {
+          newRequest.dbId = savedCoreReq.id;
+        }
+      }
+    } catch (err) {
+      console.error("Error creating backend request:", err);
+    }
+  }
 
   state.requests.unshift(newRequest);
   state.selectedServiceForRequest = null;
@@ -813,6 +1271,94 @@ function submitServiceRequestWizard(e) {
   state.requestPhotos = [];
   state.activeTab = 'requests';
   showAlert('success', `¡Solicitud de servicio creada exitosamente para "${serv.nombre}"!`);
+}
+
+function handleOpenEditRequestModal(reqId) {
+  const req = state.requests.find(r => r.id === reqId);
+  if (!req) return;
+  state.editingRequest = req;
+  state.showEditRequestModal = true;
+  const isStrict = req.esPresupuestoEstricto !== undefined ? req.esPresupuestoEstricto : Boolean(req.rawMaxBudget && parseFloat(req.rawMaxBudget) > 0);
+  state.editRequestForm = {
+    direccionId: req.direccionId || state.requestAddressId || (state.coreProfile?.direcciones?.[0]?.id || ''),
+    hasMaxBudget: isStrict,
+    presupuestoMaximo: req.rawMaxBudget || '',
+    detalles: req.notes || '',
+    fotos: [...(req.photos || [])]
+  };
+  render();
+}
+
+async function handleSaveEditedRequest(e) {
+  e.preventDefault();
+  const req = state.editingRequest;
+  if (!req) return;
+
+  const chosenAddr = state.coreProfile?.direcciones?.find(d => d.id == state.editRequestForm.direccionId);
+  const addressSummary = chosenAddr 
+    ? `${chosenAddr.direccionTexto} (${chosenAddr.municipioNombre || 'Ciudad'})`
+    : req.address;
+
+  const editBudgetVal = state.editRequestForm.presupuestoMaximo ? parseFloat(state.editRequestForm.presupuestoMaximo) : null;
+  const isStrict = Boolean(state.editRequestForm.hasMaxBudget);
+
+  req.direccionId = state.editRequestForm.direccionId;
+  req.address = addressSummary;
+  req.maxBudget = editBudgetVal 
+    ? (isStrict ? `$ ${editBudgetVal} COP (Tope Estricto)` : `$ ${editBudgetVal} COP (Sugerido)`)
+    : 'A convenir';
+  req.rawMaxBudget = editBudgetVal ? editBudgetVal.toString() : '';
+  req.esPresupuestoEstricto = isStrict;
+  req.notes = state.editRequestForm.detalles;
+  req.photos = [...state.editRequestForm.fotos];
+  req.photosCount = state.editRequestForm.fotos.length;
+
+  if (req.dbId) {
+    try {
+      await fetch(`${API_GATEWAY_URL}/findu-core/api/v1/solicitudes/${req.dbId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${state.token}`
+        },
+        body: JSON.stringify({
+          direccionId: req.direccionId ? parseInt(req.direccionId) : null,
+          presupuestoMaximo: editBudgetVal,
+          esPresupuestoEstricto: isStrict,
+          detalles: req.notes,
+          fotos: req.photos.length > 0 ? JSON.stringify(req.photos) : null
+        })
+      });
+    } catch (e) {
+      console.error("Error updating request on server:", e);
+    }
+  }
+
+  state.showEditRequestModal = false;
+  state.editingRequest = null;
+  showAlert('success', `¡Solicitud ${req.id} actualizada exitosamente!`);
+}
+
+async function handleCancelRequest(reqId) {
+  const req = state.requests.find(r => r.id === reqId);
+  if (!req) return;
+  if (!confirm(`¿Estás seguro de cancelar la solicitud ${req.id}?`)) return;
+
+  req.status = 'CANCELADA';
+
+  if (req.dbId) {
+    try {
+      await fetch(`${API_GATEWAY_URL}/findu-core/api/v1/solicitudes/${req.dbId}/cancelar`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${state.token}` }
+      });
+    } catch (e) {
+      console.error("Error cancelling request on server:", e);
+    }
+  }
+
+  showAlert('success', `La solicitud ${req.id} ha sido cancelada sin penalidad.`);
+  render();
 }
 
 // Renderizador Estilizado Estilo Mercado Libre para Tarjetas de Dirección
@@ -913,10 +1459,15 @@ function render() {
       </div>
     `;
   } else if (state.currentView === 'register') {
-    const isGoogle = !!state.googleData;
-    const emailValue = isGoogle ? state.googleData.email : '';
-    const nameValue = isGoogle ? `${state.googleData.firstName} ${state.googleData.lastName}` : '';
-    const usernameValue = isGoogle ? state.googleData.email.split('@')[0] : '';
+    const isGoogle = !!state.googleData || !!state.token;
+    const emailValue = state.googleData?.email || state.profile?.email || state.regEmail || '';
+    const nameValue = state.googleData ? `${state.googleData.firstName} ${state.googleData.lastName}`.trim() : '';
+    const usernameValue = state.googleData?.email ? state.googleData.email.split('@')[0] : (state.profile?.username || state.regUsername || '');
+
+    // Pre-llenar el nombre completo para el paso 2 si viene de Google
+    if (nameValue && !state.completeProfileForm.nombreCompleto) {
+      state.completeProfileForm.nombreCompleto = nameValue;
+    }
 
     html = `
       <div class="card">
@@ -924,7 +1475,7 @@ function render() {
           <h1>FIND-U</h1>
           <p>Portal de Clientes</p>
         </div>
-        <h2>Registro de Cliente</h2>
+        <h2>${isGoogle ? 'Paso 1: Completa tu Teléfono' : 'Registro de Cliente'}</h2>
         ${alertHtml}
 
         ${!isGoogle ? `
@@ -935,7 +1486,7 @@ function render() {
         ` : ''}
 
         <form id="register-form">
-          ${isGoogle ? `
+          ${nameValue ? `
             <div class="form-group">
               <label>Nombre de Google</label>
               <input type="text" value="${nameValue}" disabled>
@@ -949,16 +1500,16 @@ function render() {
 
           <div class="form-group">
             <label for="reg-username">Nombre de Usuario</label>
-            <input type="text" id="reg-username" value="${usernameValue}" placeholder="ej. juan.perez" required>
+            <input type="text" id="reg-username" value="${usernameValue}" placeholder="ej. juan.perez" ${isGoogle ? 'disabled' : 'required'}>
           </div>
 
           <div class="form-group">
             <label for="reg-phone">Teléfono Móvil (Celular)</label>
             <div style="display: flex; gap: 8px;">
               <select id="reg-phone-code" style="width: 140px; background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-color); border-radius: 12px; padding: 14px 10px; color: var(--text-primary); font-family: inherit; font-size: 0.95rem; outline: none; cursor: pointer;">
-                <option value="+57" selected>+57 (Colombia)</option>
+                <option value="+57" ${state.regPhoneCode === '+57' ? 'selected' : ''}>+57 (Colombia)</option>
               </select>
-              <input type="text" id="reg-phone" placeholder="ej. 3001234567" style="flex: 1;" required>
+              <input type="text" id="reg-phone" placeholder="ej. 3001234567" style="flex: 1;" required value="${state.regPhone || state.profile?.phone || localStorage.getItem('findu_reg_phone') || ''}">
             </div>
           </div>
 
@@ -971,10 +1522,10 @@ function render() {
 
           <div class="form-group">
             <label for="reg-birthdate">Fecha de Nacimiento</label>
-            <input type="date" id="reg-birthdate" required value="${state.fechaNacimiento || ''}">
+            <input type="date" id="reg-birthdate" required value="${state.fechaNacimiento || localStorage.getItem('findu_birthdate') || ''}">
           </div>
 
-          <button type="submit" class="btn">Finalizar Registro</button>
+          <button type="submit" class="btn">${isGoogle ? 'Siguiente ➔' : 'Finalizar Registro'}</button>
         </form>
 
         <div class="switch-auth">
@@ -1204,43 +1755,65 @@ function render() {
             `}
           </div>
         ` : state.activeTab === 'requests' ? `
-          <!-- Mis Solicitudes View -->
-          <div class="card" style="margin: 0;">
-            <h2 style="font-size: 1.3rem; margin-bottom: 16px;">Mis Solicitudes de Servicio</h2>
-            ${state.requests.length > 0 ? `
-              <div style="display: flex; flex-direction: column; gap: 14px;">
-                ${state.requests.map(r => `
-                  <div style="background: rgba(15,23,42,0.7); padding: 18px; border-radius: 16px; border: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 10px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                      <div style="display: flex; align-items: center; gap: 10px;">
-                        <span style="font-size: 0.8rem; font-weight: 800; color: var(--accent-color); background: rgba(99,102,241,0.15); padding: 3px 8px; border-radius: 8px;">${r.id}</span>
-                        <h4 style="font-size: 1.05rem; color: #fff; margin: 0;">${r.serviceName}</h4>
-                      </div>
-                      <span style="font-size: 0.75rem; padding: 4px 12px; border-radius: 12px; background: rgba(34, 197, 94, 0.2); color: #4ade80; font-weight: 700; border: 1px solid rgba(34,197,94,0.3);">${r.status}</span>
-                    </div>
+          <!-- Mis Solicitudes View (Estilo Order History Clásico & Paginado) -->
+          ${(() => {
+            const activeReqs = state.requests.filter(r => r.status === 'ABIERTA' || r.status === 'SOLICITADO' || r.status === 'EN_NEGOCIACION' || r.status === 'PROGRAMADA' || r.status === 'EN_CURSO');
+            const pastReqs = state.requests.filter(r => (r.status || '').includes('CANCELAD') || r.status === 'FINALIZADA');
 
-                    <div style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5;">
-                      <div>📍 <strong>Atención en:</strong> ${r.address}</div>
-                      <div>📅 <strong>Fecha/Hora:</strong> ${r.date} | ⏱ <strong>Tipo:</strong> ${r.priceType} (${r.maxHours})</div>
-                      <div>💰 <strong>Presupuesto Máximo:</strong> ${r.maxBudget}</div>
-                      ${r.notes ? `<div style="margin-top: 4px;">📝 <strong>Detalles:</strong> ${r.notes}</div>` : ''}
-                    </div>
+            return `
+              <div class="card" style="margin: 0; background: transparent; border: none; padding: 0;">
+                
+                <!-- Sección 1: Solicitudes Activas (Todas) -->
+                <div style="margin-bottom: 28px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+                    <h3 style="font-size: 1.15rem; font-weight: 700; color: #fff; margin: 0; display: flex; align-items: center; gap: 8px;">
+                      ⚡ Solicitudes Activas
+                      <span style="font-size: 0.75rem; font-weight: 800; background: var(--accent-color); color: #fff; padding: 2px 8px; border-radius: 12px;">${activeReqs.length}</span>
+                    </h3>
+                  </div>
 
-                    ${r.photos && r.photos.length > 0 ? `
-                      <div style="display: flex; gap: 8px; overflow-x: auto; padding-top: 6px;">
-                        ${r.photos.map(img => `<img src="${img}" style="width: 50px; height: 50px; border-radius: 8px; object-fit: cover; border: 1px solid var(--border-color);">`).join('')}
+                  ${activeReqs.length > 0 ? `
+                    <div style="display: flex; flex-direction: column; gap: 12px;">
+                      ${activeReqs.map(r => renderClassicRequestCard(r)).join('')}
+                    </div>
+                  ` : `
+                    <div style="text-align: center; padding: 20px; background: rgba(30,41,59,0.4); border-radius: 16px; border: 1px dashed var(--border-color); color: var(--text-secondary);">
+                      <p style="margin: 0; font-size: 0.88rem;">No tienes ninguna solicitud activa en este momento.</p>
+                      <button id="go-to-services-btn" class="btn" style="margin-top: 10px; width: auto; padding: 6px 18px; font-size: 0.82rem;">Explorar Servicios</button>
+                    </div>
+                  `}
+                </div>
+
+                <!-- Sección 2: Solicitudes Pasadas (Paginadas 5 en 5) -->
+                <div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+                    <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--text-secondary); margin: 0; display: flex; align-items: center; gap: 8px;">
+                      📜 Solicitudes Pasadas / Historial
+                      <span style="font-size: 0.75rem; font-weight: 700; background: rgba(255,255,255,0.1); color: var(--text-secondary); padding: 2px 8px; border-radius: 12px;">${pastReqs.length}</span>
+                    </h3>
+                  </div>
+
+                  ${pastReqs.length > 0 ? `
+                    <div style="display: flex; flex-direction: column; gap: 12px;">
+                      ${pastReqs.map(r => renderClassicRequestCard(r)).join('')}
+                    </div>
+                    ${state.hasMorePastRequests ? `
+                      <div style="text-align: center; margin-top: 16px;">
+                        <button id="load-more-past-requests-btn" class="btn" style="width: auto; padding: 8px 24px; background: rgba(30,41,59,0.8); border: 1px solid var(--border-color); color: var(--text-primary); font-size: 0.82rem;">
+                          ${state.isLoadingPastRequests ? 'Cargando...' : '👇 Cargar más solicitudes pasadas'}
+                        </button>
                       </div>
                     ` : ''}
-                  </div>
-                `).join('')}
+                  ` : `
+                    <div style="text-align: center; padding: 20px; background: rgba(30,41,59,0.2); border-radius: 16px; border: 1px dashed var(--border-color); color: var(--text-secondary);">
+                      <p style="margin: 0; font-size: 0.85rem;">No tienes solicitudes pasadas registradas.</p>
+                    </div>
+                  `}
+                </div>
+
               </div>
-            ` : `
-              <div style="text-align: center; padding: 30px; color: var(--text-secondary);">
-                <p>Aún no has realizado ninguna solicitud de servicio.</p>
-                <button id="go-to-services-btn" class="btn" style="margin-top: 10px; width: auto; padding: 8px 20px;">Explorar Servicios</button>
-              </div>
-            `}
-          </div>
+            `;
+          })()}
         ` : `
           <!-- Mi Perfil & Gestión Completa de Direcciones Estilo Mercado Libre -->
           <div class="card" style="margin: 0;">
@@ -1343,11 +1916,11 @@ function render() {
                   <div style="display: flex; gap: 12px; margin-bottom: 16px;">
                     <div class="form-group" style="flex: 1; margin: 0;">
                       <label for="w-date">Fecha Deseada</label>
-                      <input type="date" id="w-date" value="${state.requestDate}" required>
+                      <input type="date" id="w-date" value="${state.requestDate}" min="${getTodayLocalDateString()}" required>
                     </div>
                     <div class="form-group" style="flex: 1; margin: 0;">
                       <label for="w-time">Hora Estimada</label>
-                      <input type="time" id="w-time" value="${state.requestTime}" required>
+                      <input type="time" id="w-time" value="${state.requestTime}" ${state.requestDate === getTodayLocalDateString() ? `min="${getCurrentLocalTimeString()}"` : ''} required>
                     </div>
                   </div>
 
@@ -1359,8 +1932,14 @@ function render() {
                   ` : ''}
 
                   <div class="form-group">
-                    <label for="w-budget">Presupuesto Máximo Estimado (COP)</label>
-                    <input type="number" id="w-budget" value="${state.requestMaxBudget}" placeholder="ej. 150000">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                      <label for="w-budget" style="margin: 0;">Presupuesto Estimado (COP)</label>
+                      <label style="font-size: 0.82rem; color: #a5b4fc; cursor: pointer; display: flex; align-items: center; gap: 6px; user-select: none;" title="Si marcas esta casilla, los proveedores no podrán enviar ofertas superiores a este valor">
+                        <input type="checkbox" id="w-has-max-budget" ${state.requestHasMaxBudget ? 'checked' : ''} style="width: auto; cursor: pointer;">
+                        Límite estricto
+                      </label>
+                    </div>
+                    <input type="number" id="w-budget" value="${state.requestMaxBudget || ''}" placeholder="ej. 150000 (Opcional)">
                   </div>
 
                   <div class="form-group">
@@ -1503,6 +2082,201 @@ function render() {
                   <button type="submit" class="btn" style="flex: 1;">Guardar Dirección</button>
                 </div>
               </form>
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- MODAL FLOTANTE DE EDITAR SOLICITUD DE SERVICIO -->
+        ${state.showEditRequestModal && state.editingRequest ? `
+          <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 1200; padding: 20px;">
+            <div class="card" style="max-width: 520px; width: 100%; margin: 0; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 40px rgba(0,0,0,0.6); border-radius: 24px; animation: fadeIn 0.2s ease-out;">
+              <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 16px;">
+                <h3 style="font-size: 1.1rem; color: #fff; margin: 0;">✏️ Editar Solicitud ${state.editingRequest.id}</h3>
+                <button type="button" id="close-edit-req-modal-btn" style="background: transparent; border: none; color: var(--text-secondary); font-size: 1.3rem; cursor: pointer;">✕</button>
+              </div>
+
+              <form id="edit-request-form">
+                <div class="form-group">
+                  <label for="edit-req-addr-select">📍 Dirección de Atención</label>
+                  <select id="edit-req-addr-select" style="width: 100%; background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px; color: #fff;">
+                    ${(state.coreProfile?.direcciones || []).map(d => `
+                      <option value="${d.id}" ${d.id == state.editRequestForm.direccionId ? 'selected' : ''}>
+                        ${d.etiqueta || 'Dirección'} — ${d.direccionTexto} (${d.municipioNombre || 'Ciudad'})
+                      </option>
+                    `).join('')}
+                  </select>
+                </div>
+
+                <div class="form-group">
+                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                    <label for="edit-req-budget" style="margin: 0;">💰 Presupuesto Estimado (COP)</label>
+                    <label style="font-size: 0.82rem; color: #a5b4fc; cursor: pointer; display: flex; align-items: center; gap: 6px; user-select: none;">
+                      <input type="checkbox" id="edit-req-has-max-budget" ${state.editRequestForm.hasMaxBudget ? 'checked' : ''} style="width: auto; cursor: pointer;">
+                      Límite estricto
+                    </label>
+                  </div>
+                  <input type="number" id="edit-req-budget" value="${state.editRequestForm.presupuestoMaximo || ''}" placeholder="ej. 50000 (Opcional)">
+                </div>
+
+                <div class="form-group">
+                  <label for="edit-req-detalles">📝 Información Adicional & Detalles</label>
+                  <textarea id="edit-req-detalles" placeholder="Especificaciones adicionales..." style="width: 100%; min-height: 80px; background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px; color: #fff; font-family: inherit;">${state.editRequestForm.detalles || ''}</textarea>
+                </div>
+
+                <div class="form-group">
+                  <label>📷 Fotos Adjuntas (${state.editRequestForm.fotos.length}/10)</label>
+                  <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px;">
+                    ${state.editRequestForm.fotos.map((img, idx) => `
+                      <div style="position: relative; width: 60px; height: 60px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color);">
+                        <img src="${img}" style="width: 100%; height: 100%; object-fit: cover;">
+                        <button type="button" class="remove-edit-req-photo-btn" data-idx="${idx}" style="position: absolute; top: 2px; right: 2px; background: rgba(239,68,68,0.9); color: white; border: none; border-radius: 50%; width: 18px; height: 18px; font-size: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center;">✕</button>
+                      </div>
+                    `).join('')}
+                  </div>
+                  ${state.editRequestForm.fotos.length < 10 ? `
+                    <input type="file" id="edit-req-photo-input" accept="image/*" style="font-size: 0.8rem; color: var(--text-secondary);">
+                  ` : ''}
+                </div>
+
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                  <button type="button" id="cancel-edit-req-btn" class="btn" style="background: transparent; border: 1px solid var(--border-color); flex: 1;">Cancelar</button>
+                  <button type="submit" class="btn" style="flex: 1; background: linear-gradient(135deg, #6366f1, #a855f7);">Guardar Cambios</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        ` : ''}
+        <!-- MODAL FLOTANTE DE OFERTAS RECIBIDAS PARA LA SOLICITUD -->
+        ${state.showOffersModal && state.selectedRequestForOffers ? `
+          <div style="position: fixed; inset: 0; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 9999; padding: 16px;">
+            <div style="background: #1e293b; border: 1px solid var(--border-color); border-radius: 24px; width: 100%; max-width: 650px; max-height: 90vh; overflow-y: auto; padding: 24px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 20px;">
+              
+              <!-- Header -->
+              <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 14px;">
+                <div>
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 0.8rem; font-weight: 800; color: #818cf8; background: rgba(99,102,241,0.15); padding: 2px 8px; border-radius: 8px;">${state.selectedRequestForOffers.id}</span>
+                    <h3 style="font-size: 1.2rem; font-weight: 700; color: #fff; margin: 0;">Ofertas Recibidas</h3>
+                  </div>
+                  <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 4px 0 0 0;">${state.selectedRequestForOffers.serviceName} • ${state.selectedRequestForOffers.address}</p>
+                </div>
+                <button id="close-offers-modal-btn" style="background: transparent; border: none; color: var(--text-secondary); font-size: 1.5rem; cursor: pointer;">✕</button>
+              </div>
+
+              <!-- Content -->
+              ${state.isLoadingOffers ? `
+                <div style="text-align: center; padding: 40px; color: var(--text-secondary);">
+                  <p>Cargando ofertas recibidas de proveedores...</p>
+                </div>
+              ` : state.requestOffersList && state.requestOffersList.length > 0 ? `
+                <div style="display: flex; flex-direction: column; gap: 14px;">
+                  ${state.requestOffersList.map(o => {
+                    const isAccepted = o.estadoOferta === 'ACEPTADA';
+                    const avatar = o.proveedorFoto || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80';
+                    return `
+                      <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid ${isAccepted ? 'rgba(34,197,94,0.5)' : 'var(--border-color)'}; border-radius: 18px; padding: 18px; display: flex; flex-direction: column; gap: 12px;">
+                        
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
+                          <div style="display: flex; gap: 12px; align-items: center;">
+                            <img src="${avatar}" style="width: 48px; height: 48px; border-radius: 50%; object-fit: cover; border: 2px solid var(--accent-color);">
+                            <div>
+                              <h4 style="font-size: 1rem; font-weight: 700; color: #fff; margin: 0;">${o.proveedorNombre || 'Especialista FINDU'}</h4>
+                              <div style="font-size: 0.82rem; color: #f59e0b; font-weight: 600; display: flex; align-items: center; gap: 4px; margin-top: 2px;">
+                                ⭐ ${o.calificacionProveedor || '5.0'} / 5.0
+                              </div>
+                            </div>
+                          </div>
+
+                          <div style="text-align: right;">
+                            <div style="font-size: 1.1rem; font-weight: 800; color: #38bdf8;">$ ${o.valorPropuesto} COP</div>
+                            <div style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 2px;">⏱ Llegada: ${o.tiempoEstimado || 'A convenir'}</div>
+                          </div>
+                        </div>
+
+                        ${o.mensajePresentacion ? `
+                          <div style="font-size: 0.85rem; color: #cbd5e1; background: rgba(30,41,59,0.5); padding: 10px 14px; border-radius: 12px; font-style: italic;">
+                            💬 "${o.mensajePresentacion}"
+                          </div>
+                        ` : ''}
+
+                        <div style="display: flex; gap: 10px; margin-top: 4px;">
+                          <button class="btn view-provider-public-profile-btn" data-provider-id="${o.perfilProveedorId || 1}" data-offer-id="${o.id}" style="flex: 1; padding: 9px; font-size: 0.82rem; background: rgba(99,102,241,0.15); border: 1px solid rgba(99,102,241,0.3); color: #818cf8; font-weight: 600;">🔍 Ver Perfil del Proveedor</button>
+                          ${!isAccepted && (state.selectedRequestForOffers.status === 'ABIERTA' || state.selectedRequestForOffers.status === 'SOLICITADO') ? `
+                            <button class="btn accept-offer-btn" data-offer-id="${o.id}" style="flex: 1; padding: 9px; font-size: 0.82rem; background: linear-gradient(135deg, #22c55e, #16a34a); color: #fff; font-weight: 700;">🤝 Aceptar Oferta</button>
+                          ` : isAccepted ? `
+                            <span style="font-size: 0.82rem; font-weight: 700; color: #4ade80; background: rgba(34,197,94,0.15); padding: 6px 14px; border-radius: 10px; display: flex; align-items: center; justify-content: center; gap: 6px; flex: 1;">✓ Oferta Aceptada</span>
+                          ` : ''}
+                        </div>
+
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              ` : `
+                <div style="text-align: center; padding: 30px; background: rgba(30,41,59,0.3); border-radius: 16px; border: 1px dashed var(--border-color); color: var(--text-secondary);">
+                  <p style="margin: 0; font-size: 0.9rem;">Aún no has recibido ofertas de proveedores para esta solicitud.</p>
+                  <p style="font-size: 0.8rem; margin-top: 6px; color: #94a3b8;">Los proveedores certificados en tu zona enviarán sus propuestas en breve.</p>
+                </div>
+              `}
+
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- MODAL FLOTANTE DE PERFIL PÚBLICO DEL PROVEEDOR -->
+        ${state.showProviderProfileModal && state.selectedProviderPublicProfile ? `
+          <div style="position: fixed; inset: 0; background: rgba(15, 23, 42, 0.88); backdrop-filter: blur(10px); display: flex; align-items: center; justify-content: center; z-index: 10000; padding: 16px;">
+            <div style="background: #1e293b; border: 1px solid var(--border-color); border-radius: 24px; width: 100%; max-width: 600px; max-height: 90vh; overflow-y: auto; padding: 24px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.6); display: flex; flex-direction: column; gap: 20px;">
+              
+              <!-- Header -->
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h3 style="font-size: 1.15rem; font-weight: 700; color: #fff; margin: 0;">👤 Perfil del Especialista</h3>
+                <button id="close-provider-profile-modal-btn" style="background: transparent; border: none; color: var(--text-secondary); font-size: 1.5rem; cursor: pointer;">✕</button>
+              </div>
+
+              <!-- Tarjeta Proveedor -->
+              <div style="background: rgba(15,23,42,0.6); border: 1px solid var(--border-color); border-radius: 20px; padding: 20px; text-align: center;">
+                <img src="${state.selectedProviderPublicProfile.urlImagenPerfil || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80'}" style="width: 84px; height: 84px; border-radius: 50%; object-fit: cover; border: 3px solid var(--accent-color); margin-bottom: 10px;">
+                <h2 style="font-size: 1.25rem; font-weight: 700; color: #fff; margin: 0 0 4px 0;">${state.selectedProviderPublicProfile.nombreCompleto || 'Especialista FINDU'}</h2>
+                <span style="font-size: 0.85rem; color: #818cf8; font-weight: 600;">@${state.selectedProviderPublicProfile.username || 'proveedor'}</span>
+
+                <div style="display: flex; justify-content: center; gap: 16px; margin-top: 14px;">
+                  <div style="background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.3); padding: 8px 16px; border-radius: 12px;">
+                    <span style="font-size: 1.1rem; font-weight: 800; color: #fbbf24;">⭐ ${state.selectedProviderPublicProfile.calificacionPromedio || '5.0'}</span>
+                    <div style="font-size: 0.72rem; color: var(--text-secondary);">Calificación</div>
+                  </div>
+                  <div style="background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.3); padding: 8px 16px; border-radius: 12px;">
+                    <span style="font-size: 1.1rem; font-weight: 800; color: #4ade80;">✔ 100%</span>
+                    <div style="font-size: 0.72rem; color: var(--text-secondary);">Trabajos Verificados</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Especialidad -->
+              ${state.selectedProviderPublicProfile.especialidad ? `
+                <div style="background: rgba(15,23,42,0.4); border: 1px solid var(--border-color); border-radius: 16px; padding: 16px;">
+                  <h4 style="font-size: 0.95rem; font-weight: 700; color: #fff; margin: 0 0 8px 0;">🛠️ Especialidad & Experiencia</h4>
+                  <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0; line-height: 1.5;">${state.selectedProviderPublicProfile.especialidad.descripcionEspecialidad || 'Proveedor especializado certificado en la plataforma FINDU.'}</p>
+                </div>
+              ` : ''}
+
+              <!-- Portafolio -->
+              ${state.selectedProviderPublicProfile.portafolio && state.selectedProviderPublicProfile.portafolio.length > 0 ? `
+                <div>
+                  <h4 style="font-size: 0.95rem; font-weight: 700; color: #fff; margin: 0 0 10px 0;">📸 Portafolio de Trabajos Anteriores</h4>
+                  <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px;">
+                    ${state.selectedProviderPublicProfile.portafolio.map(img => `
+                      <img src="${img.urlImagen || img}" style="width: 100%; height: 90px; border-radius: 12px; object-fit: cover; border: 1px solid var(--border-color);">
+                    `).join('')}
+                  </div>
+                </div>
+              ` : ''}
+
+              <!-- Aceptar Oferta desde perfil -->
+              ${state.selectedOfferForAcceptance ? `
+                <button class="btn accept-offer-btn" data-offer-id="${state.selectedOfferForAcceptance.id}" style="width: 100%; padding: 12px; font-size: 0.95rem; font-weight: 700; background: linear-gradient(135deg, #22c55e, #16a34a); border-radius: 14px;">🤝 Aceptar Oferta de $ ${state.selectedOfferForAcceptance.valorPropuesto} COP</button>
+              ` : ''}
+
             </div>
           </div>
         ` : ''}
@@ -1695,13 +2469,68 @@ function render() {
       document.getElementById('wizard-to-step2')?.addEventListener('click', () => { state.wizardStep = 2; render(); });
       document.getElementById('wizard-back-step1')?.addEventListener('click', () => { state.wizardStep = 1; render(); });
       
+      document.getElementById('w-date')?.addEventListener('change', (e) => {
+        const selectedDate = e.target.value;
+        const todayStr = getTodayLocalDateString();
+        if (selectedDate < todayStr) {
+          showAlert('error', 'No puedes seleccionar una fecha anterior a la de hoy.');
+          e.target.value = todayStr;
+          state.requestDate = todayStr;
+        } else {
+          state.requestDate = selectedDate;
+        }
+        render();
+      });
+
+      document.getElementById('w-time')?.addEventListener('change', (e) => {
+        const selectedTime = e.target.value;
+        const todayStr = getTodayLocalDateString();
+        if (state.requestDate === todayStr) {
+          const nowTime = getCurrentLocalTimeString();
+          if (selectedTime < nowTime) {
+            showAlert('error', 'La hora seleccionada no puede ser menor a la hora actual.');
+            const newNowTime = getCurrentLocalTimeString();
+            e.target.value = newNowTime;
+            state.requestTime = newNowTime;
+            return;
+          }
+        }
+        state.requestTime = selectedTime;
+      });
+
       document.getElementById('wizard-to-step3')?.addEventListener('click', () => {
-        state.requestDate = document.getElementById('w-date')?.value || state.requestDate;
-        state.requestTime = document.getElementById('w-time')?.value || state.requestTime;
+        const inputDate = document.getElementById('w-date')?.value || state.requestDate;
+        const inputTime = document.getElementById('w-time')?.value || state.requestTime;
+        const todayStr = getTodayLocalDateString();
+        const nowTimeStr = getCurrentLocalTimeString();
+
+        if (inputDate < todayStr) {
+          showAlert('error', 'No puedes seleccionar una fecha anterior a la de hoy.');
+          return;
+        }
+
+        if (inputDate === todayStr && inputTime < nowTimeStr) {
+          showAlert('error', 'La hora de atención no puede ser menor a la hora actual.');
+          return;
+        }
+
+        state.requestDate = inputDate;
+        state.requestTime = inputTime;
         const maxH = document.getElementById('w-max-hours');
         if (maxH) state.requestMaxHours = maxH.value;
-        const budget = document.getElementById('w-budget');
-        if (budget) state.requestMaxBudget = budget.value;
+        const hasMaxBudget = document.getElementById('w-has-max-budget')?.checked || false;
+        state.requestHasMaxBudget = hasMaxBudget;
+        const budgetInput = document.getElementById('w-budget');
+        const budgetVal = budgetInput?.value ? parseFloat(budgetInput.value) : null;
+
+        if (hasMaxBudget) {
+          if (!budgetVal || isNaN(budgetVal) || budgetVal <= 0) {
+            showAlert('error', 'Si marcas "Límite estricto", debes ingresar un presupuesto estimado mayor a 0.');
+            return;
+          }
+        }
+
+        state.requestMaxBudget = (budgetVal && budgetVal > 0) ? budgetVal.toString() : '';
         const details = document.getElementById('w-details');
         if (details) state.requestDetails = details.value;
 
@@ -1775,6 +2604,101 @@ function render() {
         state.addressForm.municipioId = e.target.value;
       });
     }
+
+    // Eventos de Editar y Cancelar Solicitud y Carga Paginada de Pasadas
+    document.querySelectorAll('.open-edit-request-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const reqId = e.currentTarget.getAttribute('data-id');
+        handleOpenEditRequestModal(reqId);
+      });
+    });
+
+    document.querySelectorAll('.trigger-cancel-request-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const reqId = e.currentTarget.getAttribute('data-id');
+        handleCancelRequest(reqId);
+      });
+    });
+
+    document.getElementById('load-more-past-requests-btn')?.addEventListener('click', () => {
+      fetchUserRequests(state.pastRequestsPage + 1, true);
+    });
+
+    // Eventos del Modal de Editar Solicitud
+    if (state.showEditRequestModal && state.editingRequest) {
+      document.getElementById('close-edit-req-modal-btn')?.addEventListener('click', () => { state.showEditRequestModal = false; render(); });
+      document.getElementById('cancel-edit-req-btn')?.addEventListener('click', () => { state.showEditRequestModal = false; render(); });
+      document.getElementById('edit-request-form')?.addEventListener('submit', handleSaveEditedRequest);
+
+      document.getElementById('edit-req-addr-select')?.addEventListener('change', (e) => { state.editRequestForm.direccionId = e.target.value; });
+      document.getElementById('edit-req-has-max-budget')?.addEventListener('change', (e) => {
+        state.editRequestForm.hasMaxBudget = e.target.checked;
+        render();
+      });
+      document.getElementById('edit-req-budget')?.addEventListener('input', (e) => { state.editRequestForm.presupuestoMaximo = e.target.value; });
+      document.getElementById('edit-req-detalles')?.addEventListener('input', (e) => { state.editRequestForm.detalles = e.target.value; });
+
+      const photoInput = document.getElementById('edit-req-photo-input');
+      if (photoInput) {
+        photoInput.addEventListener('change', (e) => {
+          const file = e.target.files[0];
+          if (file && state.editRequestForm.fotos.length < 10) {
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+              state.editRequestForm.fotos.push(evt.target.result);
+              render();
+            };
+            reader.readAsDataURL(file);
+          }
+        });
+      }
+
+      document.querySelectorAll('.remove-edit-req-photo-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+          state.editRequestForm.fotos.splice(idx, 1);
+          render();
+        });
+      });
+    }
+
+    // Eventos de Selección de Tarjeta de Solicitud (Abrir Ofertas)
+    document.querySelectorAll('.view-request-offers-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const reqId = card.getAttribute('data-id');
+        const found = state.requests.find(r => r.id === reqId);
+        if (found) {
+          handleFetchOffersForRequest(found);
+        }
+      });
+    });
+
+    // Eventos de Modals de Ofertas y Perfil de Proveedor
+    document.getElementById('close-offers-modal-btn')?.addEventListener('click', () => {
+      state.showOffersModal = false;
+      render();
+    });
+
+    document.getElementById('close-provider-profile-modal-btn')?.addEventListener('click', () => {
+      state.showProviderProfileModal = false;
+      render();
+    });
+
+    document.querySelectorAll('.view-provider-public-profile-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const provId = e.currentTarget.getAttribute('data-provider-id');
+        const offerId = e.currentTarget.getAttribute('data-offer-id');
+        const offer = (state.requestOffersList || []).find(o => o.id == offerId);
+        handleFetchProviderPublicProfile(provId, state.selectedRequestForOffers?.servicioId, offer);
+      });
+    });
+
+    document.querySelectorAll('.accept-offer-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const offerId = e.currentTarget.getAttribute('data-offer-id');
+        handleAcceptOffer(offerId);
+      });
+    });
   }
 }
 

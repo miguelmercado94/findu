@@ -24,4 +24,6 @@ public class PerfilProveedor {
     private BigDecimal calificacionPromedio;
     private String estado;
     private String estadoVerificacion;
+    @Builder.Default
+    private boolean disponible = true;
 }

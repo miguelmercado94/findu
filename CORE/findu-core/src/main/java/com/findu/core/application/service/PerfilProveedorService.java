@@ -13,4 +13,8 @@ public interface PerfilProveedorService {
     Optional<PerfilProveedor> findByAuthUserId(Long authUserId);
 
     boolean existsByAuthUserId(Long authUserId);
+
+    java.util.List<PerfilProveedor> findEligibleProviders(Long servicioId, Long municipioId);
+
+    java.util.List<PerfilProveedor> findAvailableProviders();
 }

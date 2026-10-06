@@ -9,5 +9,8 @@ public record ModificarSolicitudRequest(
         String nombreContacto,
         String telefonoContacto,
         Integer prioridad,
-        BigDecimal presupuestoMaximo
+        BigDecimal presupuestoMaximo,
+        Boolean esPresupuestoEstricto,
+        String detalles,
+        String fotos
 ) {}

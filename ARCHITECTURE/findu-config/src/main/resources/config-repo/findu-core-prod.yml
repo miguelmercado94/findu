@@ -1,0 +1,11 @@
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres-core-prod:5432/findu_core}
+    username: ${SPRING_DATASOURCE_USERNAME:findu_core}
+    password: ${SPRING_DATASOURCE_PASSWORD:findu_core}
+
+findu:
+  aws:
+    s3:
+      bucket: ${AWS_S3_BUCKET:findu-media-assets-prod}
+      region: ${AWS_REGION:us-east-1}

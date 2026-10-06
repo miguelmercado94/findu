@@ -20,7 +20,7 @@ public class LocalCacheConfig {
     public CacheManager cacheManager() {
         return new ConcurrentMapCacheManager(
                 "categorias", "categorias-page", "subcategorias",
-                "servicios-categoria", "servicios-page", "municipios"
+                "servicios-categoria", "servicios-page", "municipios", "solicitudes-cliente"
         );
     }
 }

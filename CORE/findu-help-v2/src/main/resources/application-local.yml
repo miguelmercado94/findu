@@ -1,0 +1,23 @@
+server:
+  port: 8085
+
+spring:
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/findu_help_v2_db
+
+findu:
+  help:
+    aws:
+      s3:
+        bucket: findu-help-bucket-local
+        region: us-east-1
+  notification:
+    dispatcher:
+      url: http://localhost:9000
+    processor:
+      url: http://localhost:8083
+
+logging:
+  level:
+    com.findu.help.v2: DEBUG

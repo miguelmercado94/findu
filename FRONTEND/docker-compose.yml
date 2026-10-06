@@ -1,0 +1,43 @@
+# =====================================================================
+# FINDU — Stack Frontend (Cliente, Proveedor y Soporte)
+# =====================================================================
+# Uso:
+#   cd FRONTEND
+#   docker compose up -d --build
+# =====================================================================
+
+services:
+  frontend-cliente:
+    build:
+      context: ./cliente
+      dockerfile: Dockerfile
+      args:
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-245809228179-tn974jnnmpumcoq12r1ala79ekuqdpku.apps.googleusercontent.com}
+        VITE_API_GATEWAY_URL: ${VITE_API_GATEWAY_URL:-http://localhost:8080}
+    container_name: findu-frontend-cliente
+    ports:
+      - "3000:80"
+    restart: unless-stopped
+
+  frontend-proveedor:
+    build:
+      context: ./proveedor
+      dockerfile: Dockerfile
+      args:
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-245809228179-tn974jnnmpumcoq12r1ala79ekuqdpku.apps.googleusercontent.com}
+        VITE_API_GATEWAY_URL: ${VITE_API_GATEWAY_URL:-http://localhost:8080}
+    container_name: findu-frontend-proveedor
+    ports:
+      - "3001:80"
+    restart: unless-stopped
+
+  frontend-soporte:
+    build:
+      context: ./soporte
+      dockerfile: Dockerfile
+      args:
+        VITE_API_GATEWAY_URL: ${VITE_API_GATEWAY_URL:-http://localhost:8080}
+    container_name: findu-frontend-soporte
+    ports:
+      - "3002:80"
+    restart: unless-stopped

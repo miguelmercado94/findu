@@ -39,5 +39,7 @@ public interface UsuarioService {
 
     Mono<Boolean> existsByPhone(String phone);
 
+    Mono<Usuario> getUserByPhone(String phone);
+
     Mono<Usuario> getUserByPhoneAndCountry(String countryCode, String phone);
 }

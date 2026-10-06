@@ -1,0 +1,8 @@
+package com.findu.transaction.application.port.in;
+
+import com.findu.transaction.application.port.in.command.PayProviderDebtCommand;
+import com.findu.transaction.domain.model.debt.ProviderDebtPayment;
+
+public interface ManageProviderDebtUseCase {
+    ProviderDebtPayment payDebt(PayProviderDebtCommand command);
+}

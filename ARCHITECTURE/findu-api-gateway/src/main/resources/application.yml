@@ -1,0 +1,63 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: findu-api-gateway
+  config:
+    import: "optional:configserver:${SPRING_CLOUD_CONFIG_URI:http://localhost:8888}"
+  cloud:
+    gateway:
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOriginPatterns: "*"
+            allowedMethods: "*"
+            allowedHeaders: "*"
+            allowCredentials: true
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_UNIQUE
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+      routes:
+        - id: security-auth-route
+          uri: lb://FINDU-SPRING-SECURITY
+          predicates:
+            - Path=/security-auth/**
+        - id: authorization-server-route
+          uri: lb://AUTORIZATION-SERVER-OAUTH2
+          predicates:
+            - Path=/authorization-server/**
+        - id: findu-core-route
+          uri: lb://FINDU-CORE
+          predicates:
+            - Path=/findu-core/**
+        - id: findu-transaction-route
+          uri: lb://FINDU-TRANSACTION
+          predicates:
+            - Path=/findu-transaction/**, /internal/**
+        - id: findu-help-route
+          uri: lb://FINDU-HELP-V2
+          predicates:
+            - Path=/findu-help-v2/**
+        - id: notification-dispatcher-route
+          uri: lb://NOTIFICATION-DISPATCHER
+          predicates:
+            - Path=/ws/events/**, /notification-dispatcher/**
+
+eureka:
+  instance:
+    prefer-ip-address: true
+  client:
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://localhost:8761/eureka/}
+    register-with-eureka: true
+    fetch-registry: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, gateway, info

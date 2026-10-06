@@ -6,6 +6,7 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
@@ -33,6 +34,10 @@ public class PerfilEspecialistaEntity {
     @Column(name = "experiencia_anios")
     private Integer experienciaAnios;
 
+    @Column(name = "calificacion_promedio")
+    @Builder.Default
+    private BigDecimal calificacionPromedio = new BigDecimal("5.00");
+
     @Column(nullable = false, columnDefinition = "boolean default true")
     @Builder.Default
     private boolean active = true;
@@ -45,4 +50,3 @@ public class PerfilEspecialistaEntity {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 }
-

@@ -14,5 +14,6 @@ public record PerfilProveedorResponse(
         @Schema(description = "URL imagen de perfil") String urlImagenPerfil,
         @Schema(description = "Calificación promedio") BigDecimal calificacionPromedio,
         @Schema(description = "Estado del perfil") String estado,
-        @Schema(description = "Estado de verificación") String estadoVerificacion
+        @Schema(description = "Estado de verificación") String estadoVerificacion,
+        @Schema(description = "Disponibilidad en línea") boolean disponible
 ) {}

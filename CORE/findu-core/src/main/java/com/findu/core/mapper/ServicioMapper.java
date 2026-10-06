@@ -9,6 +9,7 @@ import org.mapstruct.MappingConstants;
 @Mapper(componentModel = MappingConstants.ComponentModel.SPRING)
 public interface ServicioMapper {
 
+    @Mapping(source = "categoria.nombre", target = "categoriaNombre")
     Servicio toDomain(ServicioEntity entity);
 
     @Mapping(target = "createdAt", ignore = true)

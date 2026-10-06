@@ -13,4 +13,5 @@ public class PortafolioItem {
     private String titulo;
     private String descripcion;
     private String urlImagen;
+    private String urlFolderImagen;
 }

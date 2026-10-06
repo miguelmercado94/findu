@@ -15,5 +15,8 @@ public record SolicitudResponse(
         @Schema(description = "Teléfono del contacto") String telefonoContacto,
         @Schema(description = "Prioridad") Integer prioridad,
         @Schema(description = "Presupuesto máximo") BigDecimal presupuestoMaximo,
+        @Schema(description = "Es presupuesto límite estricto") Boolean esPresupuestoEstricto,
+        @Schema(description = "Detalles adicionales") String detalles,
+        @Schema(description = "Fotos adjuntas") String fotos,
         @Schema(description = "Estado de la solicitud") String estadoSolicitud
 ) {}

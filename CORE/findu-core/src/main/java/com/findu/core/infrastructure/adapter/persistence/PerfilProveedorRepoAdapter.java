@@ -36,4 +36,18 @@ public class PerfilProveedorRepoAdapter implements PerfilProveedorRepositoryPort
     public boolean existsByAuthUserId(Long authUserId) {
         return repository.existsByAuthUserId(authUserId);
     }
+
+    @Override
+    public java.util.List<PerfilProveedor> findEligibleProviders(Long servicioId, Long municipioId) {
+        return repository.findEligibleProviders(servicioId, municipioId).stream()
+                .map(mapper::toDomain)
+                .toList();
+    }
+
+    @Override
+    public java.util.List<PerfilProveedor> findAvailableProviders() {
+        return repository.findByDisponibleTrueAndEstado("ACTIVO").stream()
+                .map(mapper::toDomain)
+                .toList();
+    }
 }

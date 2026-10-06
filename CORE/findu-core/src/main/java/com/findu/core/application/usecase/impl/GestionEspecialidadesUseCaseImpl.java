@@ -37,7 +37,7 @@ public class GestionEspecialidadesUseCaseImpl implements GestionEspecialidadesUs
                 .build();
 
         PerfilEspecialista saved = especialistaService.save(especialista);
-        return new PerfilEspecialistaResponse(saved.getId(), null, saved.getDescripcion(), saved.getExperienciaAnios(), saved.isActive());
+        return new PerfilEspecialistaResponse(saved.getId(), saved.getServicioId(), null, saved.getDescripcion(), saved.getExperienciaAnios(), saved.getCalificacionPromedio(), saved.isActive());
     }
 
     @Override
@@ -65,10 +65,11 @@ public class GestionEspecialidadesUseCaseImpl implements GestionEspecialidadesUs
                 .titulo(request.titulo())
                 .descripcion(request.descripcion())
                 .urlImagen(request.urlImagen())
+                .urlFolderImagen(request.urlFolderImagen())
                 .build();
 
         PortafolioItem saved = portafolioService.save(item);
-        return new PortafolioItemResponse(saved.getId(), saved.getTitulo(), saved.getDescripcion(), saved.getUrlImagen());
+        return new PortafolioItemResponse(saved.getId(), saved.getTitulo(), saved.getDescripcion(), saved.getUrlImagen(), saved.getUrlFolderImagen());
     }
 
     @Override

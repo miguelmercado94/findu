@@ -39,6 +39,7 @@ public class CacheConfig {
                 .withCacheConfiguration("servicios-categoria", config.entryTtl(Duration.ofHours(1)))
                 .withCacheConfiguration("servicios-page", config.entryTtl(Duration.ofHours(1)))
                 .withCacheConfiguration("municipios", config.entryTtl(Duration.ofHours(6)))
+                .withCacheConfiguration("solicitudes-cliente", config.entryTtl(Duration.ofMinutes(10)))
                 .build();
     }
 }

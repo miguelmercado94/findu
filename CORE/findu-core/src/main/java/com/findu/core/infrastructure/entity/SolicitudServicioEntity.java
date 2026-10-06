@@ -47,9 +47,19 @@ public class SolicitudServicioEntity {
     @Column(name = "presupuesto_maximo")
     private BigDecimal presupuestoMaximo;
 
+    @Column(name = "es_presupuesto_estricto")
+    @Builder.Default
+    private Boolean esPresupuestoEstricto = false;
+
     @Column(name = "cantidad_estimada")
     @Builder.Default
     private Integer cantidadEstimada = 1;
+
+    @Column(columnDefinition = "TEXT")
+    private String detalles;
+
+    @Column(columnDefinition = "TEXT")
+    private String fotos;
 
     @Column(name = "estado_solicitud", nullable = false)
     @Builder.Default

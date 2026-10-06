@@ -207,3 +207,26 @@ INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Co
 INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Cableado de Red', 'Instalación de puntos de red y cableado estructurado', 'POR_SERVICIO', 25);
 INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Instalación de Office', 'Instalación y activación de Microsoft Office', 'POR_SERVICIO', 26);
 INSERT INTO servicio (nombre, descripcion, tipo_cobro, categoria_id) VALUES ('Configuración de Impresoras', 'Instalación y configuración de impresoras', 'POR_SERVICIO', 26);
+
+-- ─── PROVEEDOR DE PRUEBA VERIFICADO ──────────────────────────────────
+INSERT INTO perfil_proveedor (id, auth_user_id, nombre_completo, numero_identificacion, tipo_identificacion, fecha_nacimiento, sexo, celular, cod_phone_international, estado, estado_verificacion, disponible)
+VALUES (1, 4, 'm_mercado_t_94', '1143378452', 'CC', '1995-05-15', 'MASCULINO', '3003763300', '+57', 'ACTIVO', 'VERIFICADO', true);
+
+INSERT INTO perfil_especialista (id, perfil_proveedor_id, servicio_id, experiencia_anios, descripcion, active)
+VALUES (1, 1, 1, 9, 'Enfermería a Domicilio - Cuidado de ancianos', true);
+
+INSERT INTO proveedor_cobertura (id, perfil_proveedor_id, municipio_id) VALUES (1, 1, 2);
+INSERT INTO proveedor_cobertura (id, perfil_proveedor_id, municipio_id) VALUES (2, 1, 3);
+INSERT INTO proveedor_cobertura (id, perfil_proveedor_id, municipio_id) VALUES (3, 1, 4);
+
+INSERT INTO direccion (id, perfil_proveedor_id, direccion_texto, municipio_id, es_principal, active)
+VALUES (1, 1, 'Vereda carrizales 17 km via palmas', 2, true, true);
+
+-- ─── CLIENTE DE PRUEBA ───────────────────────────────────────────────
+INSERT INTO perfil_cliente (id, auth_user_id, username, email, nombre_completo, numero_identificacion, tipo_identificacion, fecha_nacimiento, sexo, celular, cod_phone_international, estado)
+VALUES (1, 6, 'Celinda.Cueto', 'celindacuetodelahoz@gmail.com', 'Celinda cueto de la Hoz', '1143337852', 'CC', '1994-11-01', 'F', '3052686363', '+57', 'ACTIVO');
+
+INSERT INTO direccion (id, perfil_cliente_id, etiqueta, direccion_texto, municipio_id, latitud, longitud, es_principal, active)
+VALUES (2, 1, 'Principal', 'Vereda a', 2, 6.2086000, -75.5659000, true, true);
+
+

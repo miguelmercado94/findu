@@ -153,6 +153,7 @@ public class JwtManagerImpl implements JwtManager {
                             newUser.setUsername(username);
                             newUser.setEmail(email);
                             newUser.setPassword(null);
+                            newUser.setEstado("INCOMPLETO");
                             newUser.setActive(true);
                             return usuarioService.save(newUser)
                                     .flatMap(savedUser -> rolRepositoryPort.findByName(roleName)
@@ -252,7 +253,7 @@ public class JwtManagerImpl implements JwtManager {
 
     @Override
     public Mono<UserProfileResponse> getCurrentUserProfile() {
-        log.debug("Fetching current user profile from reactive security context");
+        log.info("Getting current user profile");
         return ReactiveSecurityContextHolder.getContext()
                 .flatMap(ctx -> {
                     Authentication auth = ctx.getAuthentication();
@@ -260,19 +261,20 @@ public class JwtManagerImpl implements JwtManager {
                         return Mono.empty();
                     }
                     Object principal = auth.getPrincipal();
+                    String username;
                     if (principal instanceof Usuario) {
-                        return Mono.just((Usuario) principal);
+                        username = ((Usuario) principal).getUsername();
                     } else if (principal instanceof org.springframework.security.oauth2.jwt.Jwt jwt) {
-                        String username = jwt.getSubject();
-                        return usuarioService.getUserByUsername(username)
-                                .flatMap(this::enrichUserWithRole)
-                                .flatMap(this::enrichUserWithAuthorities);
+                        username = jwt.getSubject();
+                    } else {
+                        return Mono.empty();
                     }
-                    return Mono.empty();
+                    return usuarioService.getUserByUsername(username)
+                            .switchIfEmpty(Mono.defer(() -> usuarioService.getUserByEmail(username)));
                 })
+                .flatMap(this::enrichUserWithRole)
+                .flatMap(this::enrichUserWithAuthorities)
                 .map(JwtManagerImpl::toUserProfileResponse)
-                .doOnNext(p -> log.info("Perfil entregado user={} role={} operationCount={}",
-                        p.username(), p.roleName(), p.operationNames().size()))
                 .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.UNAUTHORIZED, "No autenticado")));
     }
 
@@ -309,16 +311,27 @@ public class JwtManagerImpl implements JwtManager {
                                 String newPhone = request.phone().trim();
                                 Mono<Void> phoneValidation = Mono.empty();
                                 if (user.getPhone() == null || !newPhone.equals(user.getPhone())) {
-                                    phoneValidation = usuarioService.existsByPhone(newPhone)
-                                            .flatMap(exists -> exists
-                                                    ? Mono.error(new IllegalArgumentException("El teléfono ya está registrado"))
-                                                    : Mono.empty());
+                                    phoneValidation = usuarioService.getUserByPhone(newPhone)
+                                            .flatMap(existingPhoneUser -> {
+                                                if (existingPhoneUser.getId().equals(user.getId()) ||
+                                                    existingPhoneUser.getEmail().equalsIgnoreCase(user.getEmail()) ||
+                                                    existingPhoneUser.getUsername().equalsIgnoreCase(user.getUsername())) {
+                                                    return Mono.empty();
+                                                }
+                                                if ("INCOMPLETO".equalsIgnoreCase(user.getEstado()) && !"COMPLETO".equalsIgnoreCase(existingPhoneUser.getEstado())) {
+                                                    return Mono.empty();
+                                                }
+                                                return Mono.error(new IllegalArgumentException("El teléfono ya está registrado por otro usuario"));
+                                            });
                                 }
 
                                 return usernameValidation.then(phoneValidation).then(Mono.defer(() -> {
                                     user.setUsername(newUsername);
                                     user.setPhone(newPhone);
                                     user.setCodPhoneInternational(request.codPhoneInternational().trim());
+                                    if (request.estado() != null && !request.estado().isBlank()) {
+                                        user.setEstado(request.estado().trim());
+                                    }
                                     return usuarioService.save(user)
                                             .flatMap(this::enrichUserWithRole)
                                             .flatMap(this::enrichUserWithAuthorities);
@@ -338,6 +351,7 @@ public class JwtManagerImpl implements JwtManager {
                 u.getPhone(),
                 u.getCodPhoneInternational(),
                 roleName,
+                u.getEstado() != null ? u.getEstado() : "INCOMPLETO",
                 UserOperationNames.fromUsuario(u)
         );
     }

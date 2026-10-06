@@ -1,0 +1,21 @@
+spring:
+  data:
+    redis:
+      host: redis
+      port: 6379
+  rabbitmq:
+    host: rabbitmq
+    port: 5672
+    username: findu
+    password: findu
+
+findu:
+  aws:
+    dynamodb:
+      endpoint: http://localstack:4566
+      region: us-east-1
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://eureka-server:8761/eureka/

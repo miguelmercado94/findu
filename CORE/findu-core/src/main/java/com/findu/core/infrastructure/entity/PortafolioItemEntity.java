@@ -29,8 +29,11 @@ public class PortafolioItemEntity {
 
     private String descripcion;
 
-    @Column(name = "url_imagen")
+    @Column(name = "url_imagen", columnDefinition = "TEXT")
     private String urlImagen;
+
+    @Column(name = "url_folder_imagen", columnDefinition = "TEXT")
+    private String urlFolderImagen;
 
     @CreatedDate
     @Column(name = "created_at", updatable = false)

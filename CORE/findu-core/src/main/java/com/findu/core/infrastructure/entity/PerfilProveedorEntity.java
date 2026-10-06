@@ -46,11 +46,12 @@ public class PerfilProveedorEntity {
     @Column(name = "cod_phone_international")
     private String codPhoneInternational;
 
-    @Column(name = "url_imagen_perfil")
+    @Column(name = "url_imagen_perfil", columnDefinition = "TEXT")
     private String urlImagenPerfil;
 
     @Column(name = "calificacion_promedio")
-    private BigDecimal calificacionPromedio;
+    @Builder.Default
+    private BigDecimal calificacionPromedio = new BigDecimal("5.00");
 
     @Column(nullable = false)
     @Builder.Default
@@ -59,6 +60,10 @@ public class PerfilProveedorEntity {
     @Column(name = "estado_verificacion", nullable = false)
     @Builder.Default
     private String estadoVerificacion = "PENDIENTE";
+
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean disponible = true;
 
     @CreatedDate
     @Column(name = "created_at", updatable = false)

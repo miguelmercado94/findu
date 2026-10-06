@@ -22,23 +22,36 @@ ext {
 }
 
 dependencies {
-    implementation 'org.springframework.cloud:spring-cloud-function-adapter-aws'
-    implementation 'org.springframework.cloud:spring-cloud-function-web'
-    implementation 'org.springframework.boot:spring-boot-starter-web'
-    implementation 'org.springframework.boot:spring-boot-starter-actuator'
-    implementation 'org.springframework.boot:spring-boot-starter'
+    // Spring WebFlux (Reactive Netty & WebSockets)
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'
+
+    // Spring Data Redis Reactive (Pub/Sub & Presence)
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis-reactive'
+
+    // Spring AMQP (RabbitMQ Consumer & Fallback Producer)
     implementation 'org.springframework.boot:spring-boot-starter-amqp'
-    implementation 'com.amazonaws:aws-lambda-java-core:1.2.3'
-    implementation 'com.amazonaws:aws-lambda-java-events:3.14.0'
-    implementation 'software.amazon.awssdk:dynamodb:2.29.45'
-    implementation 'software.amazon.awssdk:dynamodb-enhanced:2.29.45'
-    implementation 'com.fasterxml.jackson.core:jackson-databind'
+
+    // Service Discovery (Eureka Client) & Config Client
+    implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
+    implementation 'org.springframework.cloud:spring-cloud-starter-config'
+
+    // Security & JWT
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
+
+    // Actuator for Health Checks
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
+    // JSON Handling & Utilities
     implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
 
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'io.projectreactor:reactor-test'
 }
 
 dependencyManagement {
