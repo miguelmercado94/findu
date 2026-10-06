@@ -1,0 +1,45 @@
+# QA / Railway: PostgreSQL y Redis vía variables de entorno; sin recrear esquema (init desactivado).
+# Activación: --spring.profiles.active=qa
+
+server:
+  port: ${PORT:8082}
+
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  sql:
+    init:
+      mode: ${SPRING_SQL_INIT_MODE:never}
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+
+findu:
+  cache:
+    enabled: ${FINDU_CACHE_ENABLED:true}
+  notification:
+    enabled: ${FINDU_NOTIFICATION_ENABLED:false}
+    lambda-url: ${FINDU_NOTIFICATION_LAMBDA_URL:http://findu-notification-dispatcher.railway.internal:9000}
+    processor:
+      base-url: ${FINDU_NOTIFICATION_PROCESSOR_BASE_URL:http://findu-notification-processor.railway.internal:8083}
+
+eureka:
+  client:
+    enabled: false
+    register-with-eureka: false
+    fetch-registry: false
+
+logging:
+  level:
+    root: INFO
+    com.findu.core: INFO

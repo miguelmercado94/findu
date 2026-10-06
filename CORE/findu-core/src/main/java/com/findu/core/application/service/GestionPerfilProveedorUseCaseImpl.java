@@ -43,6 +43,9 @@ public class GestionPerfilProveedorUseCaseImpl implements GestionPerfilProveedor
     private final MunicipioRepositoryPort municipioPort;
     private final com.findu.core.application.port.out.persistence.ServicioRepositoryPort servicioPort;
 
+    @org.springframework.beans.factory.annotation.Value("${findu.notification.processor.base-url:http://findu-notification-processor.railway.internal:8083}")
+    private String notificationProcessorBaseUrl;
+
     @Override
     public PerfilProveedorResponse crearPerfil(CrearPerfilProveedorRequest request) {
         if (perfilProveedorService.existsByAuthUserId(request.authUserId())) {
@@ -221,7 +224,7 @@ public class GestionPerfilProveedorUseCaseImpl implements GestionPerfilProveedor
     private void notificarDispatcherDisponibilidad(Long proveedorId, boolean disponible) {
         try {
             org.springframework.web.client.RestTemplate restTemplate = new org.springframework.web.client.RestTemplate();
-            String url = "http://findu-notification-processor:8083/api/v1/canales/proveedor/disponibilidad";
+            String url = notificationProcessorBaseUrl + "/api/v1/canales/proveedor/disponibilidad";
             java.util.Map<String, Object> req = java.util.Map.of("proveedorId", proveedorId, "disponible", disponible);
             restTemplate.put(url, req);
             log.info("Canal en dispatcher actualizado exitosamente para proveedor {}: disponible={}", proveedorId, disponible);
