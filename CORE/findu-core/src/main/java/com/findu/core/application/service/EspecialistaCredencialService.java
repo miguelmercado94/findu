@@ -1,6 +1,6 @@
 package com.findu.core.application.service;
 
-import com.findu.core.application.port.output.persistence.EspecialistaCredencialRepositoryPort;
+import com.findu.core.application.port.out.persistence.EspecialistaCredencialRepositoryPort;
 import com.findu.core.domain.model.EspecialistaCredencial;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

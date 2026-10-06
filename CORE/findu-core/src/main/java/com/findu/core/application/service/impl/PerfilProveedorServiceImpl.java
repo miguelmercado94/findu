@@ -1,6 +1,6 @@
 package com.findu.core.application.service.impl;
 
-import com.findu.core.application.port.output.persistence.PerfilProveedorRepositoryPort;
+import com.findu.core.application.port.out.persistence.PerfilProveedorRepositoryPort;
 import com.findu.core.application.service.PerfilProveedorService;
 import com.findu.core.domain.model.PerfilProveedor;
 import lombok.RequiredArgsConstructor;

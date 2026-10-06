@@ -1,0 +1,102 @@
+package com.findu.core.infrastructure.adapter.input.web.controller;
+
+import com.findu.core.application.port.in.GestionDireccionesUseCase;
+import com.findu.core.application.dto.request.ActualizarDireccionRequest;
+import com.findu.core.application.dto.request.CrearDireccionRequest;
+import com.findu.core.application.dto.response.DireccionResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/v1/direcciones")
+@RequiredArgsConstructor
+@Tag(name = "Direcciones", description = "Gestión de direcciones de usuarios")
+public class DireccionController {
+
+    private final GestionDireccionesUseCase direccionesUseCase;
+
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Crear dirección", description = "Registra una nueva dirección para un usuario")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Dirección creada exitosamente",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = DireccionResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Datos de dirección inválidos", content = @Content),
+            @ApiResponse(responseCode = "404", description = "Municipio o usuario no encontrado", content = @Content),
+            @ApiResponse(responseCode = "500", description = "Error interno del servidor", content = @Content)
+    })
+    public ResponseEntity<DireccionResponse> crearDireccion(
+            @Valid @RequestBody CrearDireccionRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(direccionesUseCase.crearDireccion(request));
+    }
+
+    @PutMapping("/{id}")
+    @Operation(summary = "Actualizar dirección", description = "Actualiza los datos de una dirección existente")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Dirección actualizada exitosamente",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = DireccionResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Datos de dirección inválidos", content = @Content),
+            @ApiResponse(responseCode = "404", description = "Dirección no encontrada", content = @Content),
+            @ApiResponse(responseCode = "500", description = "Error interno del servidor", content = @Content)
+    })
+    public ResponseEntity<DireccionResponse> actualizarDireccion(
+            @Parameter(description = "ID de la dirección", required = true, example = "1")
+            @PathVariable Long id,
+            @RequestBody ActualizarDireccionRequest request) {
+        return ResponseEntity.ok(direccionesUseCase.actualizarDireccion(id, request));
+    }
+
+    @DeleteMapping("/{id}")
+    @Operation(summary = "Eliminar dirección", description = "Desactiva una dirección. No se puede eliminar la dirección principal.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "204", description = "Dirección eliminada exitosamente"),
+            @ApiResponse(responseCode = "404", description = "Dirección no encontrada", content = @Content),
+            @ApiResponse(responseCode = "409", description = "No se puede eliminar la dirección principal", content = @Content),
+            @ApiResponse(responseCode = "500", description = "Error interno del servidor", content = @Content)
+    })
+    public ResponseEntity<Void> eliminarDireccion(
+            @Parameter(description = "ID de la dirección", required = true, example = "1")
+            @PathVariable Long id) {
+        direccionesUseCase.eliminarDireccion(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{id}/principal")
+    @Operation(summary = "Marcar como dirección principal", description = "Establece esta dirección como la principal del cliente. La anterior principal pierde ese estado.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Dirección marcada como principal",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = DireccionResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Dirección no encontrada", content = @Content),
+            @ApiResponse(responseCode = "500", description = "Error interno del servidor", content = @Content)
+    })
+    public ResponseEntity<DireccionResponse> marcarComoPrincipal(
+            @Parameter(description = "ID de la dirección", required = true, example = "2")
+            @PathVariable Long id) {
+        return ResponseEntity.ok(direccionesUseCase.marcarComoPrincipal(id));
+    }
+
+    @GetMapping("/{id}")
+    @Operation(summary = "Consultar dirección por ID", description = "Obtiene el detalle de una dirección específica")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Dirección encontrada",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = DireccionResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Dirección no encontrada", content = @Content),
+            @ApiResponse(responseCode = "500", description = "Error interno del servidor", content = @Content)
+    })
+    public ResponseEntity<DireccionResponse> consultarDireccion(
+            @Parameter(description = "ID de la dirección", required = true, example = "1")
+            @PathVariable Long id) {
+        return ResponseEntity.ok(direccionesUseCase.consultarDireccion(id));
+    }
+}

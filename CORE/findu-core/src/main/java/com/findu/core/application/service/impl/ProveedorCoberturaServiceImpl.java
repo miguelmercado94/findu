@@ -1,6 +1,6 @@
 package com.findu.core.application.service.impl;
 
-import com.findu.core.application.port.output.persistence.ProveedorCoberturaRepositoryPort;
+import com.findu.core.application.port.out.persistence.ProveedorCoberturaRepositoryPort;
 import com.findu.core.application.service.ProveedorCoberturaService;
 import com.findu.core.domain.model.ProveedorCobertura;
 import lombok.RequiredArgsConstructor;

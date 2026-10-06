@@ -1,8 +1,8 @@
 package com.findu.core.application.service.impl;
 
-import com.findu.core.application.port.output.persistence.CategoriaRepositoryPort;
-import com.findu.core.application.port.output.persistence.MunicipioRepositoryPort;
-import com.findu.core.application.port.output.persistence.ServicioRepositoryPort;
+import com.findu.core.application.port.out.persistence.CategoriaRepositoryPort;
+import com.findu.core.application.port.out.persistence.MunicipioRepositoryPort;
+import com.findu.core.application.port.out.persistence.ServicioRepositoryPort;
 import com.findu.core.application.service.CatalogoService;
 import com.findu.core.domain.model.Categoria;
 import com.findu.core.domain.model.Municipio;

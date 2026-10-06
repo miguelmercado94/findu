@@ -1,6 +1,6 @@
 package com.findu.core.application.service.impl;
 
-import com.findu.core.application.port.output.persistence.OfertaRepositoryPort;
+import com.findu.core.application.port.out.persistence.OfertaRepositoryPort;
 import com.findu.core.application.service.OfertaService;
 import com.findu.core.domain.model.Oferta;
 import lombok.RequiredArgsConstructor;

@@ -1,0 +1,170 @@
+package com.findu.core.application.service;
+
+import com.findu.core.application.port.out.externalapi.StorageServicePort;
+import com.findu.core.application.service.DireccionService;
+import com.findu.core.application.service.PerfilClienteService;
+import com.findu.core.application.port.in.GestionPerfilClienteUseCase;
+import com.findu.core.domain.model.Direccion;
+import com.findu.core.domain.model.PerfilCliente;
+import com.findu.core.application.dto.request.ActualizarPerfilClienteRequest;
+import com.findu.core.application.dto.request.CrearPerfilClienteRequest;
+import com.findu.core.application.dto.response.DireccionResponse;
+import com.findu.core.application.dto.response.PerfilClienteDetalleResponse;
+import com.findu.core.application.dto.response.PerfilClienteResponse;
+import com.findu.core.domain.exception.ResourceNotFoundException;
+import com.findu.core.application.util.DateUtils;
+import com.findu.core.domain.enums.EstadoPerfil;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+
+@Service
+@RequiredArgsConstructor
+@Transactional
+public class GestionPerfilClienteUseCaseImpl implements GestionPerfilClienteUseCase {
+
+    private final PerfilClienteService perfilClienteService;
+    private final DireccionService direccionService;
+    private final StorageServicePort storageServicePort;
+
+    @Override
+    public PerfilClienteResponse crearPerfil(CrearPerfilClienteRequest request) {
+        if (perfilClienteService.existsByAuthUserId(request.authUserId())) {
+            throw new IllegalStateException("Ya existe un perfil de cliente para este usuario.");
+        }
+        if (perfilClienteService.existsByNumeroIdentificacion(request.numeroIdentificacion())) {
+            throw new IllegalStateException("Ya existe un perfil con este número de identificación.");
+        }
+
+        DateUtils.validarMayorDeEdad(request.fechaNacimiento());
+
+        String imagenUrl = request.urlImagenPerfil();
+        if (imagenUrl != null && !imagenUrl.isBlank() && storageServicePort != null) {
+            String uploadedUrl = storageServicePort.uploadFile("perfiles", request.username(), imagenUrl);
+            if (uploadedUrl != null) {
+                imagenUrl = uploadedUrl;
+            }
+        }
+
+        PerfilCliente perfil = PerfilCliente.builder()
+                .authUserId(request.authUserId())
+                .username(request.username())
+                .email(request.email())
+                .nombreCompleto(request.nombreCompleto())
+                .numeroIdentificacion(request.numeroIdentificacion())
+                .tipoIdentificacion(request.tipoIdentificacion())
+                .fechaNacimiento(request.fechaNacimiento())
+                .sexo(request.sexo())
+                .celular(request.celular())
+                .codPhoneInternational(request.codPhoneInternational())
+                .urlImagenPerfil(imagenUrl)
+                .estado(EstadoPerfil.INCOMPLETO)
+                .build();
+
+        PerfilCliente saved = perfilClienteService.save(perfil);
+        return toResponse(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PerfilClienteDetalleResponse consultarPerfil(Long id) {
+        PerfilCliente perfil = perfilClienteService.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Perfil de cliente no encontrado con id: " + id));
+
+        List<DireccionResponse> direcciones = direccionService.findByClienteId(id).stream()
+                .map(this::toDireccionResponse)
+                .toList();
+
+        return new PerfilClienteDetalleResponse(
+                perfil.getId(),
+                perfil.getUsername(),
+                perfil.getEmail(),
+                perfil.getNombreCompleto(),
+                perfil.getNumeroIdentificacion(),
+                perfil.getTipoIdentificacion(),
+                perfil.getFechaNacimiento(),
+                perfil.getSexo(),
+                perfil.getCelular(),
+                perfil.getCodPhoneInternational(),
+                perfil.getUrlImagenPerfil(),
+                perfil.getCalificacionPromedio(),
+                perfil.getEstado(),
+                direcciones
+        );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PerfilClienteDetalleResponse consultarPerfilPorAuthUserId(Long authUserId) {
+        PerfilCliente perfil = perfilClienteService.findByAuthUserId(authUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("Perfil de cliente no encontrado con authUserId: " + authUserId));
+
+        List<DireccionResponse> direcciones = direccionService.findByClienteId(perfil.getId()).stream()
+                .map(this::toDireccionResponse)
+                .toList();
+
+        return new PerfilClienteDetalleResponse(
+                perfil.getId(),
+                perfil.getUsername(),
+                perfil.getEmail(),
+                perfil.getNombreCompleto(),
+                perfil.getNumeroIdentificacion(),
+                perfil.getTipoIdentificacion(),
+                perfil.getFechaNacimiento(),
+                perfil.getSexo(),
+                perfil.getCelular(),
+                perfil.getCodPhoneInternational(),
+                perfil.getUrlImagenPerfil(),
+                perfil.getCalificacionPromedio(),
+                perfil.getEstado(),
+                direcciones
+        );
+    }
+
+    @Override
+    public PerfilClienteResponse actualizarPerfil(Long id, ActualizarPerfilClienteRequest request) {
+        PerfilCliente perfil = perfilClienteService.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Perfil de cliente no encontrado con id: " + id));
+
+        if (!EstadoPerfil.INCOMPLETO.equals(perfil.getEstado())) {
+            throw new IllegalStateException("Solo se puede actualizar el perfil mientras esté en estado INCOMPLETO. Estado actual: " + perfil.getEstado());
+        }
+
+        if (request.nombreCompleto() != null) {
+            perfil.setNombreCompleto(request.nombreCompleto());
+        }
+        if (request.urlImagenPerfil() != null) {
+            String uploadedUrl = storageServicePort != null ? storageServicePort.uploadFile("perfiles", perfil.getUsername(), request.urlImagenPerfil()) : null;
+            perfil.setUrlImagenPerfil(uploadedUrl != null ? uploadedUrl : request.urlImagenPerfil());
+        }
+
+        PerfilCliente updated = perfilClienteService.save(perfil);
+        return toResponse(updated);
+    }
+
+    @Override
+    public void cambiarEstado(Long id, String nuevoEstado) {
+        PerfilCliente perfil = perfilClienteService.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Perfil de cliente no encontrado con id: " + id));
+        perfil.setEstado(nuevoEstado);
+        perfilClienteService.save(perfil);
+    }
+
+    private PerfilClienteResponse toResponse(PerfilCliente p) {
+        return new PerfilClienteResponse(
+                p.getId(), p.getUsername(), p.getEmail(), p.getNombreCompleto(), p.getCelular(),
+                p.getCodPhoneInternational(), p.getSexo(), p.getUrlImagenPerfil(),
+                p.getCalificacionPromedio(), p.getEstado()
+        );
+    }
+
+    private DireccionResponse toDireccionResponse(Direccion d) {
+        return new DireccionResponse(
+                d.getId(), d.getEtiqueta(), d.getDireccionTexto(), null,
+                d.getLatitud(), d.getLongitud(), d.getPiso(), d.getApartamento(),
+                d.getReferencia(), d.isEsPrincipal()
+        );
+    }
+}

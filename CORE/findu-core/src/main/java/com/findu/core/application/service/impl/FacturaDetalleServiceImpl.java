@@ -1,6 +1,6 @@
 package com.findu.core.application.service.impl;
 
-import com.findu.core.application.port.output.persistence.FacturaDetalleRepositoryPort;
+import com.findu.core.application.port.out.persistence.FacturaDetalleRepositoryPort;
 import com.findu.core.application.service.FacturaDetalleService;
 import com.findu.core.domain.model.FacturaDetalle;
 import lombok.RequiredArgsConstructor;

@@ -1,6 +1,6 @@
 package com.findu.core.application.service.impl;
 
-import com.findu.core.application.port.output.persistence.DireccionRepositoryPort;
+import com.findu.core.application.port.out.persistence.DireccionRepositoryPort;
 import com.findu.core.application.service.DireccionService;
 import com.findu.core.domain.model.Direccion;
 import lombok.RequiredArgsConstructor;

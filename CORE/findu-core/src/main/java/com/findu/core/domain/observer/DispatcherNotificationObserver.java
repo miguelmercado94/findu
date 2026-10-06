@@ -1,11 +1,11 @@
 package com.findu.core.domain.observer;
 
-import com.findu.core.application.port.output.externalapi.NotificationPort;
+import com.findu.core.application.port.out.externalapi.NotificationPort;
 import com.findu.core.domain.model.Oferta;
 import com.findu.core.domain.model.PerfilCliente;
 import com.findu.core.domain.model.PerfilProveedor;
 import com.findu.core.domain.model.SolicitudServicio;
-import com.findu.core.domain.model.constants.NotificationTemplates;
+import com.findu.core.domain.enums.NotificationTemplates;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;

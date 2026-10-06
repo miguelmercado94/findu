@@ -1,6 +1,6 @@
 package com.findu.core.application.service.impl;
 
-import com.findu.core.application.port.output.persistence.PortafolioItemRepositoryPort;
+import com.findu.core.application.port.out.persistence.PortafolioItemRepositoryPort;
 import com.findu.core.application.service.PortafolioService;
 import com.findu.core.domain.model.PortafolioItem;
 import lombok.RequiredArgsConstructor;

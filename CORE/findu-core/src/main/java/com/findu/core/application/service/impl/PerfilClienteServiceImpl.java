@@ -1,6 +1,6 @@
 package com.findu.core.application.service.impl;
 
-import com.findu.core.application.port.output.persistence.PerfilClienteRepositoryPort;
+import com.findu.core.application.port.out.persistence.PerfilClienteRepositoryPort;
 import com.findu.core.application.service.PerfilClienteService;
 import com.findu.core.domain.model.PerfilCliente;
 import lombok.RequiredArgsConstructor;

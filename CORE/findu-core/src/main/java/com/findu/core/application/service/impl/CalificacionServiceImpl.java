@@ -1,6 +1,6 @@
 package com.findu.core.application.service.impl;
 
-import com.findu.core.application.port.output.persistence.CalificacionRepositoryPort;
+import com.findu.core.application.port.out.persistence.CalificacionRepositoryPort;
 import com.findu.core.application.service.CalificacionService;
 import com.findu.core.domain.model.Calificacion;
 import lombok.RequiredArgsConstructor;

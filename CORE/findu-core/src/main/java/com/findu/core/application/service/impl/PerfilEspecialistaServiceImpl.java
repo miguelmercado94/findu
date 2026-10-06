@@ -1,6 +1,6 @@
 package com.findu.core.application.service.impl;
 
-import com.findu.core.application.port.output.persistence.PerfilEspecialistaRepositoryPort;
+import com.findu.core.application.port.out.persistence.PerfilEspecialistaRepositoryPort;
 import com.findu.core.application.service.PerfilEspecialistaService;
 import com.findu.core.domain.model.PerfilEspecialista;
 import lombok.RequiredArgsConstructor;
