@@ -1,4 +1,4 @@
-# API Gateway (`api-gateway`)
+# API Gateway (`findu-api-gateway`)
 
 Punto de entrada único (Reverse Proxy / Routing / CORS) para las aplicaciones cliente frontend y la aplicación móvil Android de FIND-U.
 
@@ -7,7 +7,7 @@ Punto de entrada único (Reverse Proxy / Routing / CORS) para las aplicaciones c
 ## 🛠️ Servicios Necesarios
 
 1. **`findu-config`** (`http://localhost:8888` en local o `http://findu-config:8888` en Docker)
-2. **`eureka-server`** (`http://localhost:8761/eureka/`)
+2. **`findu-eureka-server`** (`http://localhost:8761/eureka/`)
 
 ---
 
@@ -33,6 +33,6 @@ Punto de entrada único (Reverse Proxy / Routing / CORS) para las aplicaciones c
 
 ### Ejecución Docker
 ```bash
-docker compose up -d api-gateway
+docker compose up -d findu-api-gateway
 ```
 Salud: `http://localhost:8000/actuator/health`

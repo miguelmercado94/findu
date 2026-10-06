@@ -1,6 +1,6 @@
-# Servidor de Descubrimiento (`eureka-server`)
+# Servidor de Descubrimiento (`findu-eureka-server`)
 
-`eureka-server` gestiona el registro y descubrimiento dinámico de todos los microservicios de FIND-U.
+`findu-eureka-server` gestiona el registro y descubrimiento dinámico de todos los microservicios de FIND-U.
 
 ---
 
@@ -26,6 +26,6 @@
 1. **Dashboard Visual de Eureka**: Navegar en el navegador a `http://localhost:8761/`
 2. **Con Docker**:
 ```bash
-docker compose up -d eureka-server
+docker compose up -d findu-eureka-server
 ```
 3. **Endpoint de Salud**: `http://localhost:8761/actuator/health`
