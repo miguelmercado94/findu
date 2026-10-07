@@ -1,6 +1,10 @@
 package com.findu.dispatcher.config;
 
 import org.springframework.amqp.core.*;
+import org.springframework.amqp.rabbit.connection.ConnectionFactory;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -10,6 +14,9 @@ public class RabbitMQConfig {
 
     @Value("${findu.rabbitmq.exchanges.events:findu.events.exchange}")
     private String eventsExchangeName;
+
+    @Value("${findu.rabbitmq.notification.exchange:findu.notifications}")
+    private String notificationsExchangeName;
 
     @Value("${findu.rabbitmq.exchanges.fallback:findu.notifications.fallback.exchange}")
     private String fallbackExchangeName;
@@ -54,5 +61,38 @@ public class RabbitMQConfig {
     @Bean
     public Binding fallbackBinding(Queue fallbackQueue, DirectExchange fallbackExchange) {
         return BindingBuilder.bind(fallbackQueue).to(fallbackExchange).with(fallbackRoutingKey);
+    }
+
+    // --- Ruta transaccional hacia el findu-notification-processor (exchange findu.notifications) ---
+
+    /**
+     * Exchange destino que consume el findu-notification-processor. Se declara también aquí
+     * (durable, no auto-delete) para que exista aunque el processor no haya arrancado todavía.
+     * No se declaran las colas del processor: el dispatcher solo publica al exchange.
+     */
+    @Bean
+    public TopicExchange notificationsExchange() {
+        return new TopicExchange(notificationsExchangeName, true, false);
+    }
+
+    /**
+     * Converter JSON para que los mensajes transaccionales se publiquen con
+     * contentType=application/json y el processor pueda deserializarlos a NotificationMessage.
+     */
+    @Bean
+    public Jackson2JsonMessageConverter notificationJsonConverter() {
+        return new Jackson2JsonMessageConverter();
+    }
+
+    /**
+     * RabbitTemplate cualificado para la ruta transaccional. Usa el converter Jackson y NO
+     * interfiere con el RabbitTemplate autoconfigurado por defecto que usa RabbitFallbackProducer.
+     */
+    @Bean
+    public RabbitTemplate notificationsRabbitTemplate(ConnectionFactory connectionFactory,
+                                                      @Qualifier("notificationJsonConverter") Jackson2JsonMessageConverter notificationJsonConverter) {
+        RabbitTemplate template = new RabbitTemplate(connectionFactory);
+        template.setMessageConverter(notificationJsonConverter);
+        return template;
     }
 }

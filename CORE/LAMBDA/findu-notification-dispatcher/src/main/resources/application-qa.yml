@@ -19,6 +19,16 @@ spring:
 findu:
   jwt:
     secret: ${JWT_SECRET}
+  rabbitmq:
+    # Ruta transaccional hacia el findu-notification-processor.
+    # Defaults correctos: no requieren variables de entorno nuevas en Railway (perfil qa).
+    notification:
+      exchange: ${FINDU_NOTIFICATION_EXCHANGE:findu.notifications}
+      routing-keys:
+        sms: ${FINDU_NOTIFICATION_RK_SMS:notification.sms}
+        email: ${FINDU_NOTIFICATION_RK_EMAIL:notification.email}
+        push: ${FINDU_NOTIFICATION_RK_PUSH:notification.push}
+        whatsapp: ${FINDU_NOTIFICATION_RK_WHATSAPP:notification.whatsapp}
 
 eureka:
   client:
