@@ -265,6 +265,16 @@ async function fetchProfile(retries = 3) {
       const decoded = state.token ? decodeJwt(state.token) : {};
       const userId = data.id || decoded.userId;
 
+      // Prellenar los datos básicos (como hace el cliente) para las pantallas
+      // de datos básicos / wizard / OTP.
+      if (data.username) state.regUsername = data.username;
+      if (data.email) state.regEmail = data.email;
+      if (data.phone) state.regPhone = data.phone;
+      if (data.codPhoneInternational) state.regPhoneCode = data.codPhoneInternational;
+      state.nombreCompleto = state.nombreCompleto
+        || `${state.googleData?.firstName || ''} ${state.googleData?.lastName || ''}`.trim()
+        || (data.username || '');
+
       // Cargar catálogos (municipios/servicios) para el wizard y el panel.
       try { await fetchCatalogs(); } catch (e) { console.error('Catálogos (no bloqueante):', e); }
 
@@ -275,23 +285,75 @@ async function fetchProfile(retries = 3) {
 
       console.log('[FINDU][fetchProfile] userId=', userId,
                   'proveedorPerfil?', !!state.proveedorPerfil?.id,
+                  'accountStatus=', data.accountStatus,
+                  'phone=', data.phone,
                   'phoneVerified=', data.phoneVerified,
+                  'emailVerified=', data.emailVerified,
                   'estado=', data.estado);
 
-      // GATE OTP: si el perfil reporta el celular sin verificar (campo de FEAT-001),
-      // mostrar la pantalla OTP (+57) ANTES de enrutar al panel o al wizard.
-      // Aplica tanto al login federado (Google) como al tradicional de un usuario
-      // que quedó a medio verificar.
+      // ===== ENRUTADO POR accountStatus (los 3 caminos tras Google) =====
+      // El accountStatus del backend de seguridad es la fuente de verdad.
+      // data.phone solo desambigua el caso borde de PENDING_PHONE_VERIFICATION
+      // sin teléfono guardado.
+      const accountStatus = data.accountStatus;
+
+      // --- CAMINO 1: usuario NUEVO / sin datos básicos (sin teléfono) ---
+      // Mostrar la pantalla "Paso 1: Completa tu Teléfono" (como el cliente).
+      if (!data.phone) {
+        state.registerStep = 'federated-basic';
+        setView('register');
+        showAlert('success', 'Autenticado con Google. Por favor, completa tu teléfono.');
+        return;
+      }
+
+      // --- CAMINO 3: usuario EXISTE pero INCOMPLETO, según accountStatus ---
+      if (accountStatus === 'PENDING_PHONE_VERIFICATION') {
+        // El teléfono ya existe (data.phone presente) → ir directo a verificar OTP.
+        // No auto-enviamos el código: se conserva el botón "Enviar código".
+        state.otpContext = 'federated';
+        state.phoneVerified = false;
+        state.otpCode = '';
+        state.otpSent = false;
+        state.registerStep = 'otp';
+        setView('register');
+        showAlert('info', `Hola ${data.username || state.googleData?.firstName || ''}. Para continuar, verifica tu número de celular.`);
+        return;
+      }
+
+      if (accountStatus === 'PENDING_EMAIL_VERIFICATION') {
+        // Correo pendiente → panel con banner "Confirma tu correo electrónico"
+        // (buildEmailVerificationBannerHtml se pinta solo si emailVerified===false).
+        // Asíncrono / no bloqueante: si falta el perfil del wizard, enviar al wizard.
+        if (state.proveedorPerfil?.id) {
+          setView('profile');
+        } else {
+          state.registerStep = 2;
+          setView('register');
+          showAlert('success', 'Completa los datos de tu perfil de proveedor para continuar.');
+        }
+        return;
+      }
+
+      // --- CAMINO 2: usuario EXISTE y COMPLETO (ACTIVE) ---
+      if (accountStatus === 'ACTIVE') {
+        if (state.proveedorPerfil?.id) {
+          setView('profile');
+        } else {
+          // Cuenta activa pero sin perfil de proveedor → completar el wizard.
+          state.registerStep = 2;
+          setView('register');
+          showAlert('success', 'Completa los datos de tu perfil de proveedor para continuar.');
+        }
+        return;
+      }
+
+      // --- FALLBACK (accountStatus desconocido o ausente) ---
+      // Mantener el comportamiento previo basado en phoneVerified / perfil de core.
       if (data.phoneVerified === false) {
         state.otpContext = 'federated';
         state.phoneVerified = false;
         state.otpCode = '';
-        // En el flujo federado SIEMPRE se pide/confirma el celular en pantalla:
-        // NO auto-enviamos OTP aunque el perfil traiga un teléfono viejo.
-        // El usuario ve sus datos (nombre/email de Google) y escribe su celular.
-        state.regPhone = '';
-        state.regPhoneCode = '+57';
-        state.otpSent = false;        // aún no se ha enviado el código
+        state.otpSent = false;
         state.registerStep = 'otp';
         setView('register');
         showAlert('info', `Hola ${data.username || state.googleData?.firstName || ''}. Para continuar, verifica tu número de celular.`);
@@ -299,13 +361,8 @@ async function fetchProfile(retries = 3) {
       }
 
       if (state.proveedorPerfil?.id) {
-        // Ya existe perfil de proveedor → panel principal.
         setView('profile');
       } else {
-        // No hay perfil de proveedor todavía → completar datos (Paso 2 del wizard).
-        state.nombreCompleto = state.nombreCompleto
-          || `${state.googleData?.firstName || ''} ${state.googleData?.lastName || ''}`.trim()
-          || (data.username || '');
         state.registerStep = 2;
         setView('register');
         showAlert('success', 'Completa los datos de tu perfil de proveedor para continuar.');
@@ -731,6 +788,79 @@ window.changeOtpPhone = function () {
   state.otpResendIn = 0;
   state.otpValidFor = 0;
   render();
+};
+
+// FLUJO FEDERADO (Google) — PASO 1: "Completa tu Teléfono".
+// Equivale al handleRegister del cliente: la cuenta YA existe (hay state.token
+// tras /auth/federated), así que NO se crea usuario; se ACTUALIZA el perfil con
+// PUT /security-auth/api/v1/profile (misma ruta que usa el cliente), guardando
+// el teléfono y datos básicos, y luego se avanza a la verificación de celular
+// por OTP (sub-vista existente). El OTP solo VERIFICA el teléfono ya guardado.
+window.submitFederatedBasic = async function (e) {
+  if (e) e.preventDefault();
+
+  const phone = (document.getElementById('fed-phone')?.value || '').trim();
+  const codPhoneInternational = document.getElementById('fed-phone-code')?.value || '+57';
+  const birthdateVal = document.getElementById('fed-birthdate')?.value || state.fechaNacimiento || '';
+
+  const email = state.googleData?.email || state.profile?.email || state.regEmail || '';
+  const username = state.regUsername || state.profile?.username || (email ? email.split('@')[0] : '');
+
+  try {
+    if (!/^\d{7,15}$/.test(phone)) {
+      throw new Error('Ingresa un número de celular válido.');
+    }
+    if (!birthdateVal) throw new Error('La fecha de nacimiento es obligatoria');
+    const birthDate = new Date(birthdateVal);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
+    if (age < 18) throw new Error('Debes ser mayor de 18 años para registrarte en FINDU');
+
+    // Persistir en estado para los pasos siguientes (OTP, wizard).
+    state.fechaNacimiento = birthdateVal;
+    state.regUsername = username;
+    state.regEmail = email;
+    state.regPhone = phone;
+    state.regPhoneCode = codPhoneInternational;
+    state.nombreCompleto = state.nombreCompleto
+      || `${state.googleData?.firstName || ''} ${state.googleData?.lastName || ''}`.trim()
+      || username;
+    state.celular = phone;
+    state.codPhoneInternational = codPhoneInternational;
+
+    // Actualización del perfil de seguridad (MISMA ruta/cuerpo que el cliente).
+    const tokenToUse = state.token || localStorage.getItem('findu_token');
+    const updateRes = await fetch(`${API_GATEWAY_URL}/security-auth/api/v1/profile`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${tokenToUse}`
+      },
+      body: JSON.stringify({ username, phone, codPhoneInternational })
+    });
+
+    if (!updateRes.ok) {
+      if (updateRes.status === 503 || updateRes.status === 500) {
+        throw new Error('El servicio de seguridad se está reconectando. Por favor presiona Siguiente de nuevo en unos segundos.');
+      }
+      const updateData = await safeParseJson(updateRes);
+      throw new Error(updateData.message || `Error al actualizar el teléfono en el perfil de seguridad (${updateRes.status})`);
+    }
+
+    // Avanzar a la verificación de celular por OTP (el teléfono ya está guardado).
+    // No auto-enviamos el código: el usuario lo dispara con "Enviar código".
+    state.otpContext = 'federated';
+    state.phoneVerified = false;
+    state.otpCode = '';
+    state.otpSent = false;
+    state.registerStep = 'otp';
+    render();
+    showAlert('success', 'Teléfono guardado. Verifica tu celular con el código que te enviamos.');
+  } catch (err) {
+    showAlert('error', err.message || 'No se pudo guardar el teléfono.');
+  }
 };
 
 // Verifica el código OTP contra el backend. Solo con phoneVerified:true avanza.
@@ -2291,6 +2421,52 @@ function renderInternal() {
           <button type="submit" class="btn">Continuar a Datos Personales →</button>
         </form>
       `;
+    } else if (state.registerStep === 'federated-basic') {
+      // FLUJO FEDERADO (Google): pantalla de datos básicos (como el cliente).
+      // Nombre de Google, correo y usuario deshabilitados; teléfono + fecha editables.
+      // No se muestra botón de Google ni campo de contraseña (isGoogle).
+      const nameValue = `${state.googleData?.firstName || ''} ${state.googleData?.lastName || ''}`.trim();
+      const emailValue = state.googleData?.email || state.profile?.email || state.regEmail || '';
+      const usernameValue = state.regUsername
+        || (emailValue ? emailValue.split('@')[0] : '')
+        || (state.profile?.username || '');
+
+      stepContent = `
+        <h2>Paso 1: Completa tu Teléfono</h2>
+        <form id="federated-basic-form">
+          ${nameValue ? `
+          <div class="form-group">
+            <label>Nombre de Google</label>
+            <input type="text" value="${nameValue}" disabled />
+          </div>
+          ` : ''}
+          <div class="form-group">
+            <label for="fed-email">Correo Electrónico</label>
+            <input type="email" id="fed-email" value="${emailValue}" disabled />
+          </div>
+          <div class="form-group">
+            <label for="fed-username">Nombre de Usuario</label>
+            <input type="text" id="fed-username" value="${usernameValue}" disabled />
+          </div>
+          <div class="form-row">
+            <div class="form-group" style="flex: 0.3;">
+              <label for="fed-phone-code">País</label>
+              <select id="fed-phone-code">
+                <option value="+57" selected>🇨🇴 +57 (Colombia)</option>
+              </select>
+            </div>
+            <div class="form-group" style="flex: 0.7;">
+              <label for="fed-phone">Celular</label>
+              <input type="tel" id="fed-phone" value="${state.regPhone || ''}" placeholder="3001234567" required />
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="fed-birthdate">Fecha de Nacimiento</label>
+            <input type="date" id="fed-birthdate" value="${state.fechaNacimiento || ''}" required />
+          </div>
+          <button type="submit" class="btn">Siguiente ➔</button>
+        </form>
+      `;
     } else if (state.registerStep === 'otp') {
       if (!state.otpSent) {
         // ESTADO 1: pedir/confirmar el celular (típico del flujo federado).
@@ -2547,7 +2723,9 @@ function renderInternal() {
           ${(() => {
             // La sub-vista OTP cuenta como "después del Paso 1": el Paso 1 queda
             // completado y la barra avanza sin introducir un nodo nuevo.
-            const stepNum = state.registerStep === 'otp' ? 1.5 : state.registerStep;
+            const stepNum = state.registerStep === 'federated-basic' ? 1
+              : state.registerStep === 'otp' ? 1.5
+              : state.registerStep;
             return `
           <div class="wizard-step-node ${stepNum >= 1 ? 'active' : ''} ${stepNum > 1 ? 'completed' : ''}">
             <div class="wizard-step-circle">1</div>
@@ -2584,6 +2762,8 @@ function renderInternal() {
 
     if (state.registerStep === 1) {
       document.getElementById('step1-form')?.addEventListener('submit', handleRegisterStep1);
+    } else if (state.registerStep === 'federated-basic') {
+      document.getElementById('federated-basic-form')?.addEventListener('submit', window.submitFederatedBasic);
     } else if (state.registerStep === 'otp') {
       if (!state.otpSent) {
         document.getElementById('otp-phone-form')?.addEventListener('submit', window.submitOtpPhone);
