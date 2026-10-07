@@ -297,9 +297,11 @@ async function fetchProfile(retries = 3) {
       // sin teléfono guardado.
       const accountStatus = data.accountStatus;
 
-      // --- CAMINO 1: usuario NUEVO / sin datos básicos (sin teléfono) ---
+      // --- CAMINO 1: usuario NUEVO federado / sin datos básicos (sin teléfono) ---
       // Mostrar la pantalla "Paso 1: Completa tu Teléfono" (como el cliente).
-      if (!data.phone) {
+      // Acotado a sesiones federadas (state.googleData): un usuario tradicional
+      // sin teléfono NO debe caer aquí; su ruta la deciden los caminos por accountStatus.
+      if (!data.phone && state.googleData) {
         state.registerStep = 'federated-basic';
         setView('register');
         showAlert('success', 'Autenticado con Google. Por favor, completa tu teléfono.');
