@@ -4,7 +4,6 @@ import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -76,23 +75,21 @@ public class RabbitMQConfig {
     }
 
     /**
-     * Converter JSON para que los mensajes transaccionales se publiquen con
-     * contentType=application/json y el processor pueda deserializarlos a NotificationMessage.
+     * RabbitTemplate cualificado para la ruta transaccional. Usa un Jackson2JsonMessageConverter
+     * creado como variable LOCAL (no como bean) para que los mensajes transaccionales se publiquen
+     * con contentType=application/json sin introducir un MessageConverter en el contexto.
+     *
+     * Importante: no se expone el converter como @Bean. Si fuese el único MessageConverter del
+     * contexto, Spring Boot (getIfUnique) lo adoptaría en el RabbitTemplate por defecto que usa
+     * RabbitFallbackProducer y en el SimpleRabbitListenerContainerFactory por defecto que alimenta
+     * RabbitEventConsumer, alterando el contentType del fallback FCM y rompiendo el consumo String
+     * del flujo de presencia WebSocket. Al mantenerlo local, el template por defecto y el listener
+     * factory conservan su SimpleMessageConverter y la ruta de presencia queda intacta.
      */
     @Bean
-    public Jackson2JsonMessageConverter notificationJsonConverter() {
-        return new Jackson2JsonMessageConverter();
-    }
-
-    /**
-     * RabbitTemplate cualificado para la ruta transaccional. Usa el converter Jackson y NO
-     * interfiere con el RabbitTemplate autoconfigurado por defecto que usa RabbitFallbackProducer.
-     */
-    @Bean
-    public RabbitTemplate notificationsRabbitTemplate(ConnectionFactory connectionFactory,
-                                                      @Qualifier("notificationJsonConverter") Jackson2JsonMessageConverter notificationJsonConverter) {
+    public RabbitTemplate notificationsRabbitTemplate(ConnectionFactory connectionFactory) {
         RabbitTemplate template = new RabbitTemplate(connectionFactory);
-        template.setMessageConverter(notificationJsonConverter);
+        template.setMessageConverter(new Jackson2JsonMessageConverter());
         return template;
     }
 }

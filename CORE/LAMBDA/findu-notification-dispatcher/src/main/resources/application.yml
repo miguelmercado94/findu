@@ -49,6 +49,12 @@ findu:
       fallback: findu.fallback.notification
     # Ruta transaccional hacia el findu-notification-processor.
     # Los defaults coinciden con el contrato del processor; no requieren env vars nuevas en Railway (perfil qa).
+    # Dependencia de orden (QA): el dispatcher declara el exchange topic findu.notifications pero NO las
+    # colas/bindings del processor (notification.sms, notification.correo, etc.). El processor es un
+    # consumidor de larga vida que declara sus bindings al arrancar; una vez arriba, cualquier publish del
+    # dispatcher se enruta a la cola del canal. Si el dispatcher publicara ANTES de que el processor haya
+    # declarado el binding, ese mensaje se descartaría en el topic exchange (sin cola suscrita). En QA el
+    # processor debe estar desplegado y arrancado para no perder notificaciones transaccionales.
     notification:
       exchange: ${FINDU_NOTIFICATION_EXCHANGE:findu.notifications}
       routing-keys:
