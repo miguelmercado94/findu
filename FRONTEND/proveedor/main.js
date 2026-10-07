@@ -640,7 +640,7 @@ function updateOtpCooldownUI() {
   if (!btn) return;
   if (state.otpResendIn > 0) {
     btn.disabled = true;
-    btn.textContent = `Reenviar código (${state.otpResendIn}s)`;
+    btn.textContent = `Reenviar código disponible en ${state.otpResendIn}s`;
   } else {
     btn.disabled = false;
     btn.textContent = 'Reenviar código';
@@ -2278,8 +2278,11 @@ function renderInternal() {
         // ESTADO 2: ingresar el código recibido.
         stepContent = `
           <h2>Verifica tu celular</h2>
-          <p style="font-size:0.9rem; color:var(--text-secondary); margin-bottom:16px;">
+          <p style="font-size:0.9rem; color:var(--text-secondary); margin-bottom:4px;">
             Te enviamos un código de 6 dígitos al <strong>${state.regPhoneCode} ${state.regPhone}</strong>.
+          </p>
+          <p style="font-size:0.82rem; color:var(--text-secondary); margin-bottom:16px;">
+            El código es válido por 5 minutos.
           </p>
           <form id="otp-form">
             <input type="hidden" id="otp-phone" value="${state.regPhone}" />
@@ -2294,7 +2297,7 @@ function renderInternal() {
           <div class="otp-resend-row">
             <button type="button" id="otp-resend-btn" class="btn btn-secondary"
               ${state.otpResendIn > 0 ? 'disabled' : ''} onclick="window.resendPhoneOtp()">
-              ${state.otpResendIn > 0 ? `Reenviar código (${state.otpResendIn}s)` : 'Reenviar código'}
+              ${state.otpResendIn > 0 ? `Reenviar código disponible en ${state.otpResendIn}s` : 'Reenviar código'}
             </button>
             <button type="button" class="btn-link" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;margin-top:8px;" onclick="window.changeOtpPhone()">
               ← Cambiar número

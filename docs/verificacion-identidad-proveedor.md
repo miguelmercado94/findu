@@ -22,19 +22,26 @@ Los `templateCode` nuevos están declarados en `util/NotificationTemplates.java`
 El microservicio de notificaciones resuelve la plantilla en la tabla DynamoDB
 `notification_templates`, cuya clave de partición es `id = CODE#CHANNEL#LANG`. Hay que registrar:
 
+> **Sintaxis de placeholders:** el `TemplateService` del processor renderiza con `{{clave}}`
+> (dobles llaves estilo Mustache), NO con `${clave}`. Las claves deben coincidir EXACTAMENTE con
+> las del `params` que envía `findu-spring-security`. Un placeholder con sintaxis incorrecta o con
+> una clave que no exista en `params` se envía literal (sin sustituir). El processor cachea las
+> plantillas en Redis 6h bajo la clave `notification-templates::CODE#CHANNEL#LANG`: tras actualizar
+> una plantilla en DynamoDB hay que invalidar esa clave en Redis (`DEL`) para que surta efecto de inmediato.
+
 ### VERIFICACION_OTP#SMS#es
 
-Mensaje corto para SMS/WhatsApp. Placeholders: `${otp_code}`, `${expiration_minutes}`.
+Mensaje corto para SMS/WhatsApp. Placeholders: `{{otp_code}}`, `{{expiration_minutes}}`.
 
 ```
-Tu código de verificación FIND-U para prestadores es: ${otp_code}. No lo compartas. Válido por ${expiration_minutes} minutos.
+Tu codigo FIND-U para prestadores es: {{otp_code}}. No lo compartas. Valido por {{expiration_minutes}} minutos.
 ```
 
 ### VERIFICACION_EMAIL#EMAIL#es
 
-Correo HTML responsivo de onboarding. Placeholders: `${provider_name}`, `${verification_link}`,
-`${expiration_hours}`. Debe incluir un botón CTA "Confirmar mi correo electrónico" que apunte a
-`${verification_link}` y un texto de seguridad del tipo "si no solicitaste esta cuenta, ignora este mensaje".
+Correo HTML responsivo de onboarding. Placeholders: `{{provider_name}}`, `{{verification_link}}`,
+`{{expiration_hours}}`. Debe incluir un botón CTA "Confirmar mi correo electrónico" que apunte a
+`{{verification_link}}` y un texto de seguridad del tipo "si no solicitaste esta cuenta, ignora este mensaje".
 
 Ejemplo de cuerpo HTML (responsivo):
 
@@ -43,18 +50,18 @@ Ejemplo de cuerpo HTML (responsivo):
 <html lang="es">
   <body style="font-family:Arial,Helvetica,sans-serif;background:#f5f5f5;margin:0;padding:24px;">
     <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:8px;padding:32px;">
-      <h1 style="font-size:20px;color:#1a1a1a;">Hola ${provider_name}, confirma tu correo</h1>
+      <h1 style="font-size:20px;color:#1a1a1a;">Hola {{provider_name}}, confirma tu correo</h1>
       <p style="color:#444;font-size:15px;line-height:1.6;">
         Para activar tu cuenta de prestador en FIND-U necesitamos verificar tu correo electrónico.
       </p>
       <p style="text-align:center;margin:32px 0;">
-        <a href="${verification_link}"
+        <a href="{{verification_link}}"
            style="background:#2e7d32;color:#fff;text-decoration:none;padding:14px 28px;border-radius:6px;font-size:15px;display:inline-block;">
           Confirmar mi correo electrónico
         </a>
       </p>
       <p style="color:#777;font-size:13px;line-height:1.6;">
-        El enlace es válido por ${expiration_hours} horas. Si no solicitaste esta cuenta, ignora este mensaje.
+        El enlace es válido por {{expiration_hours}} horas. Si no solicitaste esta cuenta, ignora este mensaje.
       </p>
     </div>
   </body>
