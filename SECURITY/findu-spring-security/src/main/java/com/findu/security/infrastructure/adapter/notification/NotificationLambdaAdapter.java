@@ -47,6 +47,7 @@ public class NotificationLambdaAdapter implements NotificationPort {
         );
 
         return webClient.post()
+                .uri("/dispatchNotification")
                 .bodyValue(body)
                 .retrieve()
                 .bodyToMono(String.class)
