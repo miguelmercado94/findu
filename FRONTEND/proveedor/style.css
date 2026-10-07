@@ -1935,3 +1935,78 @@ input:checked + .toggle-slider {
 input:checked + .toggle-slider:before {
   transform: translateX(24px);
 }
+
+/* ===== Verificación OTP de celular (sub-vista del wizard) ===== */
+.otp-input {
+  text-align: center;
+  letter-spacing: 0.6em;
+  font-size: 1.4rem;
+  font-weight: 700;
+  font-family: 'Courier New', monospace;
+}
+
+.otp-resend-row {
+  display: flex;
+  justify-content: center;
+  margin-top: 14px;
+}
+
+.otp-resend-row .btn {
+  width: auto;
+  padding: 10px 20px;
+}
+
+.otp-resend-row .btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ===== Banner de verificación de correo (asíncrono) ===== */
+.email-verif-banner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: rgba(249, 115, 22, 0.12);
+  border: 1px solid rgba(249, 115, 22, 0.35);
+  border-left: 4px solid var(--accent-color);
+  border-radius: 16px;
+  padding: 16px 20px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+
+.email-verif-banner-icon {
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.email-verif-banner-body {
+  flex: 1;
+  min-width: 220px;
+}
+
+.email-verif-banner-title {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--accent-color);
+  margin: 0 0 4px;
+}
+
+.email-verif-banner-text {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.email-verif-banner-btn {
+  width: auto;
+  padding: 10px 18px;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.email-verif-banner-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

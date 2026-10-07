@@ -21,6 +21,16 @@ let state = {
   regPhoneCode: '+57',
   regPhone: '',
 
+  // Verificación OTP de celular (sub-vista entre Paso 1 y Paso 2)
+  otpCode: '',
+  otpResendIn: 0,          // segundos restantes del cooldown de reenvío
+  otpVerifying: false,
+  otpContext: 'register',  // 'register' (wizard) | 'federated' (post-login Google)
+  phoneVerified: false,
+
+  // Banner de verificación de correo (cooldown reenvío)
+  emailResendIn: 0,
+
   // Paso 2: Datos Personales, Dirección Única y Cobertura
   nombreCompleto: '',
   tipoIdentificacion: 'CC',
@@ -263,7 +273,29 @@ async function fetchProfile(retries = 3) {
 
       console.log('[FINDU][fetchProfile] userId=', userId,
                   'proveedorPerfil?', !!state.proveedorPerfil?.id,
+                  'phoneVerified=', data.phoneVerified,
                   'estado=', data.estado);
+
+      // GATE OTP: si el perfil reporta el celular sin verificar (campo de FEAT-001),
+      // mostrar la pantalla OTP (+57) ANTES de enrutar al panel o al wizard.
+      // Aplica tanto al login federado (Google) como al tradicional de un usuario
+      // que quedó a medio verificar.
+      if (data.phoneVerified === false) {
+        state.otpContext = 'federated';
+        state.phoneVerified = false;
+        state.otpCode = '';
+        // Usar el teléfono del perfil si existe; si no, se pedirá en la pantalla.
+        state.regPhone = data.phone || state.regPhone || '';
+        state.regPhoneCode = data.codPhoneInternational || state.regPhoneCode || '+57';
+        state.registerStep = 'otp';
+        setView('register');
+        // Si ya conocemos el teléfono, enviar el OTP automáticamente.
+        if (state.regPhone) {
+          await requestPhoneOtp();
+        }
+        showAlert('info', 'Verifica tu número de celular para continuar.');
+        return;
+      }
 
       if (state.proveedorPerfil?.id) {
         // Ya existe perfil de proveedor → panel principal.
@@ -540,18 +572,149 @@ async function handleRegisterStep1(e) {
       state.profile = loginData.user || { id: data.id, username: state.regUsername, email: state.regEmail };
     }
 
-    // Cargar catálogos y avanzar a Paso 2
+    // Cargar catálogos (quedan listos para el Paso 2 tras verificar el OTP).
     await fetchCatalogs();
     state.nombreCompleto = state.nombreCompleto || state.regUsername;
     state.celular = state.regPhone;
     state.codPhoneInternational = state.regPhoneCode;
-    state.registerStep = 2;
-    state.alert = { type: 'success', message: 'Cuenta creada con éxito. Ingresa tus datos personales y zona de cobertura.' };
+
+    // Verificación OBLIGATORIA y SÍNCRONA del celular: enviar OTP y navegar a la
+    // sub-vista de código antes de permitir avanzar al Paso 2.
+    state.phoneVerified = false;
+    state.otpCode = '';
+    state.otpContext = 'register';
+    state.registerStep = 'otp';
+    await requestPhoneOtp();
+    state.alert = { type: 'success', message: 'Cuenta creada. Verifica tu celular con el código que te enviamos.' };
     render();
   } catch (err) {
     showAlert('error', err.message);
   }
 }
+
+// Solicita (o reenvía) el OTP de celular al microservicio de seguridad e inicia
+// la cuenta regresiva de 60s para habilitar el botón de reenvío.
+async function requestPhoneOtp() {
+  try {
+    const res = await fetch(`${API_GATEWAY_URL}/security-auth/api/v1/auth/phone/send-otp`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(state.token ? { 'Authorization': `Bearer ${state.token}` } : {})
+      },
+      body: JSON.stringify({
+        phone: state.regPhone,
+        codPhoneInternational: state.regPhoneCode
+      })
+    });
+    if (!res.ok) {
+      const data = await safeParseJson(res);
+      throw new Error(data.message || 'No se pudo enviar el código de verificación.');
+    }
+    startOtpCooldown();
+  } catch (err) {
+    showAlert('error', err.message);
+  }
+}
+
+let otpCooldownTimer = null;
+function startOtpCooldown(seconds = 60) {
+  state.otpResendIn = seconds;
+  if (otpCooldownTimer) clearInterval(otpCooldownTimer);
+  otpCooldownTimer = setInterval(() => {
+    state.otpResendIn -= 1;
+    if (state.otpResendIn <= 0) {
+      clearInterval(otpCooldownTimer);
+      otpCooldownTimer = null;
+      state.otpResendIn = 0;
+    }
+    updateOtpCooldownUI();
+  }, 1000);
+}
+
+// Actualiza en caliente el botón de reenvío sin re-renderizar toda la vista
+// (así no se pierde lo que el usuario está escribiendo en el input OTP).
+function updateOtpCooldownUI() {
+  const btn = document.getElementById('otp-resend-btn');
+  if (!btn) return;
+  if (state.otpResendIn > 0) {
+    btn.disabled = true;
+    btn.textContent = `Reenviar código (${state.otpResendIn}s)`;
+  } else {
+    btn.disabled = false;
+    btn.textContent = 'Reenviar código';
+  }
+}
+
+// Reenvío manual del OTP desde la sub-vista.
+window.resendPhoneOtp = async function () {
+  if (state.otpResendIn > 0) return;
+  const phoneInput = document.getElementById('otp-phone');
+  if (phoneInput) state.regPhone = phoneInput.value.trim();
+  await requestPhoneOtp();
+};
+
+// Verifica el código OTP contra el backend. Solo con phoneVerified:true avanza.
+window.verifyPhoneOtp = async function (e) {
+  if (e) e.preventDefault();
+  if (state.otpVerifying) return;
+
+  const codeInput = document.getElementById('otp-code');
+  state.otpCode = codeInput ? codeInput.value.trim() : state.otpCode;
+  const phoneInput = document.getElementById('otp-phone');
+  if (phoneInput) state.regPhone = phoneInput.value.trim();
+
+  if (!/^\d{6}$/.test(state.otpCode)) {
+    showAlert('error', 'Ingresa el código de 6 dígitos.');
+    return;
+  }
+
+  state.otpVerifying = true;
+  try {
+    const res = await fetch(`${API_GATEWAY_URL}/security-auth/api/v1/auth/phone/verify-otp`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(state.token ? { 'Authorization': `Bearer ${state.token}` } : {})
+      },
+      body: JSON.stringify({
+        phone: state.regPhone,
+        code: state.otpCode,
+        codPhoneInternational: state.regPhoneCode
+      })
+    });
+
+    const data = await safeParseJson(res);
+    if (!res.ok || !data.phoneVerified) {
+      throw new Error(data.message || 'Código incorrecto o expirado. Intenta de nuevo.');
+    }
+
+    // Celular verificado.
+    state.phoneVerified = true;
+    if (otpCooldownTimer) { clearInterval(otpCooldownTimer); otpCooldownTimer = null; }
+    state.otpResendIn = 0;
+
+    if (state.otpContext === 'federated') {
+      // Flujo Google: ya hay cuenta y perfil; continuar la ruta normal post-login.
+      state.celular = state.regPhone;
+      state.codPhoneInternational = state.regPhoneCode;
+      state.otpVerifying = false;
+      await fetchProfile();
+      return;
+    }
+
+    // Flujo wizard: avanzar al Paso 2.
+    state.celular = state.regPhone;
+    state.codPhoneInternational = state.regPhoneCode;
+    state.registerStep = 2;
+    state.alert = { type: 'success', message: 'Celular verificado. Ingresa tus datos personales y zona de cobertura.' };
+  } catch (err) {
+    showAlert('error', err.message);
+  } finally {
+    state.otpVerifying = false;
+    render();
+  }
+};
 
 // PASO 2: Guardar Datos Personales, Dirección Única y Zona de Cobertura (+57)
 async function handleRegisterStep2(e) {
@@ -1139,6 +1302,82 @@ function buildRatingsModalHtml() {
     </div>
   `;
 }
+
+// --- BANNER DE VERIFICACIÓN DE CORREO (asíncrono) ---
+
+// Tarjeta informativa que invita al proveedor a confirmar su correo mientras
+// state.profile.emailVerified === false. Incluye botón de reenvío con cooldown.
+function buildEmailVerificationBannerHtml() {
+  if (!state.profile || state.profile.emailVerified !== false) return '';
+  const cooldown = state.emailResendIn > 0;
+  return `
+    <div class="email-verif-banner">
+      <div class="email-verif-banner-icon">📧</div>
+      <div class="email-verif-banner-body">
+        <h4 class="email-verif-banner-title">Confirma tu correo electrónico</h4>
+        <p class="email-verif-banner-text">Te enviamos un correo de confirmación. Por favor revisa tu bandeja de entrada para verificar tu cuenta.</p>
+      </div>
+      <button type="button" id="email-resend-btn" class="btn btn-secondary email-verif-banner-btn"
+        ${cooldown ? 'disabled' : ''} onclick="window.resendEmailVerification()">
+        ${cooldown ? `Reenviar correo (${state.emailResendIn}s)` : 'Reenviar correo de confirmación'}
+      </button>
+    </div>
+  `;
+}
+
+let emailCooldownTimer = null;
+function startEmailCooldown(seconds = 60) {
+  state.emailResendIn = seconds;
+  if (emailCooldownTimer) clearInterval(emailCooldownTimer);
+  emailCooldownTimer = setInterval(() => {
+    state.emailResendIn -= 1;
+    if (state.emailResendIn <= 0) {
+      clearInterval(emailCooldownTimer);
+      emailCooldownTimer = null;
+      state.emailResendIn = 0;
+    }
+    updateEmailCooldownUI();
+  }, 1000);
+}
+
+function updateEmailCooldownUI() {
+  const btn = document.getElementById('email-resend-btn');
+  if (!btn) return;
+  if (state.emailResendIn > 0) {
+    btn.disabled = true;
+    btn.textContent = `Reenviar correo (${state.emailResendIn}s)`;
+  } else {
+    btn.disabled = false;
+    btn.textContent = 'Reenviar correo de confirmación';
+  }
+}
+
+window.resendEmailVerification = async function () {
+  if (state.emailResendIn > 0) return;
+  const email = state.profile?.email;
+  if (!email) {
+    showAlert('error', 'No se encontró tu correo electrónico.');
+    return;
+  }
+  startEmailCooldown();
+  try {
+    const res = await fetch(`${API_GATEWAY_URL}/security-auth/api/v1/auth/email/send-verification`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(state.token ? { 'Authorization': `Bearer ${state.token}` } : {})
+      },
+      body: JSON.stringify({ email })
+    });
+    if (!res.ok) {
+      const data = await safeParseJson(res);
+      throw new Error(data.message || 'No se pudo reenviar el correo de confirmación.');
+    }
+    showAlert('success', 'Correo de confirmación reenviado. Revisa tu bandeja de entrada.');
+  } catch (err) {
+    showAlert('error', err.message);
+  }
+};
 
 // --- FUNCIONES DEL DASHBOARD DE PROVEEDOR ---
 
@@ -1971,6 +2210,45 @@ function renderInternal() {
           <button type="submit" class="btn">Continuar a Datos Personales →</button>
         </form>
       `;
+    } else if (state.registerStep === 'otp') {
+      const needsPhone = !state.regPhone;
+      stepContent = `
+        <h2>Verifica tu celular</h2>
+        <p style="font-size:0.9rem; color:var(--text-secondary); margin-bottom:16px;">
+          ${needsPhone
+            ? 'Ingresa tu número de celular (+57) para enviarte un código de verificación.'
+            : `Te enviamos un código de 6 dígitos al <strong>${state.regPhoneCode} ${state.regPhone}</strong>.`}
+        </p>
+        <form id="otp-form">
+          ${needsPhone ? `
+          <div class="form-row">
+            <div class="form-group" style="flex: 0.3;">
+              <label for="otp-phone-code">País</label>
+              <select id="otp-phone-code" disabled>
+                <option value="+57" selected>🇨🇴 +57</option>
+              </select>
+            </div>
+            <div class="form-group" style="flex: 0.7;">
+              <label for="otp-phone">Celular</label>
+              <input type="tel" id="otp-phone" value="${state.regPhone}" placeholder="3001234567" required />
+            </div>
+          </div>
+          ` : `<input type="hidden" id="otp-phone" value="${state.regPhone}" />`}
+          <div class="form-group">
+            <label for="otp-code">Código de verificación</label>
+            <input type="text" id="otp-code" class="otp-input" inputmode="numeric" maxlength="6" autocomplete="one-time-code" value="${state.otpCode}" placeholder="______" required />
+          </div>
+          <button type="submit" class="btn" ${state.otpVerifying ? 'disabled' : ''}>
+            ${state.otpVerifying ? '⏳ Verificando...' : 'Verificar celular'}
+          </button>
+        </form>
+        <div class="otp-resend-row">
+          <button type="button" id="otp-resend-btn" class="btn btn-secondary"
+            ${state.otpResendIn > 0 ? 'disabled' : ''} onclick="window.resendPhoneOtp()">
+            ${state.otpResendIn > 0 ? `Reenviar código (${state.otpResendIn}s)` : 'Reenviar código'}
+          </button>
+        </div>
+      `;
     } else if (state.registerStep === 2) {
       const selectedMuni = state.municipiosColombia.find(m => m.id == state.municipioIdDireccion) || state.municipiosColombia[0];
       const selectedMuniText = selectedMuni ? `${selectedMuni.departamento}, ${selectedMuni.nombre}` : 'Seleccionar Municipio Principal...';
@@ -2167,18 +2445,24 @@ function renderInternal() {
           <p>Registro de Perfil Profesional</p>
         </div>
         <div class="wizard-progress">
-          <div class="wizard-step-node ${state.registerStep >= 1 ? 'active' : ''} ${state.registerStep > 1 ? 'completed' : ''}">
+          ${(() => {
+            // La sub-vista OTP cuenta como "después del Paso 1": el Paso 1 queda
+            // completado y la barra avanza sin introducir un nodo nuevo.
+            const stepNum = state.registerStep === 'otp' ? 1.5 : state.registerStep;
+            return `
+          <div class="wizard-step-node ${stepNum >= 1 ? 'active' : ''} ${stepNum > 1 ? 'completed' : ''}">
             <div class="wizard-step-circle">1</div>
             <div class="wizard-step-label">Seguridad</div>
           </div>
-          <div class="wizard-step-node ${state.registerStep >= 2 ? 'active' : ''} ${state.registerStep > 2 ? 'completed' : ''}">
+          <div class="wizard-step-node ${stepNum >= 2 ? 'active' : ''} ${stepNum > 2 ? 'completed' : ''}">
             <div class="wizard-step-circle">2</div>
             <div class="wizard-step-label">Perfil y Zona</div>
           </div>
-          <div class="wizard-step-node ${state.registerStep >= 3 ? 'active' : ''}">
+          <div class="wizard-step-node ${stepNum >= 3 ? 'active' : ''}">
             <div class="wizard-step-circle">3</div>
             <div class="wizard-step-label">Servicios</div>
-          </div>
+          </div>`;
+          })()}
         </div>
         ${alertHtml}
         ${stepContent}
@@ -2201,6 +2485,9 @@ function renderInternal() {
 
     if (state.registerStep === 1) {
       document.getElementById('step1-form')?.addEventListener('submit', handleRegisterStep1);
+    } else if (state.registerStep === 'otp') {
+      document.getElementById('otp-form')?.addEventListener('submit', window.verifyPhoneOtp);
+      updateOtpCooldownUI();
     } else if (state.registerStep === 2) {
       renderCoberturaList();
       renderMuniPrincipalOptions();
@@ -2595,6 +2882,7 @@ function renderInternal() {
               </label>
             </div>
           </div>
+          ${buildEmailVerificationBannerHtml()}
           ${tabContent}
         </main>
       </div>
@@ -2608,6 +2896,7 @@ function renderInternal() {
     `;
 
     document.getElementById('logout-btn-dashboard')?.addEventListener('click', logout);
+    updateEmailCooldownUI();
     if (state.providerTab === 'profile') {
       renderProfileCoberturaList();
     }
