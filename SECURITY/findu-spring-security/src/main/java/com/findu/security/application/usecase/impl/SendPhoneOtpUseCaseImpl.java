@@ -36,6 +36,13 @@ public class SendPhoneOtpUseCaseImpl implements SendPhoneOtpUseCase {
     @Value("${findu.auth.phone-otp-expiry-seconds:300}")
     private int otpExpirySeconds;
 
+    /**
+     * Código OTP fijo para pruebas locales (perfil dev). Si está vacío (qa/prod),
+     * el OTP se genera aleatorio y se envía por el micro de notificaciones.
+     */
+    @Value("${findu.auth.dev.otp-code:}")
+    private String devOtpCode;
+
     public SendPhoneOtpUseCaseImpl(PhoneOtpStorePort phoneOtpStore,
                                    NotificationPort notificationPort,
                                    PasswordEncoder passwordEncoder,
@@ -56,8 +63,13 @@ public class SendPhoneOtpUseCaseImpl implements SendPhoneOtpUseCase {
                 ? codPhoneInternational.trim() : DEFAULT_COUNTRY_CODE;
         String e164 = country + phone.trim();
 
-        String plainCode = String.format("%06d", secureRandom.nextInt(1000000));
+        // En dev se usa un OTP fijo (findu.auth.dev.otp-code) para no depender de SMS reales.
+        boolean devMode = devOtpCode != null && !devOtpCode.isBlank();
+        String plainCode = devMode ? devOtpCode.trim() : String.format("%06d", secureRandom.nextInt(1000000));
         String hashedCode = passwordEncoder.encode(plainCode);
+        if (devMode) {
+            log.warn("[DEV] OTP fijo activo para {} -> code={} (no se envia SMS real)", e164, plainCode);
+        }
         long expiresAt = Instant.now().getEpochSecond() + otpExpirySeconds;
 
         PhoneOtp otp = new PhoneOtp(hashedCode, expiresAt, 0);

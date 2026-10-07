@@ -28,6 +28,16 @@ findu:
     reset-password-base-url: ${FINDU_AUTH_RESET_PASSWORD_BASE_URL:http://localhost:3000/reset-password}
     recovery-token-expiry-minutes: ${FINDU_AUTH_RECOVERY_TOKEN_EXPIRY_MINUTES:60}
     recovery-code-expiry-minutes: ${FINDU_AUTH_RECOVERY_CODE_EXPIRY_MINUTES:3}
+    email-verify-base-url: ${FINDU_AUTH_EMAIL_VERIFY_BASE_URL:http://localhost:8081/security-auth/api/v1/auth/email/verify}
+    # --- Pruebas en LOCAL (perfil dev): no dependemos de SMS/correo reales ---
+    # OTP de celular fijo: en dev el codigo SIEMPRE es 123456 (se guarda en el store igual).
+    # Correo generico por defecto y log del enlace magico para poder completar el flujo a mano.
+    dev:
+      otp-code: ${FINDU_AUTH_DEV_OTP_CODE:123456}
+      default-email: ${FINDU_AUTH_DEV_DEFAULT_EMAIL:dev-proveedor@findu.local}
+      log-verification-link: ${FINDU_AUTH_DEV_LOG_VERIFICATION_LINK:true}
+  notification:
+    enabled: ${FINDU_NOTIFICATION_ENABLED:false}
   aws:
     dynamodb:
       enabled: ${FINDU_AWS_DYNAMODB_ENABLED:false}

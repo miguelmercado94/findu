@@ -39,6 +39,10 @@ public class SendEmailVerificationUseCaseImpl implements SendEmailVerificationUs
     @Value("${findu.auth.email-verify-expiry-hours:24}")
     private int emailVerifyExpiryHours;
 
+    /** En dev se loguea el enlace completo (y no se depende del correo real). */
+    @Value("${findu.auth.dev.log-verification-link:false}")
+    private boolean devLogVerificationLink;
+
     public SendEmailVerificationUseCaseImpl(UsuarioService usuarioService,
                                             EmailVerificationTokenRepositoryPort tokenRepository,
                                             NotificationPort notificationPort) {
@@ -93,6 +97,9 @@ public class SendEmailVerificationUseCaseImpl implements SendEmailVerificationUs
         return tokenRepository.save(token)
                 .doOnSuccess(saved -> {
                     log.info("Email verification token persisted for userId={}", user.getId());
+                    if (devLogVerificationLink) {
+                        log.warn("[DEV] Enlace de verificacion de correo para {} -> {}", user.getEmail(), verificationLink);
+                    }
                     notificationPort.send("EMAIL", user.getEmail(), NotificationTemplates.VERIFICACION_EMAIL, "es",
                             Map.of(
                                     "provider_name", user.getUsername() != null ? user.getUsername() : "",

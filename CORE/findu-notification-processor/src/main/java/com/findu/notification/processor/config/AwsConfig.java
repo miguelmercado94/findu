@@ -4,6 +4,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
@@ -14,7 +16,10 @@ import java.net.URI;
 
 /**
  * Configuración de clientes AWS (DynamoDB, SES, SNS).
- * En dev usa LocalStack (endpoint override). En pdn usa credenciales IAM.
+ *
+ * - Con endpoint override (LocalStack / dev): credenciales ficticias "test"/"test".
+ * - Sin endpoint (AWS real): DefaultCredentialsProvider, que lee
+ *   AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY del entorno (o rol IAM, perfiles, etc.).
  */
 @Configuration
 public class AwsConfig {
@@ -31,12 +36,19 @@ public class AwsConfig {
     @Value("${findu.notification.aws.sns.endpoint:}")
     private String snsEndpoint;
 
+    /** Credenciales ficticias para LocalStack; reales (default chain) para AWS. */
+    private AwsCredentialsProvider credentials(String endpoint) {
+        boolean hasEndpoint = endpoint != null && !endpoint.isBlank();
+        return hasEndpoint
+                ? StaticCredentialsProvider.create(AwsBasicCredentials.create("test", "test"))
+                : DefaultCredentialsProvider.create();
+    }
+
     @Bean
     public DynamoDbClient dynamoDbClient() {
         var builder = DynamoDbClient.builder()
                 .region(Region.of(region))
-                .credentialsProvider(StaticCredentialsProvider.create(
-                        AwsBasicCredentials.create("test", "test")));
+                .credentialsProvider(credentials(dynamoEndpoint));
         if (dynamoEndpoint != null && !dynamoEndpoint.isBlank()) {
             builder.endpointOverride(URI.create(dynamoEndpoint));
         }
@@ -47,8 +59,7 @@ public class AwsConfig {
     public SesClient sesClient() {
         var builder = SesClient.builder()
                 .region(Region.of(region))
-                .credentialsProvider(StaticCredentialsProvider.create(
-                        AwsBasicCredentials.create("test", "test")));
+                .credentialsProvider(credentials(sesEndpoint));
         if (sesEndpoint != null && !sesEndpoint.isBlank()) {
             builder.endpointOverride(URI.create(sesEndpoint));
         }
@@ -59,8 +70,7 @@ public class AwsConfig {
     public SnsClient snsClient() {
         var builder = SnsClient.builder()
                 .region(Region.of(region))
-                .credentialsProvider(StaticCredentialsProvider.create(
-                        AwsBasicCredentials.create("test", "test")));
+                .credentialsProvider(credentials(snsEndpoint));
         if (snsEndpoint != null && !snsEndpoint.isBlank()) {
             builder.endpointOverride(URI.create(snsEndpoint));
         }

@@ -26,6 +26,7 @@ let state = {
   otpResendIn: 0,          // segundos restantes del cooldown de reenvío
   otpVerifying: false,
   otpContext: 'register',  // 'register' (wizard) | 'federated' (post-login Google)
+  otpSent: true,           // si ya se envió el OTP (en wizard tradicional se envía auto; en federado NO hasta pulsar "Enviar código")
   phoneVerified: false,
 
   // Banner de verificación de correo (cooldown reenvío)
@@ -284,16 +285,15 @@ async function fetchProfile(retries = 3) {
         state.otpContext = 'federated';
         state.phoneVerified = false;
         state.otpCode = '';
-        // Usar el teléfono del perfil si existe; si no, se pedirá en la pantalla.
-        state.regPhone = data.phone || state.regPhone || '';
-        state.regPhoneCode = data.codPhoneInternational || state.regPhoneCode || '+57';
+        // En el flujo federado SIEMPRE se pide/confirma el celular en pantalla:
+        // NO auto-enviamos OTP aunque el perfil traiga un teléfono viejo.
+        // El usuario ve sus datos (nombre/email de Google) y escribe su celular.
+        state.regPhone = '';
+        state.regPhoneCode = '+57';
+        state.otpSent = false;        // aún no se ha enviado el código
         state.registerStep = 'otp';
         setView('register');
-        // Si ya conocemos el teléfono, enviar el OTP automáticamente.
-        if (state.regPhone) {
-          await requestPhoneOtp();
-        }
-        showAlert('info', 'Verifica tu número de celular para continuar.');
+        showAlert('info', `Hola ${data.username || state.googleData?.firstName || ''}. Para continuar, verifica tu número de celular.`);
         return;
       }
 
@@ -583,6 +583,7 @@ async function handleRegisterStep1(e) {
     state.phoneVerified = false;
     state.otpCode = '';
     state.otpContext = 'register';
+    state.otpSent = true;   // en el wizard el teléfono ya se capturó en el Paso 1; se auto-envía
     state.registerStep = 'otp';
     await requestPhoneOtp();
     state.alert = { type: 'success', message: 'Cuenta creada. Verifica tu celular con el código que te enviamos.' };
@@ -652,6 +653,43 @@ window.resendPhoneOtp = async function () {
   const phoneInput = document.getElementById('otp-phone');
   if (phoneInput) state.regPhone = phoneInput.value.trim();
   await requestPhoneOtp();
+};
+
+// ESTADO 1 de la pantalla OTP (flujo federado / sin teléfono aún):
+// el usuario escribe su celular y pulsa "Enviar código".
+window.submitOtpPhone = async function (e) {
+  if (e) e.preventDefault();
+  const phoneInput = document.getElementById('otp-phone');
+  const phone = (phoneInput ? phoneInput.value : '').trim();
+  if (!/^\d{7,15}$/.test(phone)) {
+    showAlert('error', 'Ingresa un número de celular válido.');
+    return;
+  }
+  state.regPhone = phone;
+  state.regPhoneCode = '+57';
+  state.otpVerifying = true;
+  render();
+  try {
+    await requestPhoneOtp();     // envía OTP al número ingresado
+    state.otpSent = true;        // pasa al estado de ingreso de código
+    state.otpCode = '';
+    showAlert('success', `Te enviamos un código a +57 ${phone}.`);
+  } catch (err) {
+    showAlert('error', err.message || 'No se pudo enviar el código.');
+  } finally {
+    state.otpVerifying = false;
+    render();
+  }
+};
+
+// Volver a pedir el número (desde el estado de ingreso de código).
+window.changeOtpPhone = function () {
+  state.otpSent = false;
+  state.otpCode = '';
+  state.regPhone = '';
+  if (otpCooldownTimer) { clearInterval(otpCooldownTimer); otpCooldownTimer = null; }
+  state.otpResendIn = 0;
+  render();
 };
 
 // Verifica el código OTP contra el backend. Solo con phoneVerified:true avanza.
@@ -2211,44 +2249,59 @@ function renderInternal() {
         </form>
       `;
     } else if (state.registerStep === 'otp') {
-      const needsPhone = !state.regPhone;
-      stepContent = `
-        <h2>Verifica tu celular</h2>
-        <p style="font-size:0.9rem; color:var(--text-secondary); margin-bottom:16px;">
-          ${needsPhone
-            ? 'Ingresa tu número de celular (+57) para enviarte un código de verificación.'
-            : `Te enviamos un código de 6 dígitos al <strong>${state.regPhoneCode} ${state.regPhone}</strong>.`}
-        </p>
-        <form id="otp-form">
-          ${needsPhone ? `
-          <div class="form-row">
-            <div class="form-group" style="flex: 0.3;">
-              <label for="otp-phone-code">País</label>
-              <select id="otp-phone-code" disabled>
-                <option value="+57" selected>🇨🇴 +57</option>
-              </select>
+      if (!state.otpSent) {
+        // ESTADO 1: pedir/confirmar el celular (típico del flujo federado).
+        stepContent = `
+          <h2>Verifica tu celular</h2>
+          <p style="font-size:0.9rem; color:var(--text-secondary); margin-bottom:16px;">
+            Ingresa tu número de celular. Te enviaremos un código de 6 dígitos para verificarlo.
+          </p>
+          <form id="otp-phone-form">
+            <div class="form-row">
+              <div class="form-group" style="flex: 0.35;">
+                <label for="otp-phone-code">País</label>
+                <select id="otp-phone-code" disabled>
+                  <option value="+57" selected>🇨🇴 +57</option>
+                </select>
+              </div>
+              <div class="form-group" style="flex: 0.65;">
+                <label for="otp-phone">Celular</label>
+                <input type="tel" id="otp-phone" value="${state.regPhone}" placeholder="3001234567" required />
+              </div>
             </div>
-            <div class="form-group" style="flex: 0.7;">
-              <label for="otp-phone">Celular</label>
-              <input type="tel" id="otp-phone" value="${state.regPhone}" placeholder="3001234567" required />
+            <button type="submit" class="btn" ${state.otpVerifying ? 'disabled' : ''}>
+              ${state.otpVerifying ? '⏳ Enviando...' : 'Enviar código'}
+            </button>
+          </form>
+        `;
+      } else {
+        // ESTADO 2: ingresar el código recibido.
+        stepContent = `
+          <h2>Verifica tu celular</h2>
+          <p style="font-size:0.9rem; color:var(--text-secondary); margin-bottom:16px;">
+            Te enviamos un código de 6 dígitos al <strong>${state.regPhoneCode} ${state.regPhone}</strong>.
+          </p>
+          <form id="otp-form">
+            <input type="hidden" id="otp-phone" value="${state.regPhone}" />
+            <div class="form-group">
+              <label for="otp-code">Código de verificación</label>
+              <input type="text" id="otp-code" class="otp-input" inputmode="numeric" maxlength="6" autocomplete="one-time-code" value="${state.otpCode}" placeholder="______" required />
             </div>
+            <button type="submit" class="btn" ${state.otpVerifying ? 'disabled' : ''}>
+              ${state.otpVerifying ? '⏳ Verificando...' : 'Verificar celular'}
+            </button>
+          </form>
+          <div class="otp-resend-row">
+            <button type="button" id="otp-resend-btn" class="btn btn-secondary"
+              ${state.otpResendIn > 0 ? 'disabled' : ''} onclick="window.resendPhoneOtp()">
+              ${state.otpResendIn > 0 ? `Reenviar código (${state.otpResendIn}s)` : 'Reenviar código'}
+            </button>
+            <button type="button" class="btn-link" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;margin-top:8px;" onclick="window.changeOtpPhone()">
+              ← Cambiar número
+            </button>
           </div>
-          ` : `<input type="hidden" id="otp-phone" value="${state.regPhone}" />`}
-          <div class="form-group">
-            <label for="otp-code">Código de verificación</label>
-            <input type="text" id="otp-code" class="otp-input" inputmode="numeric" maxlength="6" autocomplete="one-time-code" value="${state.otpCode}" placeholder="______" required />
-          </div>
-          <button type="submit" class="btn" ${state.otpVerifying ? 'disabled' : ''}>
-            ${state.otpVerifying ? '⏳ Verificando...' : 'Verificar celular'}
-          </button>
-        </form>
-        <div class="otp-resend-row">
-          <button type="button" id="otp-resend-btn" class="btn btn-secondary"
-            ${state.otpResendIn > 0 ? 'disabled' : ''} onclick="window.resendPhoneOtp()">
-            ${state.otpResendIn > 0 ? `Reenviar código (${state.otpResendIn}s)` : 'Reenviar código'}
-          </button>
-        </div>
-      `;
+        `;
+      }
     } else if (state.registerStep === 2) {
       const selectedMuni = state.municipiosColombia.find(m => m.id == state.municipioIdDireccion) || state.municipiosColombia[0];
       const selectedMuniText = selectedMuni ? `${selectedMuni.departamento}, ${selectedMuni.nombre}` : 'Seleccionar Municipio Principal...';
@@ -2486,8 +2539,12 @@ function renderInternal() {
     if (state.registerStep === 1) {
       document.getElementById('step1-form')?.addEventListener('submit', handleRegisterStep1);
     } else if (state.registerStep === 'otp') {
-      document.getElementById('otp-form')?.addEventListener('submit', window.verifyPhoneOtp);
-      updateOtpCooldownUI();
+      if (!state.otpSent) {
+        document.getElementById('otp-phone-form')?.addEventListener('submit', window.submitOtpPhone);
+      } else {
+        document.getElementById('otp-form')?.addEventListener('submit', window.verifyPhoneOtp);
+        updateOtpCooldownUI();
+      }
     } else if (state.registerStep === 2) {
       renderCoberturaList();
       renderMuniPrincipalOptions();
