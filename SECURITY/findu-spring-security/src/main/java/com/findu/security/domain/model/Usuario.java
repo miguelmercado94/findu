@@ -25,6 +25,9 @@ public class Usuario implements UserDetails {
     private String password;
     private String estado = "INCOMPLETO";
     private boolean active = true;
+    private boolean phoneVerified = false;
+    private boolean emailVerified = false;
+    private String accountStatus = "PENDING_PHONE_VERIFICATION";
     private Rol rol;
     private List<GrantedAuthority> grantedAuthorities;
 

@@ -59,6 +59,8 @@ class JwtManagerImplTest {
     private JwtTokenRevocationService jwtTokenRevocationService;
     @Mock
     private UserIdentityProviderRepositoryPort userIdentityProviderRepositoryPort;
+    @Mock
+    private com.findu.security.application.usecase.SendEmailVerificationUseCase sendEmailVerificationUseCase;
 
     private JwtManagerImpl jwtManager;
 
@@ -66,7 +68,7 @@ class JwtManagerImplTest {
     void setUp() {
         jwtManager = new JwtManagerImpl(usuarioService, jwtService, jwtSignerFactory, rolRepositoryPort,
                 userRolRepositoryPort, rolOperationRepositoryPort, reactiveAuthenticationManager, jwtTokenRevocationService,
-                userIdentityProviderRepositoryPort);
+                userIdentityProviderRepositoryPort, sendEmailVerificationUseCase);
         ReflectionTestUtils.setField(jwtManager, "accessExpirationSeconds", 300L);
         ReflectionTestUtils.setField(jwtManager, "refreshExpirationSeconds", 604800L);
     }
@@ -231,6 +233,10 @@ class JwtManagerImplTest {
         SecurityContext ctx = new SecurityContextImpl();
         ctx.setAuthentication(auth);
 
+        when(usuarioService.getUserByUsername("alice")).thenReturn(Mono.just(u));
+        when(userRolRepositoryPort.findRoleByUserId(any())).thenReturn(Mono.just(r));
+        when(rolOperationRepositoryPort.findOperationsByRoleId(any())).thenReturn(Flux.empty());
+
         StepVerifier.create(jwtManager.getCurrentUserProfile()
                         .contextWrite(ReactiveSecurityContextHolder.withSecurityContext(Mono.just(ctx))))
                 .expectNextMatches(p -> "alice".equals(p.username()) && "ROLE_CUSTOMER".equals(p.roleName()))
@@ -258,6 +264,7 @@ class JwtManagerImplTest {
         when(userIdentityProviderRepositoryPort.findByProviderNameAndProviderUserId("google", "sub-123"))
                 .thenReturn(Mono.just(mapping));
         when(usuarioService.findById(10L)).thenReturn(Mono.just(user));
+        when(sendEmailVerificationUseCase.sendVerificationForUser(any())).thenReturn(Mono.empty());
         when(userRolRepositoryPort.findRoleByUserId(10L)).thenReturn(Mono.just(r));
         when(rolOperationRepositoryPort.findOperationsByRoleId(1)).thenReturn(Flux.empty());
         when(jwtService.generateToken(any())).thenReturn("token-val");
@@ -289,6 +296,7 @@ class JwtManagerImplTest {
         when(userIdentityProviderRepositoryPort.findByProviderNameAndProviderUserId("google", "sub-123"))
                 .thenReturn(Mono.empty());
         when(usuarioService.getUserByEmail("a@b.com")).thenReturn(Mono.just(user));
+        when(sendEmailVerificationUseCase.sendVerificationForUser(any())).thenReturn(Mono.empty());
         when(userIdentityProviderRepositoryPort.save(any(UserIdentityProvider.class))).thenReturn(Mono.just(newMapping));
         when(userRolRepositoryPort.findRoleByUserId(10L)).thenReturn(Mono.just(r));
         when(rolOperationRepositoryPort.findOperationsByRoleId(1)).thenReturn(Flux.empty());

@@ -62,7 +62,7 @@ class CustomerManagerImplTest {
 
         when(usuarioService.existsByUsername("u")).thenReturn(Mono.just(false));
         when(usuarioService.existsByEmail("u@e.com")).thenReturn(Mono.just(false));
-        when(usuarioService.existsByPhone("1")).thenReturn(Mono.just(false));
+        when(usuarioService.getUserByPhone("1")).thenReturn(Mono.empty());
         when(passwordEncoder.encode("pwd")).thenReturn("hash");
         when(usuarioService.save(any(Usuario.class))).thenReturn(Mono.just(saved));
         when(rolRepositoryPort.findByName("ROLE_CUSTOMER")).thenReturn(Mono.just(rol));
@@ -81,7 +81,7 @@ class CustomerManagerImplTest {
         var dto = new UserRegisterDto("u", "u@e.com", "1", "+57", "pwd", "ROLE_CUSTOMER");
         when(usuarioService.existsByUsername("u")).thenReturn(Mono.just(true));
         when(usuarioService.existsByEmail("u@e.com")).thenReturn(Mono.just(false));
-        when(usuarioService.existsByPhone("1")).thenReturn(Mono.just(false));
+        when(usuarioService.getUserByPhone("1")).thenReturn(Mono.empty());
 
         StepVerifier.create(manager.registerNewCustomer(dto, "HS256"))
                 .expectError(IllegalArgumentException.class)

@@ -9,6 +9,7 @@ import com.findu.security.application.service.UsuarioService;
 import com.findu.security.domain.model.UserIdentityProvider;
 import com.findu.security.dto.request.FederatedLoginRequest;
 import com.findu.security.application.usecase.JwtManager;
+import com.findu.security.application.usecase.SendEmailVerificationUseCase;
 import com.findu.security.domain.model.Jwt;
 import com.findu.security.domain.model.JwtHeader;
 import com.findu.security.domain.model.JwtPayload;
@@ -64,6 +65,7 @@ public class JwtManagerImpl implements JwtManager {
     private final ReactiveAuthenticationManager reactiveAuthenticationManager;
     private final JwtTokenRevocationService jwtTokenRevocationService;
     private final UserIdentityProviderRepositoryPort userIdentityProviderRepositoryPort;
+    private final SendEmailVerificationUseCase sendEmailVerificationUseCase;
 
     @Value("${jwt.access-expiration-seconds:300}")
     private long accessExpirationSeconds;
@@ -79,7 +81,8 @@ public class JwtManagerImpl implements JwtManager {
                           RolOperationRepositoryPort rolOperationRepositoryPort,
                           ReactiveAuthenticationManager reactiveAuthenticationManager,
                           JwtTokenRevocationService jwtTokenRevocationService,
-                          UserIdentityProviderRepositoryPort userIdentityProviderRepositoryPort) {
+                          UserIdentityProviderRepositoryPort userIdentityProviderRepositoryPort,
+                          SendEmailVerificationUseCase sendEmailVerificationUseCase) {
         this.usuarioService = usuarioService;
         this.jwtService = jwtService;
         this.jwtSignerFactory = jwtSignerFactory;
@@ -89,6 +92,7 @@ public class JwtManagerImpl implements JwtManager {
         this.reactiveAuthenticationManager = reactiveAuthenticationManager;
         this.jwtTokenRevocationService = jwtTokenRevocationService;
         this.userIdentityProviderRepositoryPort = userIdentityProviderRepositoryPort;
+        this.sendEmailVerificationUseCase = sendEmailVerificationUseCase;
     }
 
     @Override
@@ -155,6 +159,7 @@ public class JwtManagerImpl implements JwtManager {
                             newUser.setPassword(null);
                             newUser.setEstado("INCOMPLETO");
                             newUser.setActive(true);
+                            newUser.setAccountStatus("PENDING_PHONE_VERIFICATION");
                             return usuarioService.save(newUser)
                                     .flatMap(savedUser -> rolRepositoryPort.findByName(roleName)
                                             .switchIfEmpty(Mono.error(new ResourceNotFoundException("Rol no encontrado: " + roleName)))
@@ -170,6 +175,12 @@ public class JwtManagerImpl implements JwtManager {
                         }))))
                 .flatMap(this::enrichUserWithRole)
                 .flatMap(this::enrichUserWithAuthorities)
+                .doOnNext(user -> {
+                    // Dispara el correo asíncrono de verificación si aún no está verificado (fire-and-forget).
+                    if (!user.isEmailVerified()) {
+                        sendEmailVerificationUseCase.sendVerificationForUser(user).subscribe();
+                    }
+                })
                 .flatMap(user -> buildAuthToken(user, alg)
                         .doOnSuccess(tokens -> log.info("Federated login successful user={} role={}", user.getUsername(),
                                 user.getRol() != null ? user.getRol().getName() : null)));
@@ -352,6 +363,9 @@ public class JwtManagerImpl implements JwtManager {
                 u.getCodPhoneInternational(),
                 roleName,
                 u.getEstado() != null ? u.getEstado() : "INCOMPLETO",
+                u.isPhoneVerified(),
+                u.isEmailVerified(),
+                u.getAccountStatus(),
                 UserOperationNames.fromUsuario(u)
         );
     }

@@ -38,6 +38,13 @@ public class UserEntity {
     private String estado = "INCOMPLETO";
     private boolean active = true;
 
+    @Column("phone_verified")
+    private boolean phoneVerified;
+    @Column("email_verified")
+    private boolean emailVerified;
+    @Column("account_status")
+    private String accountStatus = "PENDING_PHONE_VERIFICATION";
+
     @Column("created_at")
     @CreatedDate
     private LocalDateTime createdAt;

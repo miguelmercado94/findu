@@ -19,6 +19,11 @@ INSERT INTO operation (path, name, http_method, module_id, permite_all, active) 
 INSERT INTO operation (path, name, http_method, module_id, permite_all, active) VALUES ('/api/v1/auth/reset-password', 'AUTH_RESET_PASSWORD', 'POST', 1, TRUE, TRUE); -- ID 11
 INSERT INTO operation (path, name, http_method, module_id, permite_all, active) VALUES ('/actuator/health', 'HEALTH_ACTUATOR', 'GET', 1, TRUE, TRUE); -- ID 12
 INSERT INTO operation (path, name, http_method, module_id, permite_all, active) VALUES ('/api/public/health', 'PUBLIC_HEALTH', 'GET', 1, TRUE, TRUE); -- ID 13
+-- Verificación de identidad del proveedor (FEAT-001). permite_all=TRUE: públicas por diseño (ver docs/verificacion-identidad-proveedor.md).
+INSERT INTO operation (path, name, http_method, module_id, permite_all, active) VALUES ('/api/v1/auth/phone/send-otp', 'AUTH_PHONE_SEND_OTP', 'POST', 1, TRUE, TRUE); -- ID 14
+INSERT INTO operation (path, name, http_method, module_id, permite_all, active) VALUES ('/api/v1/auth/phone/verify-otp', 'AUTH_PHONE_VERIFY_OTP', 'POST', 1, TRUE, TRUE); -- ID 15
+INSERT INTO operation (path, name, http_method, module_id, permite_all, active) VALUES ('/api/v1/auth/email/send-verification', 'AUTH_EMAIL_SEND_VERIFICATION', 'POST', 1, TRUE, TRUE); -- ID 16
+INSERT INTO operation (path, name, http_method, module_id, permite_all, active) VALUES ('/api/v1/auth/email/verify', 'AUTH_EMAIL_VERIFY', 'GET', 1, TRUE, TRUE); -- ID 17
 
 INSERT INTO role (name, active) VALUES ('ROLE_OUR_CLIENTE', TRUE); -- ID 1
 INSERT INTO role (name, active) VALUES ('ROLE_ASSISTANT_ADMINISTRATOR', TRUE); -- ID 2
@@ -37,6 +42,10 @@ INSERT INTO rol_operation (role_id, operation_id, active) VALUES (1, 9, TRUE);
 INSERT INTO rol_operation (role_id, operation_id, active) VALUES (1, 10, TRUE);
 INSERT INTO rol_operation (role_id, operation_id, active) VALUES (1, 11, TRUE);
 INSERT INTO rol_operation (role_id, operation_id, active) VALUES (1, 12, TRUE);
+INSERT INTO rol_operation (role_id, operation_id, active) VALUES (1, 14, TRUE);
+INSERT INTO rol_operation (role_id, operation_id, active) VALUES (1, 15, TRUE);
+INSERT INTO rol_operation (role_id, operation_id, active) VALUES (1, 16, TRUE);
+INSERT INTO rol_operation (role_id, operation_id, active) VALUES (1, 17, TRUE);
 
 -- Operaciones para ROLE_ASSISTANT_ADMINISTRATOR (ID 2)
 INSERT INTO rol_operation (role_id, operation_id, active) VALUES (2, 1, TRUE);
@@ -51,6 +60,10 @@ INSERT INTO rol_operation (role_id, operation_id, active) VALUES (2, 9, TRUE);
 INSERT INTO rol_operation (role_id, operation_id, active) VALUES (2, 10, TRUE);
 INSERT INTO rol_operation (role_id, operation_id, active) VALUES (2, 11, TRUE);
 INSERT INTO rol_operation (role_id, operation_id, active) VALUES (2, 12, TRUE);
+INSERT INTO rol_operation (role_id, operation_id, active) VALUES (2, 14, TRUE);
+INSERT INTO rol_operation (role_id, operation_id, active) VALUES (2, 15, TRUE);
+INSERT INTO rol_operation (role_id, operation_id, active) VALUES (2, 16, TRUE);
+INSERT INTO rol_operation (role_id, operation_id, active) VALUES (2, 17, TRUE);
 
 -- Operaciones para ROLE_ADMINISTRATOR (ID 3)
 INSERT INTO rol_operation (role_id, operation_id, active) VALUES (3, 1, TRUE);
@@ -65,6 +78,10 @@ INSERT INTO rol_operation (role_id, operation_id, active) VALUES (3, 9, TRUE);
 INSERT INTO rol_operation (role_id, operation_id, active) VALUES (3, 10, TRUE);
 INSERT INTO rol_operation (role_id, operation_id, active) VALUES (3, 11, TRUE);
 INSERT INTO rol_operation (role_id, operation_id, active) VALUES (3, 12, TRUE);
+INSERT INTO rol_operation (role_id, operation_id, active) VALUES (3, 14, TRUE);
+INSERT INTO rol_operation (role_id, operation_id, active) VALUES (3, 15, TRUE);
+INSERT INTO rol_operation (role_id, operation_id, active) VALUES (3, 16, TRUE);
+INSERT INTO rol_operation (role_id, operation_id, active) VALUES (3, 17, TRUE);
 
 -- Operaciones para ROLE_OUR_PROVEEDOR (ID 4)
 INSERT INTO rol_operation (role_id, operation_id, active) VALUES (4, 1, TRUE);
@@ -78,6 +95,10 @@ INSERT INTO rol_operation (role_id, operation_id, active) VALUES (4, 9, TRUE);
 INSERT INTO rol_operation (role_id, operation_id, active) VALUES (4, 10, TRUE);
 INSERT INTO rol_operation (role_id, operation_id, active) VALUES (4, 11, TRUE);
 INSERT INTO rol_operation (role_id, operation_id, active) VALUES (4, 12, TRUE);
+INSERT INTO rol_operation (role_id, operation_id, active) VALUES (4, 14, TRUE);
+INSERT INTO rol_operation (role_id, operation_id, active) VALUES (4, 15, TRUE);
+INSERT INTO rol_operation (role_id, operation_id, active) VALUES (4, 16, TRUE);
+INSERT INTO rol_operation (role_id, operation_id, active) VALUES (4, 17, TRUE);
 
 INSERT INTO "user" (phone, cod_phone_international, username, password, email, estado, active) VALUES ('3003763301', '+57', 'lmarquez', '$2a$10$QHLrXJ8nlnDlOXEDUnV6iefGNOkKaW9pqJwZcpF.5HrO42PRPzjcO', 'lmarquez@example.com', 'COMPLETO', TRUE);
 INSERT INTO "user" (phone, cod_phone_international, username, password, email, estado, active) VALUES ('3115551234', '+57', 'fperez', '$2a$10$QHLrXJ8nlnDlOXEDUnV6iefGNOkKaW9pqJwZcpF.5HrO42PRPzjcO', 'fperez@example.com', 'COMPLETO', TRUE);

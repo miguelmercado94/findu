@@ -22,6 +22,12 @@ public record UserProfileResponse(
         String roleName,
         @Schema(example = "INCOMPLETO")
         String estado,
+        @Schema(example = "true")
+        boolean phoneVerified,
+        @Schema(example = "false")
+        boolean emailVerified,
+        @Schema(example = "PENDING_EMAIL_VERIFICATION")
+        String accountStatus,
         @Schema(description = "Operaciones/autorizaciones del rol")
         List<String> operationNames
 ) {}

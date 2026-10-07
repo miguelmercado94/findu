@@ -10,6 +10,9 @@ version = '0.0.1-SNAPSHOT'
 
 ext {
     set('springCloudVersion', "2024.0.0")
+    // Override la versión de Testcontainers gestionada por el BOM de Spring Boot (1.20.4),
+    // cuyo docker-java 3.4.0 es incompatible con Docker Engine 29.x (HTTP 400 en /info por npipe).
+    set('testcontainers.version', "1.21.3")
 }
 
 java {
@@ -62,7 +65,7 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'io.projectreactor:reactor-test'
     testImplementation 'org.springframework.security:spring-security-test'
-    testImplementation platform('org.testcontainers:testcontainers-bom:1.20.4')
+    testImplementation platform('org.testcontainers:testcontainers-bom:1.21.3')
     testImplementation 'org.testcontainers:junit-jupiter'
     testImplementation 'org.testcontainers:postgresql'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
