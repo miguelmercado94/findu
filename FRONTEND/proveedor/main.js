@@ -23,7 +23,8 @@ let state = {
 
   // Verificación OTP de celular (sub-vista entre Paso 1 y Paso 2)
   otpCode: '',
-  otpResendIn: 0,          // segundos restantes del cooldown de reenvío
+  otpResendIn: 0,          // segundos restantes del cooldown de reenvío (60s)
+  otpValidFor: 0,          // segundos restantes de vigencia del código (300s = 5 min)
   otpVerifying: false,
   otpContext: 'register',  // 'register' (wizard) | 'federated' (post-login Google)
   otpSent: true,           // si ya se envió el OTP (en wizard tradicional se envía auto; en federado NO hasta pulsar "Enviar código")
@@ -613,6 +614,7 @@ async function requestPhoneOtp() {
       throw new Error(data.message || 'No se pudo enviar el código de verificación.');
     }
     startOtpCooldown();
+    startOtpValidity();
   } catch (err) {
     showAlert('error', err.message);
   }
@@ -631,6 +633,43 @@ function startOtpCooldown(seconds = 60) {
     }
     updateOtpCooldownUI();
   }, 1000);
+}
+
+// Vigencia real del código (debe coincidir con el backend:
+// findu.auth.phone-otp-expiry-seconds = 300 = 5 minutos).
+const OTP_VALIDITY_SECONDS = 300;
+let otpValidityTimer = null;
+function startOtpValidity(seconds = OTP_VALIDITY_SECONDS) {
+  state.otpValidFor = seconds;
+  if (otpValidityTimer) clearInterval(otpValidityTimer);
+  otpValidityTimer = setInterval(() => {
+    state.otpValidFor -= 1;
+    if (state.otpValidFor <= 0) {
+      clearInterval(otpValidityTimer);
+      otpValidityTimer = null;
+      state.otpValidFor = 0;
+    }
+    updateOtpValidityUI();
+  }, 1000);
+}
+
+function formatMMSS(total) {
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+// Actualiza el contador de vigencia (mm:ss) sin re-renderizar toda la vista.
+function updateOtpValidityUI() {
+  const el = document.getElementById('otp-validity');
+  if (!el) return;
+  if (state.otpValidFor > 0) {
+    el.textContent = `El código vence en ${formatMMSS(state.otpValidFor)}.`;
+    el.style.color = state.otpValidFor <= 30 ? '#f87171' : 'var(--text-secondary)';
+  } else {
+    el.textContent = 'El código expiró. Solicita uno nuevo.';
+    el.style.color = '#f87171';
+  }
 }
 
 // Actualiza en caliente el botón de reenvío sin re-renderizar toda la vista
@@ -688,7 +727,9 @@ window.changeOtpPhone = function () {
   state.otpCode = '';
   state.regPhone = '';
   if (otpCooldownTimer) { clearInterval(otpCooldownTimer); otpCooldownTimer = null; }
+  if (otpValidityTimer) { clearInterval(otpValidityTimer); otpValidityTimer = null; }
   state.otpResendIn = 0;
+  state.otpValidFor = 0;
   render();
 };
 
@@ -730,7 +771,9 @@ window.verifyPhoneOtp = async function (e) {
     // Celular verificado.
     state.phoneVerified = true;
     if (otpCooldownTimer) { clearInterval(otpCooldownTimer); otpCooldownTimer = null; }
+    if (otpValidityTimer) { clearInterval(otpValidityTimer); otpValidityTimer = null; }
     state.otpResendIn = 0;
+    state.otpValidFor = 0;
 
     if (state.otpContext === 'federated') {
       // Flujo Google: ya hay cuenta y perfil; continuar la ruta normal post-login.
@@ -2281,8 +2324,8 @@ function renderInternal() {
           <p style="font-size:0.9rem; color:var(--text-secondary); margin-bottom:4px;">
             Te enviamos un código de 6 dígitos al <strong>${state.regPhoneCode} ${state.regPhone}</strong>.
           </p>
-          <p style="font-size:0.82rem; color:var(--text-secondary); margin-bottom:16px;">
-            El código es válido por 5 minutos.
+          <p id="otp-validity" style="font-size:0.82rem; color:var(--text-secondary); margin-bottom:16px;">
+            ${state.otpValidFor > 0 ? `El código vence en ${formatMMSS(state.otpValidFor)}.` : 'El código es válido por 5 minutos.'}
           </p>
           <form id="otp-form">
             <input type="hidden" id="otp-phone" value="${state.regPhone}" />
