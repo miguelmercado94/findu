@@ -73,4 +73,21 @@ public class OfertaController {
             @RequestParam Long proveedorId) {
         return ResponseEntity.ok(ofertasUseCase.obtenerSolicitudesDisponibles(proveedorId));
     }
+
+    @GetMapping("/proveedor/mis-solicitudes")
+    @Operation(summary = "Obtener historial de solicitudes del proveedor", description = "Lista las solicitudes que el proveedor atendió (vía ofertas aceptadas). El contador de 'servicios hechos' corresponde al tamaño de la lista con estado=FINALIZADA")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Lista de solicitudes del proveedor obtenida exitosamente",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = SolicitudResponse.class))),
+            @ApiResponse(responseCode = "400", description = "ID de proveedor inválido", content = @Content),
+            @ApiResponse(responseCode = "404", description = "Proveedor no encontrado", content = @Content),
+            @ApiResponse(responseCode = "500", description = "Error interno del servidor", content = @Content)
+    })
+    public ResponseEntity<List<SolicitudResponse>> misSolicitudes(
+            @Parameter(description = "ID del perfil de proveedor", required = true, example = "1")
+            @RequestParam Long proveedorId,
+            @Parameter(description = "Estado de solicitud para filtrar (opcional). Valores: ABIERTA, EN_NEGOCIACION, PROGRAMADA, EN_CURSO, FINALIZADA, CANCELADA_SIN_PENALIDAD, CANCELADA_CON_PENALIDAD", example = "FINALIZADA")
+            @RequestParam(required = false) String estado) {
+        return ResponseEntity.ok(ofertasUseCase.obtenerMisSolicitudes(proveedorId, estado));
+    }
 }

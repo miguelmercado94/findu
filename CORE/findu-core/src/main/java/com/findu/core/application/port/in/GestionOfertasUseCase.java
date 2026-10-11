@@ -15,4 +15,6 @@ public interface GestionOfertasUseCase {
     OfertaResponse aceptarOferta(Long ofertaId);
 
     List<SolicitudResponse> obtenerSolicitudesDisponibles(Long proveedorId);
+
+    List<SolicitudResponse> obtenerMisSolicitudes(Long proveedorId, String estado);
 }

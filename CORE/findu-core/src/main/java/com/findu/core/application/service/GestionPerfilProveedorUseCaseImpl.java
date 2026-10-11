@@ -95,11 +95,7 @@ public class GestionPerfilProveedorUseCaseImpl implements GestionPerfilProveedor
                         d.getLatitud(), d.getLongitud(), d.getPiso(), d.getApartamento(), d.getReferencia(), d.isEsPrincipal()))
                 .toList();
 
-        List<MunicipioResponse> cobertura = coberturaService.findByProveedorId(id).stream()
-                .map(c -> municipioPort.findById(c.getMunicipioId()).orElse(null))
-                .filter(java.util.Objects::nonNull)
-                .map(m -> new MunicipioResponse(m.getId(), m.getCodigoDane(), m.getNombre(), m.getDepartamento()))
-                .toList();
+        List<MunicipioResponse> cobertura = consultarCobertura(id);
 
         return new PerfilProveedorDetalleResponse(
                 perfil.getId(), perfil.getNombreCompleto(), perfil.getNumeroIdentificacion(),
@@ -108,6 +104,19 @@ public class GestionPerfilProveedorUseCaseImpl implements GestionPerfilProveedor
                 perfil.getCalificacionPromedio(), perfil.getEstado(), perfil.getEstadoVerificacion(),
                 especialidades, direcciones, cobertura, perfil.isDisponible()
         );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<MunicipioResponse> consultarCobertura(Long id) {
+        perfilProveedorService.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Perfil de proveedor no encontrado con id: " + id));
+
+        return coberturaService.findByProveedorId(id).stream()
+                .map(c -> municipioPort.findById(c.getMunicipioId()).orElse(null))
+                .filter(java.util.Objects::nonNull)
+                .map(m -> new MunicipioResponse(m.getId(), m.getCodigoDane(), m.getNombre(), m.getDepartamento()))
+                .toList();
     }
 
     @Override

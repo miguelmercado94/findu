@@ -56,4 +56,9 @@ public class SolicitudServicioServiceImpl implements SolicitudServicioService {
     public List<SolicitudServicio> findByEstado(String estado) {
         return port.findByEstado(estado);
     }
+
+    @Override
+    public List<SolicitudServicio> findByProveedorIdViaOfertaAceptada(Long proveedorId, String estadoSolicitud) {
+        return port.findByProveedorIdViaOfertaAceptada(proveedorId, estadoSolicitud);
+    }
 }

@@ -22,4 +22,6 @@ public interface SolicitudServicioService {
     boolean existsByClienteIdAndEstadosActivos(Long perfilClienteId, List<String> estados);
 
     List<SolicitudServicio> findByEstado(String estado);
+
+    List<SolicitudServicio> findByProveedorIdViaOfertaAceptada(Long proveedorId, String estadoSolicitud);
 }

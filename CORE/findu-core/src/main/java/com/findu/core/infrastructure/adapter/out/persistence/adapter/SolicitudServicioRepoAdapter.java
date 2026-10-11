@@ -60,4 +60,11 @@ public class SolicitudServicioRepoAdapter implements SolicitudServicioRepository
                 .map(mapper::toDomain)
                 .toList();
     }
+
+    @Override
+    public List<SolicitudServicio> findByProveedorIdViaOfertaAceptada(Long proveedorId, String estadoSolicitud) {
+        return repository.findByProveedorAceptadaAndEstado(proveedorId, estadoSolicitud).stream()
+                .map(mapper::toDomain)
+                .toList();
+    }
 }

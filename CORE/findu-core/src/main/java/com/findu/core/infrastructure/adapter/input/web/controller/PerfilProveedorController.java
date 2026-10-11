@@ -6,6 +6,7 @@ import com.findu.core.application.dto.request.CrearPerfilProveedorRequest;
 import com.findu.core.application.dto.response.PerfilProveedorDetalleResponse;
 import com.findu.core.application.dto.response.PerfilProveedorPublicoResponse;
 import com.findu.core.application.dto.response.PerfilProveedorResponse;
+import com.findu.core.application.dto.response.MunicipioResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -106,6 +107,20 @@ public class PerfilProveedorController {
             @RequestBody Map<String, String> body) {
         proveedorUseCase.cambiarEstado(id, body.get("estado"));
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{id}/cobertura")
+    @Operation(summary = "Consultar cobertura del proveedor", description = "Obtiene la lista de municipios donde el proveedor ofrece sus servicios (misma lista embebida en el detalle del perfil)")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Cobertura obtenida exitosamente",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = MunicipioResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Perfil de proveedor no encontrado", content = @Content),
+            @ApiResponse(responseCode = "500", description = "Error interno del servidor", content = @Content)
+    })
+    public ResponseEntity<List<MunicipioResponse>> consultarCobertura(
+            @Parameter(description = "ID del perfil de proveedor", required = true, example = "1")
+            @PathVariable Long id) {
+        return ResponseEntity.ok(proveedorUseCase.consultarCobertura(id));
     }
 
     @PutMapping("/{id}/cobertura")

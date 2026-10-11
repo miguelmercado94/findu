@@ -5,6 +5,7 @@ import com.findu.core.application.dto.request.CrearPerfilProveedorRequest;
 import com.findu.core.application.dto.response.PerfilProveedorDetalleResponse;
 import com.findu.core.application.dto.response.PerfilProveedorPublicoResponse;
 import com.findu.core.application.dto.response.PerfilProveedorResponse;
+import com.findu.core.application.dto.response.MunicipioResponse;
 
 import java.util.List;
 
@@ -13,6 +14,8 @@ public interface GestionPerfilProveedorUseCase {
     PerfilProveedorResponse crearPerfil(CrearPerfilProveedorRequest request);
 
     PerfilProveedorDetalleResponse consultarPerfil(Long id);
+
+    List<MunicipioResponse> consultarCobertura(Long id);
 
     PerfilProveedorDetalleResponse consultarPerfilPorAuthUserId(Long authUserId);
 

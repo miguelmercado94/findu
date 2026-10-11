@@ -11,7 +11,9 @@ import com.findu.core.domain.model.Direccion;
 import com.findu.core.domain.model.Oferta;
 import com.findu.core.domain.model.PerfilCliente;
 import com.findu.core.domain.model.PerfilProveedor;
+import com.findu.core.domain.model.Servicio;
 import com.findu.core.domain.model.SolicitudServicio;
+import com.findu.core.application.port.out.persistence.ServicioRepositoryPort;
 import com.findu.core.domain.enums.NotificationTemplates;
 import com.findu.core.domain.observer.SolicitudEventPublisher;
 import com.findu.core.application.dto.request.CrearOfertaRequest;
@@ -37,6 +39,7 @@ public class GestionOfertasUseCaseImpl implements GestionOfertasUseCase {
     private final DireccionService direccionService;
     private final NotificationPort notificationPort;
     private final SolicitudEventPublisher eventPublisher;
+    private final ServicioRepositoryPort servicioPort;
 
     @Override
     public OfertaResponse enviarOferta(CrearOfertaRequest request) {
@@ -139,6 +142,42 @@ public class GestionOfertasUseCaseImpl implements GestionOfertasUseCase {
                         s.getTelefonoContacto(), s.getPrioridad(), s.getPresupuestoMaximo(), s.getEsPresupuestoEstricto(),
                         s.getDetalles(), s.getFotos(), s.getEstadoSolicitud()
                 ))
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<SolicitudResponse> obtenerMisSolicitudes(Long proveedorId, String estado) {
+        proveedorService.findById(proveedorId)
+                .orElseThrow(() -> new ResourceNotFoundException("Perfil de proveedor no encontrado con id: " + proveedorId));
+
+        String estadoFiltro = (estado != null && !estado.isBlank()) ? estado : null;
+
+        Map<Long, String> nombresServicio = servicioPort.findAll().stream()
+                .collect(java.util.stream.Collectors.toMap(Servicio::getId, Servicio::getNombre, (a, b) -> a));
+
+        return solicitudService.findByProveedorIdViaOfertaAceptada(proveedorId, estadoFiltro).stream()
+                .map(s -> {
+                    String direccionTexto = s.getDireccionId() != null
+                            ? direccionService.findById(s.getDireccionId())
+                                    .map(Direccion::getDireccionTexto)
+                                    .orElse(null)
+                            : null;
+                    return new SolicitudResponse(
+                            s.getId(),
+                            nombresServicio.getOrDefault(s.getServicioId(), null),
+                            direccionTexto,
+                            s.getFechaProgramada(),
+                            s.getNombreContacto(),
+                            s.getTelefonoContacto(),
+                            s.getPrioridad(),
+                            s.getPresupuestoMaximo(),
+                            s.getEsPresupuestoEstricto(),
+                            s.getDetalles(),
+                            s.getFotos(),
+                            s.getEstadoSolicitud()
+                    );
+                })
                 .toList();
     }
 
