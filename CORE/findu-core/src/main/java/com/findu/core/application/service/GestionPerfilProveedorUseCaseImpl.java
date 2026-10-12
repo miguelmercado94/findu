@@ -25,6 +25,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -61,6 +63,7 @@ public class GestionPerfilProveedorUseCaseImpl implements GestionPerfilProveedor
                 .sexo(request.sexo())
                 .celular(request.celular())
                 .codPhoneInternational(request.codPhoneInternational())
+                .calificacionPromedio(new BigDecimal("3.5"))
                 .estado("ACTIVO")
                 .estadoVerificacion("PENDIENTE")
                 .build();
@@ -101,9 +104,29 @@ public class GestionPerfilProveedorUseCaseImpl implements GestionPerfilProveedor
                 perfil.getId(), perfil.getNombreCompleto(), perfil.getNumeroIdentificacion(),
                 perfil.getTipoIdentificacion(), perfil.getFechaNacimiento(), perfil.getSexo(),
                 perfil.getCelular(), perfil.getCodPhoneInternational(), perfil.getUrlImagenPerfil(),
-                perfil.getCalificacionPromedio(), perfil.getEstado(), perfil.getEstadoVerificacion(),
+                calcularCalificacionGeneral(especialidades), perfil.getEstado(), perfil.getEstadoVerificacion(),
                 especialidades, direcciones, cobertura, perfil.isDisponible()
         );
+    }
+
+    /**
+     * Calificacion general del perfil = promedio de las calificaciones de las especialidades activas.
+     * La lista recibida ya corresponde a las especialidades activas del proveedor. Se promedian los
+     * valores no nulos y se redondea a 1 decimal (HALF_UP). Si no hay valores aplicables, se devuelve
+     * el piso de negocio 3.5.
+     */
+    private BigDecimal calcularCalificacionGeneral(List<PerfilEspecialistaResponse> especialidades) {
+        List<BigDecimal> calificaciones = especialidades.stream()
+                .map(PerfilEspecialistaResponse::calificacionPromedio)
+                .filter(java.util.Objects::nonNull)
+                .toList();
+
+        if (calificaciones.isEmpty()) {
+            return new BigDecimal("3.5").setScale(1, RoundingMode.HALF_UP);
+        }
+
+        BigDecimal suma = calificaciones.stream().reduce(BigDecimal.ZERO, BigDecimal::add);
+        return suma.divide(new BigDecimal(calificaciones.size()), 1, RoundingMode.HALF_UP);
     }
 
     @Override

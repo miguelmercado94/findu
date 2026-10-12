@@ -14,6 +14,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -33,6 +35,7 @@ public class GestionEspecialidadesUseCaseImpl implements GestionEspecialidadesUs
                 .servicioId(request.servicioId())
                 .descripcion(request.descripcion())
                 .experienciaAnios(request.experienciaAnios())
+                .calificacionPromedio(new BigDecimal("3.5"))
                 .active(true)
                 .build();
 
