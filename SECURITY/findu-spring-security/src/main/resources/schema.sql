@@ -2,6 +2,12 @@
 -- Ejecutar tras crear la base, p. ej.: CREATE DATABASE findu OWNER tu_usuario;
 -- Orden: hijos antes que padres al DROP.
 
+-- Tablas de activación del proveedor (FEAT-001): tienen FK a "user", por lo que
+-- DEBEN dropearse ANTES que "user" cuando sql.init.mode=always (perfil dev).
+-- Sin esto, "DROP TABLE user" falla con "other objects depend on it" y el arranque entra en crash loop.
+DROP TABLE IF EXISTS provider_biometric_capture;
+DROP TABLE IF EXISTS provider_activation_validation;
+
 DROP TABLE IF EXISTS user_identity_provider;
 DROP TABLE IF EXISTS user_rol;
 DROP TABLE IF EXISTS rol_operation;
