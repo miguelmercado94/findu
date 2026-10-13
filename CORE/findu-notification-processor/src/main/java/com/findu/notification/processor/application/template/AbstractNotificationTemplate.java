@@ -2,6 +2,7 @@ package com.findu.notification.processor.application.template;
 
 import com.findu.notification.processor.application.service.TemplateService;
 import com.findu.notification.processor.domain.enums.NotificationChannel;
+import com.findu.notification.processor.domain.enums.TemplateType;
 import com.findu.notification.processor.domain.model.NotificationMessage;
 import com.findu.notification.processor.domain.model.NotificationResult;
 import com.findu.notification.processor.domain.model.NotificationTemplate;
@@ -94,22 +95,26 @@ public abstract class AbstractNotificationTemplate {
 
     /** Construye el asunto (desde BD o fallback) */
     protected String buildSubject(NotificationMessage message) {
-        Optional<NotificationTemplate> tpl = templateService.findTemplate(
-                message.getTemplateCode(), getChannel().name(), language(message));
+        Optional<NotificationTemplate> tpl = resolveTemplate(message);
         return tpl.map(NotificationTemplate::getSubject)
                 .orElse("FINDU - " + message.getTemplateCode().replace("_", " "));
     }
 
     /** Construye el cuerpo renderizado (desde BD o fallback) */
     protected String buildBody(NotificationMessage message) {
-        Optional<NotificationTemplate> tpl = templateService.findTemplate(
-                message.getTemplateCode(), getChannel().name(), language(message));
+        Optional<NotificationTemplate> tpl = resolveTemplate(message);
 
         if (tpl.isPresent()) {
             return templateService.render(tpl.get(), message.getParams());
         }
         // Fallback: template genérico inline
         return "Notificación: " + message.getTemplateCode() + " para " + message.getRecipient();
+    }
+
+    /** Resuelve la versión activa por tipo funcional derivado del canal técnico. */
+    protected Optional<NotificationTemplate> resolveTemplate(NotificationMessage message) {
+        return templateService.findTemplate(
+                message.getTemplateCode(), TemplateType.fromChannel(getChannel()), language(message));
     }
 
     /** Cada canal envía de forma diferente */

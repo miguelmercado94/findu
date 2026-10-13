@@ -10,6 +10,7 @@
 .gradle/
 **/build/
 **/out/
+!**/src/**/out/
 **/bin/
 !**/src/**/bin/
 *.class
