@@ -1,6 +1,25 @@
-# Procesador de Notificaciones Multicanal (`findu-notification-processor`)
+# Motor de Plantillas de Notificación (`findu-notification-processor`)
 
-Consumidor asíncrono AMQP que procesa colas de RabbitMQ para envío multicanal: Push (FCM), Correo (AWS SES / Thymeleaf), SMS (AWS SNS), y WhatsApp Business Cloud API.
+Motor de plantillas **dinámico y gestionable por un rol admin**: un administrador puede crear y configurar plantillas sin desplegar código. Soporta **6 tipos funcionales**:
+
+| Tipo | Qué es | Canal de salida |
+| :--- | :--- | :--- |
+| `SMS` | Mensaje de texto | AWS SNS |
+| `EMAIL` | Correo (TXT/HTML) | AWS SES |
+| `WHATSAPP` | Mensaje de WhatsApp | WhatsApp Business Cloud API |
+| `EVENTO` | Mensaje entre microservicios | Cola RabbitMQ declarada en la plantilla |
+| `NOTIFICACION` | Push en tiempo real | WebSocket si el usuario está activo, con fallback a FCM push |
+| `ALERTA` | Banner/aviso en pantalla con metadata UI | Entregada al front por pantalla |
+
+### Almacenamiento versionado (DynamoDB)
+
+Tabla `notification_templates` con clave compuesta **PK `id` = `CODE#TIPO#LANG`** + **SK `sk`**:
+- `v#<n>` — cada versión inmutable.
+- `v#ACTIVE` — puntero desnormalizado (`active_version`) resuelto en 1 solo `GetItem` en el hot path.
+
+Cada edición crea una versión nueva (histórico completo + rollback). GSIs: `GSI_tipo`, `GSI_pantalla`, `GSI_codigo`. El seed de ejemplo está en `src/main/resources/db/dynamodb/seed-templates.sh`.
+
+Los endpoints de administración (CRUD, histórico, activación/rollback) exponen la gestión de plantillas al rol admin.
 
 ---
 
