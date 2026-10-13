@@ -32,6 +32,15 @@ public class CreateTicketService implements CreateTicketUseCase {
             throw new IllegalArgumentException("El comando de creación no puede ser nulo");
         }
 
+        // Idempotencia: si viene una referencia externa y ya existe un ticket con ella,
+        // se retorna el ticket existente sin crear uno nuevo ni publicar eventos.
+        if (command.getExternalRef() != null && !command.getExternalRef().isBlank()) {
+            Optional<HelpTicket> existing = helpTicketRepository.findByExternalRef(command.getExternalRef());
+            if (existing.isPresent()) {
+                return existing.get();
+            }
+        }
+
         String categoryName = "";
         String subcategoryName = "";
         PriorityLevel priority = PriorityLevel.MEDIA;
@@ -82,6 +91,10 @@ public class CreateTicketService implements CreateTicketUseCase {
                 command.getInitialAttachments(),
                 new FixedPriorityCalculator()
         );
+
+        if (command.getExternalRef() != null && !command.getExternalRef().isBlank()) {
+            ticket.assignExternalRef(command.getExternalRef());
+        }
 
         HelpTicket savedTicket = helpTicketRepository.save(ticket);
 

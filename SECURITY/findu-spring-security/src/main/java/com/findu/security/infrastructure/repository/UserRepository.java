@@ -22,4 +22,10 @@ public interface UserRepository extends R2dbcRepository<UserEntity, Long> {
     Mono<UserEntity> findByPhone(String phone);
 
     Mono<UserEntity> findByCodPhoneInternationalAndPhone(String codPhoneInternational, String phone);
+
+    @org.springframework.data.r2dbc.repository.Query("""
+            SELECT * FROM "user"
+            WHERE estado_activacion = 'EN_REVISION_SOPORTE' AND soporte_notified = FALSE
+            """)
+    reactor.core.publisher.Flux<UserEntity> findPendingSupportDispatch();
 }

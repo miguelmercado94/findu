@@ -1,8 +1,11 @@
 package com.findu.security.application.usecase.impl;
 
 import com.findu.security.application.port.output.persistence.EmailVerificationTokenRepositoryPort;
+import com.findu.security.application.port.output.persistence.ProviderActivationRepositoryPort;
 import com.findu.security.application.service.UsuarioService;
+import com.findu.security.application.usecase.ActivationProgressService;
 import com.findu.security.domain.model.EmailVerificationToken;
+import com.findu.security.domain.model.ProviderActivation;
 import com.findu.security.domain.model.Usuario;
 import com.findu.security.util.TokenHasher;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,6 +20,7 @@ import java.time.LocalDateTime;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -28,12 +32,17 @@ class VerifyEmailUseCaseImplTest {
     private EmailVerificationTokenRepositoryPort tokenRepository;
     @Mock
     private UsuarioService usuarioService;
+    @Mock
+    private ProviderActivationRepositoryPort activationRepository;
+    @Mock
+    private ActivationProgressService activationProgressService;
 
     private VerifyEmailUseCaseImpl useCase;
 
     @BeforeEach
     void setUp() {
-        useCase = new VerifyEmailUseCaseImpl(tokenRepository, usuarioService);
+        useCase = new VerifyEmailUseCaseImpl(tokenRepository, usuarioService,
+                activationRepository, activationProgressService);
     }
 
     @Test
@@ -94,11 +103,16 @@ class VerifyEmailUseCaseImplTest {
         when(usuarioService.findById(10L)).thenReturn(Mono.just(user));
         when(usuarioService.save(any())).thenAnswer(inv -> Mono.just(inv.getArgument(0)));
         when(tokenRepository.markUsed(5L)).thenReturn(Mono.empty());
+        ProviderActivation activation = new ProviderActivation();
+        activation.setUserId(10L);
+        when(activationRepository.upsertValidation(eq(10L), any(), any(), any())).thenReturn(Mono.just(activation));
+        when(activationProgressService.recompute(10L)).thenReturn(Mono.just(activation));
 
         StepVerifier.create(useCase.verify("tok"))
                 .expectNext(true)
                 .verifyComplete();
 
         verify(usuarioService).save(any());
+        verify(activationProgressService).recompute(10L);
     }
 }

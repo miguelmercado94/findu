@@ -212,7 +212,7 @@ seed_template '{
     "cta_action": {"S": "findu://perfil/verificacion"},
     "cerrable": {"BOOL": false},
     "prioridad": {"N": "1"},
-    "condicion_aparicion": {"S": "emailVerified == false || biometriaVerificada == false"},
+    "condicion_aparicion": {"S": "emailOk == false || biometriaOk == false"},
     "tiempo_desaparicion": {"N": "0"}
   }},
   "version": {"N": "1"},
@@ -378,6 +378,262 @@ seed_template '{
   "subject": {"S": "¡Bienvenido a FINDU!"},
   "body_template": {"S": "<html><body><h2>¡Hola {{user_name}}!</h2><p>Bienvenido a <strong>FINDU</strong>, tu plataforma de servicios profesionales bajo demanda.</p><a href=\"https://app.findu.co\">Ir a FINDU</a></body></html>"},
   "variables": {"L": [{"S": "user_name"}]},
+  "version": {"N": "1"},
+  "is_active": {"BOOL": true},
+  "audiencia": {"M": {"modo": {"S": "TODOS"}}}
+}'
+
+# =====================================================================
+# ACTIVACIÓN DE PROVEEDOR — plantillas nuevas (diseño §7)
+#   2 NOTIFICACION (PROVEEDOR_ACTIVADO / PROVEEDOR_RECHAZADO) con routing
+#     condicion=isUserActivo -> WEBSOCKET si activo / PUSH si inactivo.
+#   2 ALERTA (PERFIL_CORREO_PENDIENTE / PERFIL_BIOMETRIA_PENDIENTE) con
+#     categoria INFO y todos los campos de UI bajo alert_meta (NO top-level
+#     title en ALERTA). pantalla_destino=perfil_proveedor; tiempo_desaparicion=0
+#     (sin auto-ocultado; visibilidad gobernada por condicion_aparicion).
+# =====================================================================
+
+# --- NOTIFICACION — PROVEEDOR_ACTIVADO (soporte aprobó la cuenta) ---
+seed_template '{
+  "id": {"S": "PROVEEDOR_ACTIVADO#NOTIFICACION#es"},
+  "codigo": {"S": "PROVEEDOR_ACTIVADO"},
+  "tipo": {"S": "NOTIFICACION"},
+  "language": {"S": "es"},
+  "channel": {"S": "PUSH"},
+  "title": {"S": "Tu cuenta fue activada"},
+  "body_template": {"S": "¡Felicidades {{provider_nombre}}! Tu cuenta de proveedor fue activada. Ya puedes recibir solicitudes."},
+  "variables": {"L": [{"S": "provider_nombre"}]},
+  "routing": {"M": {
+    "condicion": {"S": "isUserActivo"},
+    "canal_si_activo": {"S": "WEBSOCKET"},
+    "canal_si_inactivo": {"S": "PUSH"}
+  }},
+  "version": {"N": "1"},
+  "is_active": {"BOOL": true},
+  "audiencia": {"M": {"modo": {"S": "USUARIO"}, "userIds": {"L": []}}}
+}'
+
+# --- NOTIFICACION — PROVEEDOR_RECHAZADO (soporte rechazó la cuenta) ---
+seed_template '{
+  "id": {"S": "PROVEEDOR_RECHAZADO#NOTIFICACION#es"},
+  "codigo": {"S": "PROVEEDOR_RECHAZADO"},
+  "tipo": {"S": "NOTIFICACION"},
+  "language": {"S": "es"},
+  "channel": {"S": "PUSH"},
+  "title": {"S": "No pudimos activar tu cuenta"},
+  "body_template": {"S": "Hola {{provider_nombre}}, no pudimos activar tu cuenta. Motivo: {{motivo}}. Corrige los datos y vuelve a intentarlo."},
+  "variables": {"L": [{"S": "provider_nombre"}, {"S": "motivo"}]},
+  "routing": {"M": {
+    "condicion": {"S": "isUserActivo"},
+    "canal_si_activo": {"S": "WEBSOCKET"},
+    "canal_si_inactivo": {"S": "PUSH"}
+  }},
+  "version": {"N": "1"},
+  "is_active": {"BOOL": true},
+  "audiencia": {"M": {"modo": {"S": "USUARIO"}, "userIds": {"L": []}}}
+}'
+
+# --- ALERTA — PERFIL_CORREO_PENDIENTE (INFO, perfil_proveedor, sin CTA) ---
+seed_template '{
+  "id": {"S": "PERFIL_CORREO_PENDIENTE#ALERTA#es"},
+  "codigo": {"S": "PERFIL_CORREO_PENDIENTE"},
+  "tipo": {"S": "ALERTA"},
+  "language": {"S": "es"},
+  "channel": {"S": "ALERTA"},
+  "pantalla_destino": {"S": "perfil_proveedor"},
+  "body_template": {"S": "Confirma tu correo para avanzar en la activación de tu cuenta."},
+  "variables": {"L": []},
+  "alert_meta": {"M": {
+    "categoria": {"S": "INFO"},
+    "pantalla_destino": {"S": "perfil_proveedor"},
+    "titulo": {"S": "Confirma tu correo"},
+    "cerrable": {"BOOL": false},
+    "prioridad": {"N": "1"},
+    "condicion_aparicion": {"S": "emailOk == false"},
+    "tiempo_desaparicion": {"N": "0"}
+  }},
+  "version": {"N": "1"},
+  "is_active": {"BOOL": true},
+  "audiencia": {"M": {"modo": {"S": "SEGMENTO"}, "filtros": {"M": {"rol": {"S": "PROVEEDOR"}}}}}
+}'
+
+# --- ALERTA — PERFIL_BIOMETRIA_PENDIENTE (INFO, perfil_proveedor, con CTA) ---
+seed_template '{
+  "id": {"S": "PERFIL_BIOMETRIA_PENDIENTE#ALERTA#es"},
+  "codigo": {"S": "PERFIL_BIOMETRIA_PENDIENTE"},
+  "tipo": {"S": "ALERTA"},
+  "language": {"S": "es"},
+  "channel": {"S": "ALERTA"},
+  "pantalla_destino": {"S": "perfil_proveedor"},
+  "body_template": {"S": "Completa tu validación biométrica para activar tu cuenta."},
+  "variables": {"L": []},
+  "alert_meta": {"M": {
+    "categoria": {"S": "INFO"},
+    "pantalla_destino": {"S": "perfil_proveedor"},
+    "titulo": {"S": "Completa tu validación biométrica"},
+    "cta_label": {"S": "Validar ahora"},
+    "cta_action": {"S": "findu://perfil/verificacion-biometrica"},
+    "cerrable": {"BOOL": false},
+    "prioridad": {"N": "2"},
+    "condicion_aparicion": {"S": "biometriaOk == false"},
+    "tiempo_desaparicion": {"N": "0"}
+  }},
+  "version": {"N": "1"},
+  "is_active": {"BOOL": true},
+  "audiencia": {"M": {"modo": {"S": "SEGMENTO"}, "filtros": {"M": {"rol": {"S": "PROVEEDOR"}}}}}
+}'
+
+# =====================================================================
+# Plantillas legacy faltantes (diseño §7 "plantillas que usamos actualmente")
+#   Seguridad (com.findu.security.util.NotificationTemplates):
+#     CODIGO_VERIFICACION (EMAIL), PASSWORD_CAMBIADA (EMAIL).
+#     (VERIFICACION_OTP, VERIFICACION_EMAIL y RECUPERAR_PASSWORD ya están arriba.)
+#   Core (com.findu.core.domain.enums.NotificationTemplates), despachadas por el
+#   observer con "PUSH" -> tipo NOTIFICACION; BIENVENIDA_* por EMAIL:
+#     BIENVENIDA_CLIENTE, BIENVENIDA_PROVEEDOR, SOLICITUD_CREADA, SOLICITUD_CANCELADA,
+#     SOLICITUD_ACTUALIZADA, CALIFICACION_RECIBIDA.
+#     (OFERTA_RECIBIDA, OFERTA_ACEPTADA y SERVICIO_PROGRAMADO ya están arriba.)
+# =====================================================================
+
+# --- CODIGO_VERIFICACION email (seguridad) ---
+seed_template '{
+  "id": {"S": "CODIGO_VERIFICACION#EMAIL#es"},
+  "codigo": {"S": "CODIGO_VERIFICACION"},
+  "tipo": {"S": "EMAIL"},
+  "language": {"S": "es"},
+  "channel": {"S": "EMAIL"},
+  "content_type": {"S": "HTML"},
+  "subject": {"S": "Tu código de verificación FINDU"},
+  "body_template": {"S": "<html><body><h2>Hola {{user_name}}</h2><p>Tu código de verificación es: <strong style=\"font-size:24px\">{{codigo}}</strong></p><p>Expira en {{expiracion_minutos}} minutos.</p></body></html>"},
+  "variables": {"L": [{"S": "user_name"}, {"S": "codigo"}, {"S": "expiracion_minutos"}]},
+  "version": {"N": "1"},
+  "is_active": {"BOOL": true},
+  "audiencia": {"M": {"modo": {"S": "USUARIO"}, "userIds": {"L": []}}}
+}'
+
+# --- PASSWORD_CAMBIADA email (seguridad) ---
+seed_template '{
+  "id": {"S": "PASSWORD_CAMBIADA#EMAIL#es"},
+  "codigo": {"S": "PASSWORD_CAMBIADA"},
+  "tipo": {"S": "EMAIL"},
+  "language": {"S": "es"},
+  "channel": {"S": "EMAIL"},
+  "content_type": {"S": "HTML"},
+  "subject": {"S": "Tu contraseña fue actualizada"},
+  "body_template": {"S": "<html><body><h2>Hola {{user_name}}</h2><p>Te confirmamos que tu contraseña de FINDU fue actualizada correctamente.</p><p>Si no fuiste tú, contacta a soporte de inmediato.</p></body></html>"},
+  "variables": {"L": [{"S": "user_name"}]},
+  "version": {"N": "1"},
+  "is_active": {"BOOL": true},
+  "audiencia": {"M": {"modo": {"S": "USUARIO"}, "userIds": {"L": []}}}
+}'
+
+# --- BIENVENIDA_CLIENTE email (core) ---
+seed_template '{
+  "id": {"S": "BIENVENIDA_CLIENTE#EMAIL#es"},
+  "codigo": {"S": "BIENVENIDA_CLIENTE"},
+  "tipo": {"S": "EMAIL"},
+  "language": {"S": "es"},
+  "channel": {"S": "EMAIL"},
+  "content_type": {"S": "HTML"},
+  "subject": {"S": "¡Bienvenido a FINDU!"},
+  "body_template": {"S": "<html><body><h2>¡Hola {{user_name}}!</h2><p>Bienvenido a <strong>FINDU</strong>. Ya puedes solicitar servicios profesionales a tu medida.</p><a href=\"https://app.findu.co\">Ir a FINDU</a></body></html>"},
+  "variables": {"L": [{"S": "user_name"}]},
+  "version": {"N": "1"},
+  "is_active": {"BOOL": true},
+  "audiencia": {"M": {"modo": {"S": "USUARIO"}, "userIds": {"L": []}}}
+}'
+
+# --- BIENVENIDA_PROVEEDOR email (core) ---
+seed_template '{
+  "id": {"S": "BIENVENIDA_PROVEEDOR#EMAIL#es"},
+  "codigo": {"S": "BIENVENIDA_PROVEEDOR"},
+  "tipo": {"S": "EMAIL"},
+  "language": {"S": "es"},
+  "channel": {"S": "EMAIL"},
+  "content_type": {"S": "HTML"},
+  "subject": {"S": "¡Bienvenido a FINDU, proveedor!"},
+  "body_template": {"S": "<html><body><h2>¡Hola {{user_name}}!</h2><p>Bienvenido a <strong>FINDU</strong> como proveedor. Completa tus validaciones para empezar a recibir solicitudes.</p><a href=\"https://app.findu.co\">Ir a FINDU</a></body></html>"},
+  "variables": {"L": [{"S": "user_name"}]},
+  "version": {"N": "1"},
+  "is_active": {"BOOL": true},
+  "audiencia": {"M": {"modo": {"S": "USUARIO"}, "userIds": {"L": []}}}
+}'
+
+# --- SOLICITUD_CREADA push -> NOTIFICACION (core, a proveedores elegibles) ---
+seed_template '{
+  "id": {"S": "SOLICITUD_CREADA#NOTIFICACION#es"},
+  "codigo": {"S": "SOLICITUD_CREADA"},
+  "tipo": {"S": "NOTIFICACION"},
+  "language": {"S": "es"},
+  "channel": {"S": "PUSH"},
+  "title": {"S": "Nueva solicitud disponible"},
+  "body_template": {"S": "Hay una nueva solicitud: {{detalles}}. Presupuesto máximo: {{presupuestoMaximo}}."},
+  "variables": {"L": [{"S": "solicitudId"}, {"S": "detalles"}, {"S": "presupuestoMaximo"}, {"S": "esPresupuestoEstricto"}]},
+  "routing": {"M": {
+    "condicion": {"S": "isUserActivo"},
+    "canal_si_activo": {"S": "WEBSOCKET"},
+    "canal_si_inactivo": {"S": "PUSH"}
+  }},
+  "version": {"N": "1"},
+  "is_active": {"BOOL": true},
+  "audiencia": {"M": {"modo": {"S": "TODOS"}}}
+}'
+
+# --- SOLICITUD_CANCELADA push -> NOTIFICACION (core) ---
+seed_template '{
+  "id": {"S": "SOLICITUD_CANCELADA#NOTIFICACION#es"},
+  "codigo": {"S": "SOLICITUD_CANCELADA"},
+  "tipo": {"S": "NOTIFICACION"},
+  "language": {"S": "es"},
+  "channel": {"S": "PUSH"},
+  "title": {"S": "Solicitud cancelada"},
+  "body_template": {"S": "La solicitud {{solicitudId}} fue cancelada. Motivo: {{motivo}}."},
+  "variables": {"L": [{"S": "solicitudId"}, {"S": "motivo"}]},
+  "routing": {"M": {
+    "condicion": {"S": "isUserActivo"},
+    "canal_si_activo": {"S": "WEBSOCKET"},
+    "canal_si_inactivo": {"S": "PUSH"}
+  }},
+  "version": {"N": "1"},
+  "is_active": {"BOOL": true},
+  "audiencia": {"M": {"modo": {"S": "TODOS"}}}
+}'
+
+# --- SOLICITUD_ACTUALIZADA push -> NOTIFICACION (core) ---
+seed_template '{
+  "id": {"S": "SOLICITUD_ACTUALIZADA#NOTIFICACION#es"},
+  "codigo": {"S": "SOLICITUD_ACTUALIZADA"},
+  "tipo": {"S": "NOTIFICACION"},
+  "language": {"S": "es"},
+  "channel": {"S": "PUSH"},
+  "title": {"S": "Solicitud actualizada"},
+  "body_template": {"S": "La solicitud {{solicitudId}} fue actualizada: {{detalles}}. Fecha: {{fechaProgramada}}."},
+  "variables": {"L": [{"S": "solicitudId"}, {"S": "detalles"}, {"S": "presupuestoMaximo"}, {"S": "esPresupuestoEstricto"}, {"S": "direccionId"}, {"S": "fechaProgramada"}]},
+  "routing": {"M": {
+    "condicion": {"S": "isUserActivo"},
+    "canal_si_activo": {"S": "WEBSOCKET"},
+    "canal_si_inactivo": {"S": "PUSH"}
+  }},
+  "version": {"N": "1"},
+  "is_active": {"BOOL": true},
+  "audiencia": {"M": {"modo": {"S": "TODOS"}}}
+}'
+
+# --- CALIFICACION_RECIBIDA push -> NOTIFICACION (core) ---
+seed_template '{
+  "id": {"S": "CALIFICACION_RECIBIDA#NOTIFICACION#es"},
+  "codigo": {"S": "CALIFICACION_RECIBIDA"},
+  "tipo": {"S": "NOTIFICACION"},
+  "language": {"S": "es"},
+  "channel": {"S": "PUSH"},
+  "title": {"S": "Nueva calificación"},
+  "body_template": {"S": "Recibiste una nueva calificación de {{calificacion}} estrellas por tu servicio."},
+  "variables": {"L": [{"S": "calificacion"}]},
+  "routing": {"M": {
+    "condicion": {"S": "isUserActivo"},
+    "canal_si_activo": {"S": "WEBSOCKET"},
+    "canal_si_inactivo": {"S": "PUSH"}
+  }},
   "version": {"N": "1"},
   "is_active": {"BOOL": true},
   "audiencia": {"M": {"modo": {"S": "TODOS"}}}

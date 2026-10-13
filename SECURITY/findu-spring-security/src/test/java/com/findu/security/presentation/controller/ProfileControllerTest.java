@@ -31,7 +31,7 @@ class ProfileControllerTest {
     @Test
     void profile_returnsOperationNames() {
         when(jwtManager.getCurrentUserProfile()).thenReturn(Mono.just(
-                new UserProfileResponse(1L, "u1", "e@e.com", null, "+57", "ROLE_CUSTOMER", "INCOMPLETO", false, false, "PENDING_PHONE_VERIFICATION", List.of("AUTH_LOGIN", "PROFILE_READ"))
+                new UserProfileResponse(1L, "u1", "e@e.com", null, "+57", "ROLE_CUSTOMER", "INCOMPLETO", false, false, "PENDING_PHONE_VERIFICATION", "PENDIENTE_VALIDACIONES", false, false, false, false, null, List.of("AUTH_LOGIN", "PROFILE_READ"))
         ));
 
         webTestClient.get()

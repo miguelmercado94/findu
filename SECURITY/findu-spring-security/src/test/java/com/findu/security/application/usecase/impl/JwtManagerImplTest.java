@@ -61,6 +61,8 @@ class JwtManagerImplTest {
     private UserIdentityProviderRepositoryPort userIdentityProviderRepositoryPort;
     @Mock
     private com.findu.security.application.usecase.SendEmailVerificationUseCase sendEmailVerificationUseCase;
+    @Mock
+    private com.findu.security.application.port.output.persistence.ProviderActivationRepositoryPort providerActivationRepositoryPort;
 
     private JwtManagerImpl jwtManager;
 
@@ -68,7 +70,7 @@ class JwtManagerImplTest {
     void setUp() {
         jwtManager = new JwtManagerImpl(usuarioService, jwtService, jwtSignerFactory, rolRepositoryPort,
                 userRolRepositoryPort, rolOperationRepositoryPort, reactiveAuthenticationManager, jwtTokenRevocationService,
-                userIdentityProviderRepositoryPort, sendEmailVerificationUseCase);
+                userIdentityProviderRepositoryPort, sendEmailVerificationUseCase, providerActivationRepositoryPort);
         ReflectionTestUtils.setField(jwtManager, "accessExpirationSeconds", 300L);
         ReflectionTestUtils.setField(jwtManager, "refreshExpirationSeconds", 604800L);
     }
@@ -236,6 +238,7 @@ class JwtManagerImplTest {
         when(usuarioService.getUserByUsername("alice")).thenReturn(Mono.just(u));
         when(userRolRepositoryPort.findRoleByUserId(any())).thenReturn(Mono.just(r));
         when(rolOperationRepositoryPort.findOperationsByRoleId(any())).thenReturn(Flux.empty());
+        when(providerActivationRepositoryPort.loadByUserId(any())).thenReturn(Mono.empty());
 
         StepVerifier.create(jwtManager.getCurrentUserProfile()
                         .contextWrite(ReactiveSecurityContextHolder.withSecurityContext(Mono.just(ctx))))

@@ -2,10 +2,14 @@ package com.findu.security.application.usecase.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.findu.security.application.port.output.persistence.PhoneOtpStorePort;
+import com.findu.security.application.port.output.persistence.ProviderActivationRepositoryPort;
 import com.findu.security.application.service.UsuarioService;
+import com.findu.security.application.usecase.SendEmailVerificationUseCase;
 import com.findu.security.application.usecase.VerifyPhoneOtpUseCase;
 import com.findu.security.domain.model.PhoneOtp;
 import com.findu.security.domain.model.Usuario;
+import com.findu.security.domain.model.ValidationState;
+import com.findu.security.domain.model.ValidationType;
 import com.findu.security.dto.response.PhoneVerificationResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,15 +40,21 @@ public class VerifyPhoneOtpUseCaseImpl implements VerifyPhoneOtpUseCase {
     private final UsuarioService usuarioService;
     private final PasswordEncoder passwordEncoder;
     private final ObjectMapper objectMapper;
+    private final ProviderActivationRepositoryPort activationRepository;
+    private final SendEmailVerificationUseCase sendEmailVerificationUseCase;
 
     public VerifyPhoneOtpUseCaseImpl(PhoneOtpStorePort phoneOtpStore,
                                      UsuarioService usuarioService,
                                      PasswordEncoder passwordEncoder,
-                                     ObjectMapper objectMapper) {
+                                     ObjectMapper objectMapper,
+                                     ProviderActivationRepositoryPort activationRepository,
+                                     SendEmailVerificationUseCase sendEmailVerificationUseCase) {
         this.phoneOtpStore = phoneOtpStore;
         this.usuarioService = usuarioService;
         this.passwordEncoder = passwordEncoder;
         this.objectMapper = objectMapper;
+        this.activationRepository = activationRepository;
+        this.sendEmailVerificationUseCase = sendEmailVerificationUseCase;
     }
 
     @Override
@@ -96,8 +106,28 @@ public class VerifyPhoneOtpUseCaseImpl implements VerifyPhoneOtpUseCase {
                                 return usuarioService.save(user);
                             })
                             .flatMap(saved -> phoneOtpStore.delete(e164)
+                                    .then(markOtpOk(saved))
+                                    .then(sendEmailVerificationUseCase.sendVerificationForUser(saved)
+                                            .onErrorResume(e -> {
+                                                log.warn("Email de verificación no enviado tras OTP (userId={}): {}",
+                                                        saved.getId(), e.getMessage());
+                                                return Mono.empty();
+                                            }))
                                     .thenReturn(new PhoneVerificationResponse(saved.isPhoneVerified(), saved.getAccountStatus())));
                 });
+    }
+
+    /**
+     * Marca la validación OTP como OK (fila versionada en provider_activation_validation). No-fatal:
+     * un fallo de persistencia no bloquea el éxito del OTP.
+     */
+    private Mono<Void> markOtpOk(Usuario saved) {
+        return activationRepository.upsertValidation(saved.getId(), ValidationType.OTP, ValidationState.OK, null)
+                .onErrorResume(e -> {
+                    log.warn("No se pudo marcar OTP OK (userId={}): {}", saved.getId(), e.getMessage());
+                    return Mono.empty();
+                })
+                .then();
     }
 
     /**

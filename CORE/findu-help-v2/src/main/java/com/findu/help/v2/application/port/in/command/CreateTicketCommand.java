@@ -14,6 +14,7 @@ public class CreateTicketCommand {
     private final Long userId;
     private final UserRole userRole;
     private final Long solicitudId;
+    private final String externalRef;
     private final String categoryId;
     private final String subcategoryId;
     private final String subject;

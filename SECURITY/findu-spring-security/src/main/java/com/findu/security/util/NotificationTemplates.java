@@ -8,4 +8,6 @@ public final class NotificationTemplates {
     public static final String PASSWORD_CAMBIADA = "PASSWORD_CAMBIADA";
     public static final String VERIFICACION_OTP = "VERIFICACION_OTP";
     public static final String VERIFICACION_EMAIL = "VERIFICACION_EMAIL";
+    public static final String PROVEEDOR_ACTIVADO = "PROVEEDOR_ACTIVADO";
+    public static final String PROVEEDOR_RECHAZADO = "PROVEEDOR_RECHAZADO";
 }

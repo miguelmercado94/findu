@@ -28,6 +28,18 @@ public record UserProfileResponse(
         boolean emailVerified,
         @Schema(example = "PENDING_EMAIL_VERIFICATION")
         String accountStatus,
+        @Schema(example = "PENDIENTE_VALIDACIONES")
+        String estadoActivacion,
+        @Schema(example = "true")
+        boolean otpOk,
+        @Schema(example = "false")
+        boolean emailOk,
+        @Schema(example = "false")
+        boolean biometriaOk,
+        @Schema(example = "false")
+        boolean soporteOk,
+        @Schema(description = "Foto frontal inmutable (puede ser null)")
+        String fotoPerfilFrontalUrl,
         @Schema(description = "Operaciones/autorizaciones del rol")
         List<String> operationNames
 ) {}

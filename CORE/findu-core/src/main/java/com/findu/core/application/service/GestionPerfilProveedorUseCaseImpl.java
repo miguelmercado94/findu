@@ -209,7 +209,7 @@ public class GestionPerfilProveedorUseCaseImpl implements GestionPerfilProveedor
         if (request.nombreCompleto() != null) {
             perfil.setNombreCompleto(request.nombreCompleto());
         }
-        if (request.urlImagenPerfil() != null) {
+        if (request.urlImagenPerfil() != null && perfil.getUrlImagenPerfil() == null) {
             perfil.setUrlImagenPerfil(request.urlImagenPerfil());
         }
 

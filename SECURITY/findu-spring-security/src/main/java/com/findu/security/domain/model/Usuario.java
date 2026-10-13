@@ -28,6 +28,9 @@ public class Usuario implements UserDetails {
     private boolean phoneVerified = false;
     private boolean emailVerified = false;
     private String accountStatus = "PENDING_PHONE_VERIFICATION";
+    private String estadoActivacion = "PENDIENTE_VALIDACIONES";
+    private boolean soporteNotified = false;
+    private String soporteTicketCode;
     private Rol rol;
     private List<GrantedAuthority> grantedAuthorities;
 

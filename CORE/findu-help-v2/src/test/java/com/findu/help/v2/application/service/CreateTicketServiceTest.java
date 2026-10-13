@@ -89,4 +89,35 @@ class CreateTicketServiceTest {
         verify(helpTicketRepository, times(1)).save(any(HelpTicket.class));
         verify(realtimeEventPublisher, times(1)).publishRealtime(any(DomainEvent.class));
     }
+
+    @Test
+    @DisplayName("Debe ser idempotente: si ya existe un ticket con el mismo externalRef, lo retorna sin guardar ni publicar de nuevo")
+    void execute_IdempotentOnExternalRef() {
+        CreateTicketCommand activationCommand = CreateTicketCommand.builder()
+                .userId(777L)
+                .userRole(UserRole.PROVEEDOR)
+                .externalRef("ACT-777")
+                .subject("Validación de proveedor")
+                .description("Revisión final de activación de proveedor")
+                .initialAttachments(Collections.emptyList())
+                .build();
+
+        // Primera llamada: no existe -> crea, guarda y publica.
+        when(helpTicketRepository.findByExternalRef("ACT-777")).thenReturn(Optional.empty());
+        when(helpTicketRepository.save(any(HelpTicket.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        HelpTicket firstTicket = createTicketService.execute(activationCommand);
+        assertThat(firstTicket).isNotNull();
+        assertThat(firstTicket.getExternalRef()).isEqualTo("ACT-777");
+
+        // Segunda llamada (retry): ya existe -> retorna el existente, sin volver a guardar ni publicar.
+        when(helpTicketRepository.findByExternalRef("ACT-777")).thenReturn(Optional.of(firstTicket));
+
+        HelpTicket secondTicket = createTicketService.execute(activationCommand);
+        assertThat(secondTicket).isSameAs(firstTicket);
+
+        // A través de ambas llamadas, save y publishRealtime se invocan exactamente una vez.
+        verify(helpTicketRepository, times(1)).save(any(HelpTicket.class));
+        verify(realtimeEventPublisher, times(1)).publishRealtime(any(DomainEvent.class));
+    }
 }

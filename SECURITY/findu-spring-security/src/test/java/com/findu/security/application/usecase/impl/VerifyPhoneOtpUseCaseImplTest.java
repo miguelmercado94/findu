@@ -2,8 +2,11 @@ package com.findu.security.application.usecase.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.findu.security.application.port.output.persistence.PhoneOtpStorePort;
+import com.findu.security.application.port.output.persistence.ProviderActivationRepositoryPort;
 import com.findu.security.application.service.UsuarioService;
+import com.findu.security.application.usecase.SendEmailVerificationUseCase;
 import com.findu.security.domain.model.PhoneOtp;
+import com.findu.security.domain.model.ProviderActivation;
 import com.findu.security.domain.model.Usuario;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -36,6 +39,10 @@ class VerifyPhoneOtpUseCaseImplTest {
     private UsuarioService usuarioService;
     @Mock
     private PasswordEncoder passwordEncoder;
+    @Mock
+    private ProviderActivationRepositoryPort activationRepository;
+    @Mock
+    private SendEmailVerificationUseCase sendEmailVerificationUseCase;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -43,7 +50,8 @@ class VerifyPhoneOtpUseCaseImplTest {
 
     @BeforeEach
     void setUp() {
-        useCase = new VerifyPhoneOtpUseCaseImpl(phoneOtpStore, usuarioService, passwordEncoder, objectMapper);
+        useCase = new VerifyPhoneOtpUseCaseImpl(phoneOtpStore, usuarioService, passwordEncoder, objectMapper,
+                activationRepository, sendEmailVerificationUseCase);
     }
 
     private String otpJson(long expiresAt) throws Exception {
@@ -109,6 +117,9 @@ class VerifyPhoneOtpUseCaseImplTest {
         when(usuarioService.getUserByUsername("provider1")).thenReturn(Mono.just(user));
         when(usuarioService.save(any())).thenAnswer(inv -> Mono.just(inv.getArgument(0)));
         when(phoneOtpStore.delete("+573003763301")).thenReturn(Mono.empty());
+        when(activationRepository.upsertValidation(any(), any(), any(), any()))
+                .thenReturn(Mono.just(new ProviderActivation()));
+        when(sendEmailVerificationUseCase.sendVerificationForUser(any())).thenReturn(Mono.empty());
 
         StepVerifier.create(useCase.verifyOtp("3003763301", "123456", "+57")
                         .contextWrite(ReactiveSecurityContextHolder.withSecurityContext(Mono.just(authContext(user)))))
@@ -132,6 +143,9 @@ class VerifyPhoneOtpUseCaseImplTest {
         when(usuarioService.getUserByUsername("federated1")).thenReturn(Mono.just(user));
         when(usuarioService.save(any())).thenAnswer(inv -> Mono.just(inv.getArgument(0)));
         when(phoneOtpStore.delete("+573003763301")).thenReturn(Mono.empty());
+        when(activationRepository.upsertValidation(any(), any(), any(), any()))
+                .thenReturn(Mono.just(new ProviderActivation()));
+        when(sendEmailVerificationUseCase.sendVerificationForUser(any())).thenReturn(Mono.empty());
 
         StepVerifier.create(useCase.verifyOtp("3003763301", "123456", "+57")
                         .contextWrite(ReactiveSecurityContextHolder.withSecurityContext(Mono.just(authContext(user)))))
