@@ -24,6 +24,12 @@ INSERT INTO operation (path, name, http_method, module_id, permite_all, active) 
 INSERT INTO operation (path, name, http_method, module_id, permite_all, active) VALUES ('/api/v1/auth/phone/verify-otp', 'AUTH_PHONE_VERIFY_OTP', 'POST', 1, TRUE, TRUE); -- ID 15
 INSERT INTO operation (path, name, http_method, module_id, permite_all, active) VALUES ('/api/v1/auth/email/send-verification', 'AUTH_EMAIL_SEND_VERIFICATION', 'POST', 1, TRUE, TRUE); -- ID 16
 INSERT INTO operation (path, name, http_method, module_id, permite_all, active) VALUES ('/api/v1/auth/email/verify', 'AUTH_EMAIL_VERIFY', 'GET', 1, TRUE, TRUE); -- ID 17
+-- Activación del proveedor (FEAT-001). Rutas ESTÁTICAS (el resolver de autorización compara path por
+-- igualdad exacta); userId viaja en el body de approve/reject. module_id=3 (PROFILE), permite_all=FALSE.
+INSERT INTO operation (path, name, http_method, module_id, permite_all, active) VALUES ('/api/v1/activation/biometric', 'ACTIVATION_BIOMETRIC_SUBMIT', 'POST', 3, FALSE, TRUE); -- ID 18
+INSERT INTO operation (path, name, http_method, module_id, permite_all, active) VALUES ('/api/v1/activation/status', 'ACTIVATION_STATUS_READ', 'GET', 3, FALSE, TRUE); -- ID 19
+INSERT INTO operation (path, name, http_method, module_id, permite_all, active) VALUES ('/api/v1/activation/approve', 'ACTIVATION_APPROVE', 'POST', 3, FALSE, TRUE); -- ID 20
+INSERT INTO operation (path, name, http_method, module_id, permite_all, active) VALUES ('/api/v1/activation/reject', 'ACTIVATION_REJECT', 'POST', 3, FALSE, TRUE); -- ID 21
 
 INSERT INTO role (name, active) VALUES ('ROLE_OUR_CLIENTE', TRUE); -- ID 1
 INSERT INTO role (name, active) VALUES ('ROLE_ASSISTANT_ADMINISTRATOR', TRUE); -- ID 2
@@ -99,6 +105,9 @@ INSERT INTO rol_operation (role_id, operation_id, active) VALUES (4, 14, TRUE);
 INSERT INTO rol_operation (role_id, operation_id, active) VALUES (4, 15, TRUE);
 INSERT INTO rol_operation (role_id, operation_id, active) VALUES (4, 16, TRUE);
 INSERT INTO rol_operation (role_id, operation_id, active) VALUES (4, 17, TRUE);
+-- Activación: biometric + status para el proveedor (approve/reject son de soporte, rol 5 en add_soporte.sql).
+INSERT INTO rol_operation (role_id, operation_id, active) VALUES (4, 18, TRUE);
+INSERT INTO rol_operation (role_id, operation_id, active) VALUES (4, 19, TRUE);
 
 -- ---------------------------------------------------------------------------
 -- Usuarios: NO se siembran. La base arranca SIN usuarios para probar el flujo

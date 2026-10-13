@@ -45,6 +45,13 @@ public class UserEntity {
     @Column("account_status")
     private String accountStatus = "PENDING_PHONE_VERIFICATION";
 
+    @Column("estado_activacion")
+    private String estadoActivacion = "PENDIENTE_VALIDACIONES";
+    @Column("soporte_notified")
+    private boolean soporteNotified;
+    @Column("soporte_ticket_code")
+    private String soporteTicketCode;
+
     @Column("created_at")
     @CreatedDate
     private LocalDateTime createdAt;

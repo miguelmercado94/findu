@@ -79,6 +79,9 @@ public class UsuarioRepoAdapter implements UsuarioRepositoryPort {
                         existingEntity.setPhoneVerified(usuario.isPhoneVerified());
                         existingEntity.setEmailVerified(usuario.isEmailVerified());
                         existingEntity.setAccountStatus(usuario.getAccountStatus());
+                        existingEntity.setEstadoActivacion(usuario.getEstadoActivacion());
+                        existingEntity.setSoporteNotified(usuario.isSoporteNotified());
+                        existingEntity.setSoporteTicketCode(usuario.getSoporteTicketCode());
                         existingEntity.setUpdatedAt(LocalDateTime.now());
                         existingEntity.setUpdatedBy(AUDIT_USER);
                         return userRepository.save(existingEntity);

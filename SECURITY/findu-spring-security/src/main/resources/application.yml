@@ -79,3 +79,12 @@ findu:
   notification:
     enabled: ${FINDU_NOTIFICATION_ENABLED:false}
     lambda-url: ${FINDU_NOTIFICATION_LAMBDA_URL:http://localhost:9000}
+  activation:
+    # Integraciones cross-micro (via gateway). Base URL + path raíz de cada micro.
+    core:
+      base-url: ${FINDU_ACTIVATION_CORE_BASE_URL:http://localhost:8080}
+      perfil-path: ${FINDU_ACTIVATION_CORE_PERFIL_PATH:/findu-core/api/v1/perfil-proveedor}
+    help:
+      base-url: ${FINDU_ACTIVATION_HELP_BASE_URL:http://localhost:8080}
+      tickets-path: ${FINDU_ACTIVATION_HELP_TICKETS_PATH:/findu-help-v2/api/v1/help/tickets}
+    retry-interval-ms: ${FINDU_ACTIVATION_RETRY_INTERVAL_MS:900000}

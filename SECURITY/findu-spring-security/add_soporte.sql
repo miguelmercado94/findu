@@ -12,6 +12,9 @@ INSERT INTO rol_operation (role_id, operation_id, active) VALUES (5, 9, TRUE) ON
 INSERT INTO rol_operation (role_id, operation_id, active) VALUES (5, 10, TRUE) ON CONFLICT DO NOTHING;
 INSERT INTO rol_operation (role_id, operation_id, active) VALUES (5, 11, TRUE) ON CONFLICT DO NOTHING;
 INSERT INTO rol_operation (role_id, operation_id, active) VALUES (5, 12, TRUE) ON CONFLICT DO NOTHING;
+-- Activación del proveedor (FEAT-001): approve/reject SOLO para ROLE_OUR_SOPORTE (rol 5).
+INSERT INTO rol_operation (role_id, operation_id, active) VALUES (5, 20, TRUE) ON CONFLICT DO NOTHING;
+INSERT INTO rol_operation (role_id, operation_id, active) VALUES (5, 21, TRUE) ON CONFLICT DO NOTHING;
 
 INSERT INTO "user" (phone, cod_phone_international, username, password, email, estado, active) 
 VALUES ('3009998877', '+57', 'soporte', '$2a$10$oNJfMQXy42j7xNkiPCOz9euYYh7A15AkKzgH0PQZ6Yoddp5gW9dmi', 'soporte@findu.com', 'COMPLETO', TRUE) 

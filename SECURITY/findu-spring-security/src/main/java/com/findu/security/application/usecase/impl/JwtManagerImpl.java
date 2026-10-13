@@ -66,6 +66,7 @@ public class JwtManagerImpl implements JwtManager {
     private final JwtTokenRevocationService jwtTokenRevocationService;
     private final UserIdentityProviderRepositoryPort userIdentityProviderRepositoryPort;
     private final SendEmailVerificationUseCase sendEmailVerificationUseCase;
+    private final com.findu.security.application.port.output.persistence.ProviderActivationRepositoryPort providerActivationRepositoryPort;
 
     @Value("${jwt.access-expiration-seconds:300}")
     private long accessExpirationSeconds;
@@ -82,7 +83,8 @@ public class JwtManagerImpl implements JwtManager {
                           ReactiveAuthenticationManager reactiveAuthenticationManager,
                           JwtTokenRevocationService jwtTokenRevocationService,
                           UserIdentityProviderRepositoryPort userIdentityProviderRepositoryPort,
-                          SendEmailVerificationUseCase sendEmailVerificationUseCase) {
+                          SendEmailVerificationUseCase sendEmailVerificationUseCase,
+                          com.findu.security.application.port.output.persistence.ProviderActivationRepositoryPort providerActivationRepositoryPort) {
         this.usuarioService = usuarioService;
         this.jwtService = jwtService;
         this.jwtSignerFactory = jwtSignerFactory;
@@ -93,6 +95,7 @@ public class JwtManagerImpl implements JwtManager {
         this.jwtTokenRevocationService = jwtTokenRevocationService;
         this.userIdentityProviderRepositoryPort = userIdentityProviderRepositoryPort;
         this.sendEmailVerificationUseCase = sendEmailVerificationUseCase;
+        this.providerActivationRepositoryPort = providerActivationRepositoryPort;
     }
 
     @Override
@@ -285,7 +288,7 @@ public class JwtManagerImpl implements JwtManager {
                 })
                 .flatMap(this::enrichUserWithRole)
                 .flatMap(this::enrichUserWithAuthorities)
-                .map(JwtManagerImpl::toUserProfileResponse)
+                .flatMap(this::toUserProfileWithActivation)
                 .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.UNAUTHORIZED, "No autenticado")));
     }
 
@@ -349,12 +352,34 @@ public class JwtManagerImpl implements JwtManager {
                                 }));
                             });
                 })
-                .map(JwtManagerImpl::toUserProfileResponse)
+                .flatMap(this::toUserProfileWithActivation)
                 .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.UNAUTHORIZED, "No autenticado")));
     }
 
-    private static UserProfileResponse toUserProfileResponse(Usuario u) {
+    /**
+     * Compone el perfil con el agregado de activación. La carga de activación es no-fatal: si falla
+     * se exponen los flags por defecto (PENDIENTE_VALIDACIONES) para no romper el login/perfil.
+     */
+    private Mono<UserProfileResponse> toUserProfileWithActivation(Usuario u) {
+        return providerActivationRepositoryPort.loadByUserId(u.getId())
+                .map(activation -> toUserProfileResponse(u, activation))
+                .onErrorResume(e -> {
+                    log.warn("No se pudo cargar activación para el perfil (userId={}): {}", u.getId(), e.getMessage());
+                    return Mono.just(toUserProfileResponse(u, null));
+                })
+                .defaultIfEmpty(toUserProfileResponse(u, null));
+    }
+
+    private static UserProfileResponse toUserProfileResponse(Usuario u,
+            com.findu.security.domain.model.ProviderActivation activation) {
         String roleName = u.getRol() != null ? u.getRol().getName() : null;
+        String estadoActivacion = activation != null ? activation.getEstado().name()
+                : com.findu.security.domain.model.ProviderActivationState.PENDIENTE_VALIDACIONES.name();
+        boolean otpOk = activation != null && activation.isOtpOk();
+        boolean emailOk = activation != null ? activation.isEmailOk() : u.isEmailVerified();
+        boolean biometriaOk = activation != null && activation.isBiometriaOk();
+        boolean soporteOk = activation != null && activation.isSoporteOk();
+        String fotoFrontal = activation != null ? activation.getFotoFrontalUrl() : null;
         return new UserProfileResponse(
                 u.getId(),
                 u.getUsername(),
@@ -366,6 +391,12 @@ public class JwtManagerImpl implements JwtManager {
                 u.isPhoneVerified(),
                 u.isEmailVerified(),
                 u.getAccountStatus(),
+                estadoActivacion,
+                otpOk,
+                emailOk,
+                biometriaOk,
+                soporteOk,
+                fotoFrontal,
                 UserOperationNames.fromUsuario(u)
         );
     }

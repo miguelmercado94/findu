@@ -1,8 +1,12 @@
 package com.findu.security.application.usecase.impl;
 
 import com.findu.security.application.port.output.persistence.EmailVerificationTokenRepositoryPort;
+import com.findu.security.application.port.output.persistence.ProviderActivationRepositoryPort;
 import com.findu.security.application.service.UsuarioService;
+import com.findu.security.application.usecase.ActivationProgressService;
 import com.findu.security.application.usecase.VerifyEmailUseCase;
+import com.findu.security.domain.model.ValidationState;
+import com.findu.security.domain.model.ValidationType;
 import com.findu.security.util.TokenHasher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,11 +27,17 @@ public class VerifyEmailUseCaseImpl implements VerifyEmailUseCase {
 
     private final EmailVerificationTokenRepositoryPort tokenRepository;
     private final UsuarioService usuarioService;
+    private final ProviderActivationRepositoryPort activationRepository;
+    private final ActivationProgressService activationProgressService;
 
     public VerifyEmailUseCaseImpl(EmailVerificationTokenRepositoryPort tokenRepository,
-                                  UsuarioService usuarioService) {
+                                  UsuarioService usuarioService,
+                                  ProviderActivationRepositoryPort activationRepository,
+                                  ActivationProgressService activationProgressService) {
         this.tokenRepository = tokenRepository;
         this.usuarioService = usuarioService;
+        this.activationRepository = activationRepository;
+        this.activationProgressService = activationProgressService;
     }
 
     @Override
@@ -56,9 +66,25 @@ public class VerifyEmailUseCaseImpl implements VerifyEmailUseCase {
                                 return usuarioService.save(user);
                             })
                             .then(tokenRepository.markUsed(verificationToken.getId()))
+                            .then(markEmailOkAndRecompute(verificationToken.getUserId()))
                             .thenReturn(true)
                             .doOnSuccess(ok -> log.info("Email verified for userId={}", verificationToken.getUserId()));
                 })
                 .defaultIfEmpty(false);
+    }
+
+    /**
+     * Marca la validación EMAIL como OK (fila versionada) y recomputa el estado de activación.
+     * No-fatal: un fallo aquí no revierte la verificación de correo ya persistida.
+     */
+    private Mono<Void> markEmailOkAndRecompute(Long userId) {
+        return activationRepository.upsertValidation(userId, ValidationType.EMAIL, ValidationState.OK, null)
+                .then(activationProgressService.recompute(userId))
+                .onErrorResume(e -> {
+                    log.warn("No se pudo recomputar activación tras verificar correo (userId={}): {}",
+                            userId, e.getMessage());
+                    return Mono.empty();
+                })
+                .then();
     }
 }
