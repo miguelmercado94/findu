@@ -24,6 +24,8 @@ public class HelpTicket {
     private TicketCode ticketCode;
     private TicketRequester requester;
 
+    private String externalRef;
+
     private Long solicitudId;
     private String subcategoryId;
     private String categoryName;
@@ -130,12 +132,21 @@ public class HelpTicket {
     }
 
     /**
+     * Asocia una referencia externa idempotente (p. ej. ACT-{userId}) al ticket.
+     * Permite mantener el factory create(...) retrocompatible.
+     */
+    public void assignExternalRef(String externalRef) {
+        this.externalRef = externalRef;
+    }
+
+    /**
      * Reconstrucción desde Persistencia (infraestructura)
      */
     public static HelpTicket reconstitute(
             String id,
             TicketCode ticketCode,
             TicketRequester requester,
+            String externalRef,
             Long solicitudId,
             String subcategoryId,
             String categoryName,
@@ -158,6 +169,7 @@ public class HelpTicket {
         ticket.id = id;
         ticket.ticketCode = ticketCode;
         ticket.requester = requester;
+        ticket.externalRef = externalRef;
         ticket.solicitudId = solicitudId;
         ticket.subcategoryId = subcategoryId;
         ticket.categoryName = categoryName;

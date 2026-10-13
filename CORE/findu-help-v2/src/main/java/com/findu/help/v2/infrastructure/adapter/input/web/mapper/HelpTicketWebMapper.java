@@ -30,6 +30,7 @@ public interface HelpTicketWebMapper {
                 .userId(request.getUserId())
                 .userRole(request.getUserRole())
                 .solicitudId(request.getSolicitudId())
+                .externalRef(request.getExternalRef())
                 .categoryId(request.getCategoryId())
                 .subcategoryId(request.getSubcategoryId())
                 .subject(request.getSubject())

@@ -24,6 +24,8 @@ public class CreateTicketRequest {
     private String categoryId;
     private String subcategoryId;
 
+    private String externalRef;
+
     @NotBlank(message = "El asunto es obligatorio")
     private String subject;
 
