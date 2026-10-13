@@ -2,7 +2,7 @@ package com.findu.notification.processor.application.router;
 
 import com.findu.notification.processor.application.handler.financial.FinancialNotificationHandler;
 import com.findu.notification.processor.domain.service.FinancialEventDeduplicationService;
-import com.findu.notification.processor.dto.financial.FinancialEventEnvelopeDto;
+import com.findu.notification.processor.application.dto.request.FinancialEventEnvelopeDto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;

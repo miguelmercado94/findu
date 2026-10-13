@@ -1,8 +1,8 @@
 package com.findu.notification.processor.application.template;
 
-import com.findu.notification.processor.application.port.output.NotificationSenderPort;
+import com.findu.notification.processor.application.port.out.externalapi.NotificationSenderPort;
 import com.findu.notification.processor.application.service.TemplateService;
-import com.findu.notification.processor.domain.model.NotificationChannel;
+import com.findu.notification.processor.domain.enums.NotificationChannel;
 import org.springframework.stereotype.Component;
 
 import java.util.EnumMap;

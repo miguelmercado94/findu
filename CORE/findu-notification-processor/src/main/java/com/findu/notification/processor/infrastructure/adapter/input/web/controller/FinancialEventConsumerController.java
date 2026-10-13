@@ -1,7 +1,7 @@
-package com.findu.notification.processor.presentation.controller;
+package com.findu.notification.processor.infrastructure.adapter.input.web.controller;
 
 import com.findu.notification.processor.application.router.FinancialEventRouter;
-import com.findu.notification.processor.dto.financial.FinancialEventEnvelopeDto;
+import com.findu.notification.processor.application.dto.request.FinancialEventEnvelopeDto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;

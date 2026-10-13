@@ -1,7 +1,7 @@
 package com.findu.notification.processor.application.template;
 
 import com.findu.notification.processor.application.service.TemplateService;
-import com.findu.notification.processor.domain.model.NotificationChannel;
+import com.findu.notification.processor.domain.enums.NotificationChannel;
 import com.findu.notification.processor.domain.model.NotificationMessage;
 import com.findu.notification.processor.domain.model.NotificationResult;
 import com.findu.notification.processor.domain.model.NotificationTemplate;

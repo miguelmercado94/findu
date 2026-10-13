@@ -1,5 +1,6 @@
 package com.findu.notification.processor.domain.model;
 
+import com.findu.notification.processor.domain.enums.NotificationChannel;
 import lombok.*;
 
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder

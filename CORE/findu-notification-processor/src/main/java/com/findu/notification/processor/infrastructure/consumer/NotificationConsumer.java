@@ -1,7 +1,7 @@
 package com.findu.notification.processor.infrastructure.consumer;
 
 import com.findu.notification.processor.application.service.NotificationProcessorService;
-import com.findu.notification.processor.application.port.output.NotificationStatusRepositoryPort;
+import com.findu.notification.processor.application.port.out.persistence.NotificationStatusRepositoryPort;
 import com.findu.notification.processor.domain.model.NotificationMessage;
 import com.findu.notification.processor.domain.model.NotificationResult;
 import org.slf4j.Logger;

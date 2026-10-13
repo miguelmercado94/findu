@@ -1,6 +1,6 @@
 package com.findu.notification.processor.application.service.impl;
 
-import com.findu.notification.processor.application.port.output.TemplateRepositoryPort;
+import com.findu.notification.processor.application.port.out.persistence.TemplateRepositoryPort;
 import com.findu.notification.processor.application.service.TemplateService;
 import com.findu.notification.processor.domain.model.NotificationTemplate;
 import org.slf4j.Logger;

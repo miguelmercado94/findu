@@ -1,4 +1,4 @@
-package com.findu.notification.processor.dto;
+package com.findu.notification.processor.application.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
 import lombok.*;

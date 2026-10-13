@@ -1,4 +1,4 @@
-package com.findu.notification.processor.dto.financial;
+package com.findu.notification.processor.application.dto.request;
 
 import lombok.Data;
 

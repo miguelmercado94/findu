@@ -2,7 +2,7 @@ package com.findu.notification.processor.application.router;
 
 import com.findu.notification.processor.application.handler.financial.*;
 import com.findu.notification.processor.domain.service.FinancialEventDeduplicationService;
-import com.findu.notification.processor.dto.financial.FinancialEventEnvelopeDto;
+import com.findu.notification.processor.application.dto.request.FinancialEventEnvelopeDto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

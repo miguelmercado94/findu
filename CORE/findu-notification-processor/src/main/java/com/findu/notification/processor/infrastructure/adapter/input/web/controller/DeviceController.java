@@ -1,6 +1,6 @@
-package com.findu.notification.processor.presentation.controller;
+package com.findu.notification.processor.infrastructure.adapter.input.web.controller;
 
-import com.findu.notification.processor.dto.DeviceTokenRegistration;
+import com.findu.notification.processor.application.dto.request.DeviceTokenRegistration;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
