@@ -212,7 +212,7 @@ seed_template '{
     "cta_action": {"S": "findu://perfil/verificacion"},
     "cerrable": {"BOOL": false},
     "prioridad": {"N": "1"},
-    "condicion_aparicion": {"S": "emailVerified == false || biometriaVerificada == false"},
+    "condicion_aparicion": {"S": "emailOk == false || biometriaOk == false"},
     "tiempo_desaparicion": {"N": "0"}
   }},
   "version": {"N": "1"},
