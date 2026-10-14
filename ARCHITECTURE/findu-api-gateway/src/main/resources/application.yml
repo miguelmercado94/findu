@@ -56,8 +56,8 @@ findu:
   internal:
     service-key: ${FINDU_INTERNAL_SERVICE_KEY:findu-internal-saga-secret-key-2026}
   services:
-    security-url: ${FINDU_SECURITY_URL:http://localhost:8081}
-    core-url: ${FINDU_CORE_URL:http://localhost:8082}
+    security-url: ${FINDU_SECURITY_URL:http://localhost:8081/security-auth}
+    core-url: ${FINDU_CORE_URL:http://localhost:8082/findu-core}
 
 resilience4j:
   circuitbreaker:
