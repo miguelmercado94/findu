@@ -22,6 +22,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.security.authentication.ReactiveAuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
@@ -274,40 +276,43 @@ class JwtManagerImplTest {
         when(jwtTokenRevocationService.registerIssuedPair(anyString(), anyString())).thenReturn(Mono.empty());
 
         StepVerifier.create(jwtManager.loginFederated(req, "HS256"))
-                .expectNextMatches(t -> "token-val".equals(t.jwt()))
+                .expectNextMatches(t -> "token-val".equals(t.jwt()) && "LOGGED_IN".equals(t.status()) && t.available())
                 .verifyComplete();
     }
 
     @Test
-    void loginFederated_newIdentityExistingEmail_linksAndReturnsTokens() {
+    void loginFederated_newIdentityExistingEmail_rejectsWithConflictAccountExists() {
         FederatedLoginRequest req = new FederatedLoginRequest("google", "sub-123", "a@b.com", "alice", "ROLE_CUSTOMER");
         Usuario user = new Usuario();
         user.setId(10L);
         user.setUsername("alice");
         user.setEmail("a@b.com");
-        Rol r = new Rol();
-        r.setId(1);
-        r.setName("ROLE_CUSTOMER");
-        user.setRol(r);
-
-        UserIdentityProvider newMapping = UserIdentityProvider.builder()
-                .userId(10L)
-                .providerName("google")
-                .providerUserId("sub-123")
-                .build();
 
         when(userIdentityProviderRepositoryPort.findByProviderNameAndProviderUserId("google", "sub-123"))
                 .thenReturn(Mono.empty());
         when(usuarioService.getUserByEmail("a@b.com")).thenReturn(Mono.just(user));
-        when(sendEmailVerificationUseCase.sendVerificationForUser(any())).thenReturn(Mono.empty());
-        when(userIdentityProviderRepositoryPort.save(any(UserIdentityProvider.class))).thenReturn(Mono.just(newMapping));
-        when(userRolRepositoryPort.findRoleByUserId(10L)).thenReturn(Mono.just(r));
-        when(rolOperationRepositoryPort.findOperationsByRoleId(1)).thenReturn(Flux.empty());
-        when(jwtService.generateToken(any())).thenReturn("token-val");
-        when(jwtTokenRevocationService.registerIssuedPair(anyString(), anyString())).thenReturn(Mono.empty());
 
         StepVerifier.create(jwtManager.loginFederated(req, "HS256"))
-                .expectNextMatches(t -> "token-val".equals(t.jwt()))
+                .expectErrorMatches(err -> err instanceof ResponseStatusException rse
+                        && rse.getStatusCode().value() == HttpStatus.CONFLICT.value()
+                        && rse.getMessage().contains("ACCOUNT_EXISTS"))
+                .verify();
+    }
+
+    @Test
+    void loginFederated_newIdentityAndNewEmail_returnsRegistrationRequired() {
+        FederatedLoginRequest req = new FederatedLoginRequest("google", "sub-456", "new@b.com", "newbie", "ROLE_CUSTOMER");
+
+        when(userIdentityProviderRepositoryPort.findByProviderNameAndProviderUserId("google", "sub-456"))
+                .thenReturn(Mono.empty());
+        when(usuarioService.getUserByEmail("new@b.com")).thenReturn(Mono.empty());
+
+        StepVerifier.create(jwtManager.loginFederated(req, "HS256"))
+                .expectNextMatches(res -> "REGISTRATION_REQUIRED".equals(res.status())
+                        && res.jwt() == null
+                        && !res.available()
+                        && "new@b.com".equals(res.email())
+                        && "sub-456".equals(res.providerUserId()))
                 .verifyComplete();
     }
 }

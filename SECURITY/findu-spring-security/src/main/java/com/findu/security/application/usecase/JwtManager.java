@@ -5,6 +5,7 @@ import com.findu.security.dto.request.LoginRequest;
 import com.findu.security.dto.request.LogoutRequest;
 import com.findu.security.dto.request.FederatedLoginRequest;
 import com.findu.security.dto.response.AuthToken;
+import com.findu.security.dto.response.FederatedAuthResponse;
 import com.findu.security.dto.response.UserProfileResponse;
 import com.findu.security.dto.response.ValidateTokenResponse;
 import reactor.core.publisher.Mono;
@@ -24,12 +25,12 @@ public interface JwtManager {
     Mono<AuthToken> login(LoginRequest loginRequest, String algorithm);
 
     /**
-     * Autentica o registra a un usuario a través de un proveedor federado (Google/Apple); devuelve tokens.
+     * Autentica a un usuario a través de un proveedor federado (Google/Apple) o indica registro requerido.
      *
      * @param request   datos de autenticación federada
      * @param algorithm algoritmo del header
      */
-    Mono<AuthToken> loginFederated(FederatedLoginRequest request, String algorithm);
+    Mono<FederatedAuthResponse> loginFederated(FederatedLoginRequest request, String algorithm);
 
     /**
      * Genera un nuevo par de tokens a partir del refresh token válido.

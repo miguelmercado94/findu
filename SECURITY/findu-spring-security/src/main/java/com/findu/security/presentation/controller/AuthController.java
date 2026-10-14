@@ -10,6 +10,7 @@ import com.findu.security.dto.request.FederatedLoginRequest;
 import com.findu.security.dto.request.RefreshTokenRequest;
 import com.findu.security.dto.request.ResetPasswordRequest;
 import com.findu.security.dto.response.AuthToken;
+import com.findu.security.dto.response.FederatedAuthResponse;
 import com.findu.security.dto.response.ValidateTokenResponse;
 import com.findu.security.util.SecurityConstants;
 import io.swagger.v3.oas.annotations.Operation;
@@ -103,13 +104,14 @@ public class AuthController {
      * Header: X-JWT-Algorithm (ej. HS256).
      */
     @PostMapping("/federated")
-    @Operation(summary = "Login Federado", description = "Autentica o registra un usuario por red social (Google/Apple) y devuelve access/refresh JWT")
+    @Operation(summary = "Login Federado", description = "Autentica o registra un usuario por red social (Google/Apple) y devuelve access/refresh JWT o estado REGISTRATION_REQUIRED")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Tokens emitidos",
-                    content = @Content(schema = @Schema(implementation = AuthToken.class))),
-            @ApiResponse(responseCode = "400", description = "Datos invalidos")
+            @ApiResponse(responseCode = "200", description = "Resultado federado (tokens si existe, o REGISTRATION_REQUIRED si es nuevo)",
+                    content = @Content(schema = @Schema(implementation = FederatedAuthResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Datos invalidos"),
+            @ApiResponse(responseCode = "409", description = "ACCOUNT_EXISTS: Correo ya registrado")
     })
-    public Mono<AuthToken> federatedLogin(
+    public Mono<FederatedAuthResponse> federatedLogin(
             @RequestBody @Valid FederatedLoginRequest request,
             @Parameter(description = "Algoritmo JWT (HS256 por defecto)")
             @RequestHeader(name = SecurityConstants.HEADER_JWT_ALGORITHM, defaultValue = SecurityConstants.DEFAULT_JWT_ALGORITHM) String algorithm) {

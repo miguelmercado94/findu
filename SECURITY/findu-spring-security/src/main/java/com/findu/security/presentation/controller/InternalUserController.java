@@ -55,7 +55,7 @@ public class InternalUserController {
             @RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKey,
             @RequestBody InternalCreateUserRequest request) {
         validateInternalAccess(serviceKey);
-        return internalUserManager.createUser(request)
+        return internalUserManager.createUser(request, idempotencyKey)
                 .map(res -> ResponseEntity.status(HttpStatus.CREATED).body(res));
     }
 

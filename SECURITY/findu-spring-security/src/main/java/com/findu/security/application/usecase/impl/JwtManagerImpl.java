@@ -20,6 +20,7 @@ import com.findu.security.dto.request.LoginRequest;
 import com.findu.security.dto.request.LogoutRequest;
 import com.findu.security.domain.model.JwtClaims;
 import com.findu.security.dto.response.AuthToken;
+import com.findu.security.dto.response.FederatedAuthResponse;
 import com.findu.security.dto.response.UserProfileResponse;
 import com.findu.security.dto.response.ValidateTokenResponse;
 import com.findu.security.exception.ResourceNotFoundException;
@@ -132,61 +133,41 @@ public class JwtManagerImpl implements JwtManager {
     }
 
     @Override
-    public Mono<AuthToken> loginFederated(FederatedLoginRequest request, String algorithm) {
+    public Mono<FederatedAuthResponse> loginFederated(FederatedLoginRequest request, String algorithm) {
         String alg = normalizeAlgorithm(algorithm);
         String providerName = request.providerName().trim().toLowerCase();
         String providerUserId = request.providerUserId().trim();
         String email = request.email().trim();
         String username = request.username().trim();
-        String roleName = request.role().trim();
 
-        log.info("Federated login attempt provider={} providerUserId={} email={} role={}", providerName, providerUserId, email, roleName);
+        log.info("Federated login attempt provider={} providerUserId={} email={}", providerName, providerUserId, email);
 
         return userIdentityProviderRepositoryPort.findByProviderNameAndProviderUserId(providerName, providerUserId)
                 .flatMap(mapping -> usuarioService.findById(mapping.getUserId())
-                        .switchIfEmpty(Mono.error(new ResourceNotFoundException("Usuario no encontrado para la identidad federada"))))
+                        .switchIfEmpty(Mono.error(new ResourceNotFoundException("Usuario no encontrado para la identidad federada")))
+                        .flatMap(this::enrichUserWithRole)
+                        .flatMap(this::enrichUserWithAuthorities)
+                        .doOnNext(user -> {
+                            // Dispara el correo asíncrono de verificación si aún no está verificado (fire-and-forget).
+                            if (!user.isEmailVerified()) {
+                                sendEmailVerificationUseCase.sendVerificationForUser(user).subscribe();
+                            }
+                        })
+                        .flatMap(user -> buildAuthToken(user, alg)
+                                .map(tokens -> {
+                                    log.info("Federated login successful for existing identity user={} role={}", user.getUsername(),
+                                            user.getRol() != null ? user.getRol().getName() : null);
+                                    return FederatedAuthResponse.loggedIn(tokens, user.getEmail(), user.getUsername(), providerName, providerUserId);
+                                })))
                 .switchIfEmpty(Mono.defer(() -> usuarioService.getUserByEmail(email)
                         .flatMap(existingUser -> {
-                            UserIdentityProvider newMapping = UserIdentityProvider.builder()
-                                    .userId(existingUser.getId())
-                                    .providerName(providerName)
-                                    .providerUserId(providerUserId)
-                                    .build();
-                            return userIdentityProviderRepositoryPort.save(newMapping)
-                                    .thenReturn(existingUser);
+                            log.warn("Federated login rejected: email {} already registered for another account (Plan B)", email);
+                            return Mono.<FederatedAuthResponse>error(new ResponseStatusException(HttpStatus.CONFLICT, "ACCOUNT_EXISTS: Ya existe una cuenta con estos datos, inicia sesión"));
                         })
                         .switchIfEmpty(Mono.defer(() -> {
-                            Usuario newUser = new Usuario();
-                            newUser.setUsername(username);
-                            newUser.setEmail(email);
-                            newUser.setPassword(null);
-                            newUser.setEstado("INCOMPLETO");
-                            newUser.setActive(true);
-                            newUser.setAccountStatus("PENDING_PHONE_VERIFICATION");
-                            return usuarioService.save(newUser)
-                                    .flatMap(savedUser -> rolRepositoryPort.findByName(roleName)
-                                            .switchIfEmpty(Mono.error(new ResourceNotFoundException("Rol no encontrado: " + roleName)))
-                                            .flatMap(rol -> userRolRepositoryPort.assignRoleToUser(savedUser.getId(), rol.getId())
-                                                    .then(userIdentityProviderRepositoryPort.save(
-                                                            UserIdentityProvider.builder()
-                                                                    .userId(savedUser.getId())
-                                                                    .providerName(providerName)
-                                                                    .providerUserId(providerUserId)
-                                                                    .build()
-                                                    ))
-                                                    .thenReturn(savedUser)));
-                        }))))
-                .flatMap(this::enrichUserWithRole)
-                .flatMap(this::enrichUserWithAuthorities)
-                .doOnNext(user -> {
-                    // Dispara el correo asíncrono de verificación si aún no está verificado (fire-and-forget).
-                    if (!user.isEmailVerified()) {
-                        sendEmailVerificationUseCase.sendVerificationForUser(user).subscribe();
-                    }
-                })
-                .flatMap(user -> buildAuthToken(user, alg)
-                        .doOnSuccess(tokens -> log.info("Federated login successful user={} role={}", user.getUsername(),
-                                user.getRol() != null ? user.getRol().getName() : null)));
+                            log.info("Federated login: new identity and free email. Registration required for provider={} email={}", providerName, email);
+                            return Mono.just(FederatedAuthResponse.registrationRequired(email, username, providerName, providerUserId));
+                        }))));
     }
 
     @Override

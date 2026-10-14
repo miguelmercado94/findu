@@ -20,14 +20,18 @@ import com.findu.security.util.ReactiveUserAuthoritiesLoader;
 import io.r2dbc.spi.ConnectionFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.r2dbc.core.DatabaseClient;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class InternalUserManagerImpl implements InternalUserManager {
@@ -42,6 +46,8 @@ public class InternalUserManagerImpl implements InternalUserManager {
     private final PasswordEncoder passwordEncoder;
     private final JwtManager jwtManager;
     private final DatabaseClient databaseClient;
+
+    private final Map<String, Long> idempotencyCache = new ConcurrentHashMap<>();
 
     public InternalUserManagerImpl(UsuarioService usuarioService,
                                    RolRepositoryPort rolRepositoryPort,
@@ -62,23 +68,69 @@ public class InternalUserManagerImpl implements InternalUserManager {
     }
 
     @Override
-    public Mono<InternalUserResponse> createUser(InternalCreateUserRequest request) {
-        log.info("Internal user creation requested for username={} email={}", request.username(), request.email());
-        return usuarioService.getUserByUsername(request.username())
-                .switchIfEmpty(Mono.defer(() -> usuarioService.getUserByEmail(request.email())))
-                .map(existing -> {
-                    log.info("User already exists with id={}, returning existing id (idempotency)", existing.getId());
-                    return new InternalUserResponse(existing.getId());
+    public Mono<InternalUserResponse> createUser(InternalCreateUserRequest request, String idempotencyKey) {
+        log.info("Internal user creation requested for username={} email={} phone={} idempotencyKey={}",
+                request.username(), request.email(), request.phone(), idempotencyKey);
+
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            Long cachedUserId = idempotencyCache.get(idempotencyKey);
+            if (cachedUserId != null) {
+                log.info("Idempotent retry for idempotencyKey={}, returning cached userId={}", idempotencyKey, cachedUserId);
+                return Mono.just(new InternalUserResponse(cachedUserId));
+            }
+        }
+
+        String username = request.username() != null ? request.username().trim() : "";
+        String email = request.email() != null ? request.email().trim().toLowerCase() : "";
+        String rawPhone = request.phone() != null ? request.phone().trim() : "";
+        String cleanPhone = rawPhone.replaceAll("[\\s+\\-]", "");
+        String nationalPhone = cleanPhone.startsWith("57") ? cleanPhone.substring(2) : cleanPhone;
+        String country = (request.codPhoneInternational() != null && !request.codPhoneInternational().isBlank())
+                ? request.codPhoneInternational().trim() : "+57";
+
+        // Unicidad estricta: username, email y teléfono deben ser únicos (Plan B)
+        return usuarioService.existsByUsername(username)
+                .flatMap(existsUser -> {
+                    if (Boolean.TRUE.equals(existsUser)) {
+                        log.warn("User creation rejected: username '{}' already taken", username);
+                        return Mono.error(new ResponseStatusException(HttpStatus.CONFLICT, "Ya existe una cuenta con estos datos, inicia sesión"));
+                    }
+                    return usuarioService.existsByEmail(email);
                 })
-                .switchIfEmpty(Mono.defer(() -> doCreateUser(request)));
+                .flatMap(existsEmail -> {
+                    if (Boolean.TRUE.equals(existsEmail)) {
+                        log.warn("User creation rejected: email '{}' already taken", email);
+                        return Mono.error(new ResponseStatusException(HttpStatus.CONFLICT, "Ya existe una cuenta con estos datos, inicia sesión"));
+                    }
+                    if (!nationalPhone.isBlank()) {
+                        return usuarioService.getUserByPhoneAndCountry(country, nationalPhone)
+                                .map(u -> true)
+                                .defaultIfEmpty(false)
+                                .flatMap(existsPhoneWithCountry -> {
+                                    if (Boolean.TRUE.equals(existsPhoneWithCountry)) {
+                                        log.warn("User creation rejected: phone '{}{}' already taken", country, nationalPhone);
+                                        return Mono.error(new ResponseStatusException(HttpStatus.CONFLICT, "Ya existe una cuenta con estos datos, inicia sesión"));
+                                    }
+                                    return usuarioService.existsByPhone(nationalPhone);
+                                });
+                    }
+                    return Mono.just(false);
+                })
+                .flatMap(existsPhone -> {
+                    if (Boolean.TRUE.equals(existsPhone)) {
+                        log.warn("User creation rejected: phone '{}' already taken", nationalPhone);
+                        return Mono.error(new ResponseStatusException(HttpStatus.CONFLICT, "Ya existe una cuenta con estos datos, inicia sesión"));
+                    }
+                    return doCreateUser(request, nationalPhone, country, idempotencyKey);
+                });
     }
 
-    private Mono<InternalUserResponse> doCreateUser(InternalCreateUserRequest request) {
+    private Mono<InternalUserResponse> doCreateUser(InternalCreateUserRequest request, String nationalPhone, String country, String idempotencyKey) {
         Usuario usuario = new Usuario();
-        usuario.setUsername(request.username());
-        usuario.setEmail(request.email());
-        usuario.setPhone(request.phone());
-        usuario.setCodPhoneInternational(request.codPhoneInternational() != null ? request.codPhoneInternational() : "+57");
+        usuario.setUsername(request.username().trim());
+        usuario.setEmail(request.email().trim().toLowerCase());
+        usuario.setPhone(nationalPhone);
+        usuario.setCodPhoneInternational(country);
         String password = (request.password() != null && !request.password().isBlank())
                 ? request.password() : UUID.randomUUID().toString();
         usuario.setPassword(passwordEncoder.encode(password));
@@ -101,13 +153,18 @@ public class InternalUserManagerImpl implements InternalUserManager {
                                     if (federated && request.provider() != null && request.providerUserId() != null) {
                                         return databaseClient.sql("INSERT INTO user_identity_provider (user_id, provider_name, provider_user_id) VALUES (:userId, :provider, :providerUserId)")
                                                 .bind("userId", savedUser.getId())
-                                                .bind("provider", request.provider())
-                                                .bind("providerUserId", request.providerUserId())
+                                                .bind("provider", request.provider().trim().toLowerCase())
+                                                .bind("providerUserId", request.providerUserId().trim())
                                                 .then();
                                     }
                                     return Mono.empty();
                                 }))
-                                .thenReturn(new InternalUserResponse(savedUser.getId()))));
+                                .then(Mono.fromCallable(() -> {
+                                    if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+                                        idempotencyCache.put(idempotencyKey, savedUser.getId());
+                                    }
+                                    return new InternalUserResponse(savedUser.getId());
+                                }))));
     }
 
     @Override
@@ -116,6 +173,9 @@ public class InternalUserManagerImpl implements InternalUserManager {
             return Mono.empty();
         }
         log.info("Compensating user creation by deleting userId={}", userId);
+        if (!idempotencyCache.isEmpty()) {
+            idempotencyCache.values().removeIf(id -> id != null && id.equals(userId));
+        }
         return databaseClient.sql("DELETE FROM provider_biometric_capture WHERE user_id = :userId")
                 .bind("userId", userId).then()
                 .then(databaseClient.sql("DELETE FROM provider_activation_validation WHERE user_id = :userId")
