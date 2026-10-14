@@ -28,6 +28,7 @@ import java.util.List;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -117,6 +118,7 @@ class VerifyPhoneOtpUseCaseImplTest {
         when(usuarioService.getUserByUsername("provider1")).thenReturn(Mono.just(user));
         when(usuarioService.save(any())).thenAnswer(inv -> Mono.just(inv.getArgument(0)));
         when(phoneOtpStore.delete("+573003763301")).thenReturn(Mono.empty());
+        when(phoneOtpStore.markPhoneVerified(eq("+573003763301"), any(java.time.Duration.class))).thenReturn(Mono.empty());
         when(activationRepository.upsertValidation(any(), any(), any(), any()))
                 .thenReturn(Mono.just(new ProviderActivation()));
         when(sendEmailVerificationUseCase.sendVerificationForUser(any())).thenReturn(Mono.empty());
@@ -126,6 +128,8 @@ class VerifyPhoneOtpUseCaseImplTest {
                 .expectNextMatches(r -> r.phoneVerified()
                         && "PENDING_EMAIL_VERIFICATION".equals(r.accountStatus()))
                 .verifyComplete();
+
+        verify(phoneOtpStore).markPhoneVerified(eq("+573003763301"), any(java.time.Duration.class));
     }
 
     @Test
@@ -143,6 +147,7 @@ class VerifyPhoneOtpUseCaseImplTest {
         when(usuarioService.getUserByUsername("federated1")).thenReturn(Mono.just(user));
         when(usuarioService.save(any())).thenAnswer(inv -> Mono.just(inv.getArgument(0)));
         when(phoneOtpStore.delete("+573003763301")).thenReturn(Mono.empty());
+        when(phoneOtpStore.markPhoneVerified(eq("+573003763301"), any(java.time.Duration.class))).thenReturn(Mono.empty());
         when(activationRepository.upsertValidation(any(), any(), any(), any()))
                 .thenReturn(Mono.just(new ProviderActivation()));
         when(sendEmailVerificationUseCase.sendVerificationForUser(any())).thenReturn(Mono.empty());
@@ -152,6 +157,8 @@ class VerifyPhoneOtpUseCaseImplTest {
                 .expectNextMatches(r -> r.phoneVerified()
                         && "PENDING_EMAIL_VERIFICATION".equals(r.accountStatus()))
                 .verifyComplete();
+
+        verify(phoneOtpStore).markPhoneVerified(eq("+573003763301"), any(java.time.Duration.class));
     }
 
     @Test

@@ -105,6 +105,7 @@ public class VerifyPhoneOtpUseCaseImpl implements VerifyPhoneOtpUseCase {
                                 }
                                 return usuarioService.save(user)
                                         .flatMap(saved -> phoneOtpStore.delete(e164)
+                                                .then(phoneOtpStore.markPhoneVerified(e164, java.time.Duration.ofMinutes(30)))
                                                 .then(markOtpOk(saved))
                                                 .then(sendEmailVerificationUseCase.sendVerificationForUser(saved)
                                                         .onErrorResume(e -> {
