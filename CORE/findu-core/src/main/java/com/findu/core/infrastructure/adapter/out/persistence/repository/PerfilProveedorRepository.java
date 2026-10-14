@@ -16,6 +16,8 @@ public interface PerfilProveedorRepository extends JpaRepository<PerfilProveedor
 
     boolean existsByNumeroIdentificacion(String numeroIdentificacion);
 
+    boolean existsByTipoIdentificacionAndNumeroIdentificacion(String tipoIdentificacion, String numeroIdentificacion);
+
     Optional<PerfilProveedorEntity> findByNumeroIdentificacion(String numeroIdentificacion);
 
     @Query("""

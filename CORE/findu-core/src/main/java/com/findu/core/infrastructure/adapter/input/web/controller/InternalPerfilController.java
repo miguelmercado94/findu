@@ -36,7 +36,9 @@ import org.springframework.web.server.ResponseStatusException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Hidden
 @RestController
@@ -54,6 +56,8 @@ public class InternalPerfilController {
     private final PerfilEspecialistaRepository especialistaRepository;
     private final PortafolioItemRepository portafolioRepository;
     private final EspecialistaCredencialRepository credencialRepository;
+
+    private final Map<String, Long> idempotencyCache = new ConcurrentHashMap<>();
 
     @Value("${findu.internal.service-key:findu-internal-saga-secret-key-2026}")
     private String expectedInternalKey;
@@ -73,28 +77,49 @@ public class InternalPerfilController {
             @RequestBody InternalCrearPerfilRequest request) {
         validateInternalAccess(serviceKey);
 
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            Long cachedId = idempotencyCache.get(idempotencyKey);
+            if (cachedId != null) {
+                log.info("Returning cached profile id={} for idempotencyKey={}", cachedId, idempotencyKey);
+                return ResponseEntity.status(HttpStatus.CREATED).body(new InternalPerfilResponse(cachedId));
+            }
+        }
+
         String flowType = (request.flowType() != null && !request.flowType().isBlank())
                 ? request.flowType().trim().toUpperCase() : "PROVEEDOR";
 
+        InternalPerfilResponse response;
         if ("CLIENTE".equals(flowType)) {
-            return ResponseEntity.status(HttpStatus.CREATED).body(crearPerfilCliente(request));
+            response = crearPerfilCliente(request);
         } else {
-            return ResponseEntity.status(HttpStatus.CREATED).body(crearPerfilProveedor(request));
+            response = crearPerfilProveedor(request);
         }
+
+        if (idempotencyKey != null && !idempotencyKey.isBlank() && response != null) {
+            idempotencyCache.put(idempotencyKey, response.perfilId());
+        }
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     private InternalPerfilResponse crearPerfilCliente(InternalCrearPerfilRequest request) {
-        // Idempotencia: por authUserId o por numeroDocumento
+        // Idempotencia: por authUserId si reintenta la misma cuenta
         Optional<PerfilClienteEntity> existing = clienteRepository.findByAuthUserId(request.authUserId());
         if (existing.isPresent()) {
             log.info("Client profile already exists with id={}, returning existing id", existing.get().getId());
             return new InternalPerfilResponse(existing.get().getId());
         }
-        if (request.persona() != null && request.persona().numeroDocumento() != null) {
-            Optional<PerfilClienteEntity> byDoc = clienteRepository.findByNumeroIdentificacion(request.persona().numeroDocumento().trim());
-            if (byDoc.isPresent()) {
-                log.info("Client profile already exists by document with id={}, returning existing id", byDoc.get().getId());
-                return new InternalPerfilResponse(byDoc.get().getId());
+
+        String tipoDoc = request.persona() != null && request.persona().tipoDocumento() != null && !request.persona().tipoDocumento().isBlank()
+                ? request.persona().tipoDocumento().trim() : "CC";
+        String numDoc = request.persona() != null && request.persona().numeroDocumento() != null
+                ? request.persona().numeroDocumento().trim() : "";
+
+        if (!numDoc.isBlank()) {
+            if (clienteRepository.existsByTipoIdentificacionAndNumeroIdentificacion(tipoDoc, numDoc)
+                    || proveedorRepository.existsByTipoIdentificacionAndNumeroIdentificacion(tipoDoc, numDoc)) {
+                log.warn("Document collision in client profile creation: tipo={}, num={}", tipoDoc, numDoc);
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Ya existe una cuenta con estos datos, inicia sesión");
             }
         }
 
@@ -133,17 +158,23 @@ public class InternalPerfilController {
     }
 
     private InternalPerfilResponse crearPerfilProveedor(InternalCrearPerfilRequest request) {
-        // Idempotencia: por authUserId o por numeroDocumento
+        // Idempotencia: por authUserId si reintenta la misma cuenta
         Optional<PerfilProveedorEntity> existing = proveedorRepository.findByAuthUserId(request.authUserId());
         if (existing.isPresent()) {
             log.info("Provider profile already exists with id={}, returning existing id", existing.get().getId());
             return new InternalPerfilResponse(existing.get().getId());
         }
-        if (request.persona() != null && request.persona().numeroDocumento() != null) {
-            Optional<PerfilProveedorEntity> byDoc = proveedorRepository.findByNumeroIdentificacion(request.persona().numeroDocumento().trim());
-            if (byDoc.isPresent()) {
-                log.info("Provider profile already exists by document with id={}, returning existing id", byDoc.get().getId());
-                return new InternalPerfilResponse(byDoc.get().getId());
+
+        String tipoDoc = request.persona() != null && request.persona().tipoDocumento() != null && !request.persona().tipoDocumento().isBlank()
+                ? request.persona().tipoDocumento().trim() : "CC";
+        String numDoc = request.persona() != null && request.persona().numeroDocumento() != null
+                ? request.persona().numeroDocumento().trim() : "";
+
+        if (!numDoc.isBlank()) {
+            if (proveedorRepository.existsByTipoIdentificacionAndNumeroIdentificacion(tipoDoc, numDoc)
+                    || clienteRepository.existsByTipoIdentificacionAndNumeroIdentificacion(tipoDoc, numDoc)) {
+                log.warn("Document collision in provider profile creation: tipo={}, num={}", tipoDoc, numDoc);
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Ya existe una cuenta con estos datos, inicia sesión");
             }
         }
 
@@ -210,6 +241,8 @@ public class InternalPerfilController {
             clienteRepository.deleteById(perfilId);
             log.info("Client profile and child entities deleted for id={}", perfilId);
         }
+
+        idempotencyCache.values().removeIf(id -> id.equals(perfilId));
 
         return ResponseEntity.noContent().build();
     }

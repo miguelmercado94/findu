@@ -13,5 +13,7 @@ public interface PerfilClienteRepository extends JpaRepository<PerfilClienteEnti
 
     boolean existsByNumeroIdentificacion(String numeroIdentificacion);
 
+    boolean existsByTipoIdentificacionAndNumeroIdentificacion(String tipoIdentificacion, String numeroIdentificacion);
+
     Optional<PerfilClienteEntity> findByNumeroIdentificacion(String numeroIdentificacion);
 }
