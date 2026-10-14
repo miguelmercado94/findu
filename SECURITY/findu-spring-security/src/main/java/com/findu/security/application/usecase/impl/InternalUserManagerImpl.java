@@ -7,6 +7,7 @@ import com.findu.security.application.port.output.persistence.UserRolRepositoryP
 import com.findu.security.application.service.UsuarioService;
 import com.findu.security.application.usecase.InternalUserManager;
 import com.findu.security.application.usecase.JwtManager;
+import com.findu.security.application.usecase.SendEmailVerificationUseCase;
 import com.findu.security.domain.model.Usuario;
 import com.findu.security.domain.model.ValidationState;
 import com.findu.security.domain.model.ValidationType;
@@ -45,6 +46,7 @@ public class InternalUserManagerImpl implements InternalUserManager {
     private final ProviderActivationRepositoryPort activationRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtManager jwtManager;
+    private final SendEmailVerificationUseCase sendEmailVerificationUseCase;
     private final DatabaseClient databaseClient;
 
     private final Map<String, Long> idempotencyCache = new ConcurrentHashMap<>();
@@ -56,6 +58,7 @@ public class InternalUserManagerImpl implements InternalUserManager {
                                    ProviderActivationRepositoryPort activationRepository,
                                    PasswordEncoder passwordEncoder,
                                    JwtManager jwtManager,
+                                   SendEmailVerificationUseCase sendEmailVerificationUseCase,
                                    ConnectionFactory connectionFactory) {
         this.usuarioService = usuarioService;
         this.rolRepositoryPort = rolRepositoryPort;
@@ -64,6 +67,7 @@ public class InternalUserManagerImpl implements InternalUserManager {
         this.activationRepository = activationRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtManager = jwtManager;
+        this.sendEmailVerificationUseCase = sendEmailVerificationUseCase;
         this.databaseClient = DatabaseClient.create(connectionFactory);
     }
 
@@ -138,8 +142,8 @@ public class InternalUserManagerImpl implements InternalUserManager {
         usuario.setActive(true);
         usuario.setPhoneVerified(true);
         boolean federated = Boolean.TRUE.equals(request.isFederated());
-        usuario.setEmailVerified(federated);
-        usuario.setAccountStatus(federated ? "PENDING_BIOMETRIC_VERIFICATION" : "PENDING_EMAIL_VERIFICATION");
+        usuario.setEmailVerified(false);
+        usuario.setAccountStatus("PENDING_EMAIL_VERIFICATION");
         usuario.setEstadoActivacion("PENDIENTE_VALIDACIONES");
 
         String roleName = (request.roleName() != null && !request.roleName().isBlank())
@@ -159,6 +163,11 @@ public class InternalUserManagerImpl implements InternalUserManager {
                                     }
                                     return Mono.empty();
                                 }))
+                                .then(sendEmailVerificationUseCase.sendVerificationForUser(savedUser)
+                                        .onErrorResume(e -> {
+                                            log.warn("Email de verificacion no enviado en saga (userId={}): {}", savedUser.getId(), e.getMessage());
+                                            return Mono.empty();
+                                        }))
                                 .then(Mono.fromCallable(() -> {
                                     if (idempotencyKey != null && !idempotencyKey.isBlank()) {
                                         idempotencyCache.put(idempotencyKey, savedUser.getId());
