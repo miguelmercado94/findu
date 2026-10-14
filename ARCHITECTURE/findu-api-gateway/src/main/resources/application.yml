@@ -37,7 +37,7 @@ spring:
         - id: findu-transaction-route
           uri: lb://FINDU-TRANSACTION
           predicates:
-            - Path=/findu-transaction/**, /internal/**
+            - Path=/findu-transaction/**
         - id: findu-help-route
           uri: lb://FINDU-HELP-V2
           predicates:
@@ -46,6 +46,38 @@ spring:
           uri: lb://NOTIFICATION-DISPATCHER
           predicates:
             - Path=/ws/events/**, /notification-dispatcher/**
+
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+
+findu:
+  internal:
+    service-key: ${FINDU_INTERNAL_SERVICE_KEY:findu-internal-saga-secret-key-2026}
+  services:
+    security-url: ${FINDU_SECURITY_URL:http://localhost:8081}
+    core-url: ${FINDU_CORE_URL:http://localhost:8082}
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      securityService:
+        slidingWindowSize: 20
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 5
+      coreService:
+        slidingWindowSize: 20
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 5
+  timelimiter:
+    instances:
+      securityService:
+        timeoutDuration: 3s
+      coreService:
+        timeoutDuration: 3s
 
 eureka:
   instance:
@@ -60,4 +92,4 @@ management:
   endpoints:
     web:
       exposure:
-        include: health, gateway, info
+        include: health, gateway, info, metrics

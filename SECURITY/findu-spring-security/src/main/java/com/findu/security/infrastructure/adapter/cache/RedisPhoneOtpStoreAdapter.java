@@ -18,6 +18,7 @@ import java.time.Duration;
 public class RedisPhoneOtpStoreAdapter implements PhoneOtpStorePort {
 
     private static final String KEY_PREFIX = "findu:otp:phone:";
+    private static final String VERIFIED_KEY_PREFIX = "findu:otp:verified:";
 
     private final ReactiveRedisTemplate<String, String> redisTemplate;
 
@@ -28,6 +29,10 @@ public class RedisPhoneOtpStoreAdapter implements PhoneOtpStorePort {
 
     private String key(String phoneKey) {
         return KEY_PREFIX + phoneKey;
+    }
+
+    private String verifiedKey(String phoneKey) {
+        return VERIFIED_KEY_PREFIX + phoneKey;
     }
 
     @Override
@@ -43,5 +48,22 @@ public class RedisPhoneOtpStoreAdapter implements PhoneOtpStorePort {
     @Override
     public Mono<Void> delete(String phoneKey) {
         return redisTemplate.opsForValue().delete(key(phoneKey)).then();
+    }
+
+    @Override
+    public Mono<Void> markPhoneVerified(String phoneKey, Duration ttl) {
+        return redisTemplate.opsForValue().set(verifiedKey(phoneKey), "true", ttl).then();
+    }
+
+    @Override
+    public Mono<Boolean> isPhoneVerified(String phoneKey) {
+        return redisTemplate.opsForValue().get(verifiedKey(phoneKey))
+                .map(v -> "true".equalsIgnoreCase(v))
+                .defaultIfEmpty(false);
+    }
+
+    @Override
+    public Mono<Void> deletePhoneVerified(String phoneKey) {
+        return redisTemplate.opsForValue().delete(verifiedKey(phoneKey)).then();
     }
 }

@@ -99,6 +99,18 @@ public class CatalogoController {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/catalogs/specialties")
+    @Operation(summary = "Listar especialidades (catálogo para onboarding)", description = "Retorna lista de servicios/especialidades disponibles")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Lista de especialidades obtenida exitosamente")
+    })
+    public ResponseEntity<List<ServicioResponse>> listarEspecialidades() {
+        List<ServicioResponse> response = catalogoService.findServicios(null, Pageable.unpaged()).stream()
+                .map(s -> new ServicioResponse(s.getId(), s.getNombre(), s.getDescripcion(), s.getTipoCobro(), s.getUrlImagen(), s.getCategoriaNombre()))
+                .toList();
+        return ResponseEntity.ok(response);
+    }
+
     private CategoriaResponse toCategoriaResponse(Categoria c) {
         return new CategoriaResponse(c.getId(), c.getNombre(), c.getDescripcion(), List.of());
     }

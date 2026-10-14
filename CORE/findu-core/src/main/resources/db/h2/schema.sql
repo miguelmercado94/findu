@@ -86,6 +86,7 @@ CREATE TABLE perfil_proveedor (
     url_imagen_perfil VARCHAR(500),
     calificacion_promedio DECIMAL(3,2) DEFAULT 0.00,
     estado VARCHAR(20) DEFAULT 'ACTIVO',
+    estado_verificacion VARCHAR(30) DEFAULT 'PENDIENTE',
     disponible BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -127,6 +128,14 @@ CREATE TABLE especialista_credenciales (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (perfil_especialista_id) REFERENCES perfil_especialista(id)
+);
+
+CREATE TABLE proveedor_cobertura (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    perfil_proveedor_id BIGINT NOT NULL,
+    municipio_id BIGINT NOT NULL,
+    FOREIGN KEY (perfil_proveedor_id) REFERENCES perfil_proveedor(id),
+    FOREIGN KEY (municipio_id) REFERENCES municipio(id)
 );
 
 -- ─── Direcciones ──────────────────────────────────────────────────────

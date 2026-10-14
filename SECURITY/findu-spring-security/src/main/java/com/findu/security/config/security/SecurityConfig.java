@@ -58,6 +58,7 @@ public class SecurityConfig {
                 )
                 .authorizeExchange(exchanges -> exchanges
                         .pathMatchers("/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**").permitAll()
+                        .pathMatchers("/internal/**").permitAll()
                         .anyExchange().access(authorizationManager)
                 )
                 .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)

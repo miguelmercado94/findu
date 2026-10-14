@@ -12,4 +12,7 @@ public interface PhoneOtpStorePort {
     Mono<Void> save(String phoneKey, String json, Duration ttl);
     Mono<String> find(String phoneKey);
     Mono<Void> delete(String phoneKey);
+    Mono<Void> markPhoneVerified(String phoneKey, Duration ttl);
+    Mono<Boolean> isPhoneVerified(String phoneKey);
+    Mono<Void> deletePhoneVerified(String phoneKey);
 }

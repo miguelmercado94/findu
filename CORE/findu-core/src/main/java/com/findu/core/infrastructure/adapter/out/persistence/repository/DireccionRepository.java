@@ -15,4 +15,8 @@ public interface DireccionRepository extends JpaRepository<DireccionEntity, Long
     Optional<DireccionEntity> findBySolicitudServicioId(Long solicitudServicioId);
 
     long countByPerfilClienteIdAndActiveTrue(Long perfilClienteId);
+
+    void deleteAllByPerfilProveedorId(Long perfilProveedorId);
+
+    void deleteAllByPerfilClienteId(Long perfilClienteId);
 }

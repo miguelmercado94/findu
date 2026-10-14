@@ -176,13 +176,16 @@ class VerifyPhoneOtpUseCaseImplTest {
     }
 
     @Test
-    void verifyOtp_notAuthenticated_errors() throws Exception {
+    void verifyOtp_notAuthenticated_succeedsAndMarksVerifiedInStore() throws Exception {
         when(phoneOtpStore.find("+573003763301"))
                 .thenReturn(Mono.just(otpJson(Instant.now().getEpochSecond() + 300)));
         when(passwordEncoder.matches(anyString(), eq("hashed"))).thenReturn(true);
+        when(phoneOtpStore.delete("+573003763301")).thenReturn(Mono.empty());
+        when(phoneOtpStore.markPhoneVerified(eq("+573003763301"), any(java.time.Duration.class))).thenReturn(Mono.empty());
 
         StepVerifier.create(useCase.verifyOtp("3003763301", "123456", "+57"))
-                .expectError(ResponseStatusException.class)
-                .verify();
+                .expectNextMatches(r -> r.phoneVerified()
+                        && "PENDING_REGISTRATION".equals(r.accountStatus()))
+                .verifyComplete();
     }
 }

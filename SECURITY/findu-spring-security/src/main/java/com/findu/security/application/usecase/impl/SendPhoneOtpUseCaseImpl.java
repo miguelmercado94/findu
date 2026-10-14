@@ -76,13 +76,14 @@ public class SendPhoneOtpUseCaseImpl implements SendPhoneOtpUseCase {
         String trimmedPhone = phone.trim();
         String e164 = country + trimmedPhone;
 
-        return resolveAuthenticatedUser()
+        return findAuthenticatedUser()
                 .flatMap(user -> {
                     user.setPhone(trimmedPhone);
                     user.setCodPhoneInternational(country);
-                    return usuarioService.save(user);
+                    return usuarioService.save(user).then();
                 })
-                .flatMap(saved -> generateAndSend(e164, trimmedPhone, country));
+                .switchIfEmpty(Mono.empty())
+                .then(generateAndSend(e164, trimmedPhone, country));
     }
 
     private Mono<Void> generateAndSend(String e164, String trimmedPhone, String country) {
@@ -116,12 +117,10 @@ public class SendPhoneOtpUseCaseImpl implements SendPhoneOtpUseCase {
     }
 
     /**
-     * Resuelve el usuario autenticado desde el contexto reactivo, siguiendo el mismo patrón que
-     * {@code JwtManagerImpl.getCurrentUserProfile()}: acepta un principal {@link Usuario} o
-     * {@link org.springframework.security.oauth2.jwt.Jwt} y busca por username y luego por email.
-     * Si no hay autenticación válida devuelve 401.
+     * Resuelve el usuario autenticado desde el contexto reactivo si existe.
+     * Si no hay autenticación válida devuelve Mono.empty() (flujo anónimo de registro).
      */
-    private Mono<Usuario> resolveAuthenticatedUser() {
+    private Mono<Usuario> findAuthenticatedUser() {
         return ReactiveSecurityContextHolder.getContext()
                 .flatMap(ctx -> {
                     Authentication auth = ctx.getAuthentication();
@@ -139,7 +138,6 @@ public class SendPhoneOtpUseCaseImpl implements SendPhoneOtpUseCase {
                     }
                     return usuarioService.getUserByUsername(username)
                             .switchIfEmpty(Mono.defer(() -> usuarioService.getUserByEmail(username)));
-                })
-                .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.UNAUTHORIZED, "No autenticado")));
+                });
     }
 }

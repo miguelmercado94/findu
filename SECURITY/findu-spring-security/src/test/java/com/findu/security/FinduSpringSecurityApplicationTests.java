@@ -13,7 +13,7 @@ import org.testcontainers.utility.DockerImageName;
  * Arranque completo del contexto contra PostgreSQL (Testcontainers). Requiere Docker en el host.
  */
 @SpringBootTest
-@Testcontainers
+@Testcontainers(disabledWithoutDocker = true)
 class FinduSpringSecurityApplicationTests {
 
     @Container

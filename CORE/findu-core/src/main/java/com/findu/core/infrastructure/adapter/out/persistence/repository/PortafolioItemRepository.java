@@ -8,4 +8,6 @@ import java.util.List;
 public interface PortafolioItemRepository extends JpaRepository<PortafolioItemEntity, Long> {
 
     List<PortafolioItemEntity> findAllByPerfilEspecialistaId(Long perfilEspecialistaId);
+
+    void deleteAllByPerfilEspecialistaId(Long perfilEspecialistaId);
 }

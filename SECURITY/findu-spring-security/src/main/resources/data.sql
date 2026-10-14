@@ -30,6 +30,10 @@ INSERT INTO operation (path, name, http_method, module_id, permite_all, active) 
 INSERT INTO operation (path, name, http_method, module_id, permite_all, active) VALUES ('/api/v1/activation/status', 'ACTIVATION_STATUS_READ', 'GET', 3, FALSE, TRUE); -- ID 19
 INSERT INTO operation (path, name, http_method, module_id, permite_all, active) VALUES ('/api/v1/activation/approve', 'ACTIVATION_APPROVE', 'POST', 3, FALSE, TRUE); -- ID 20
 INSERT INTO operation (path, name, http_method, module_id, permite_all, active) VALUES ('/api/v1/activation/reject', 'ACTIVATION_REJECT', 'POST', 3, FALSE, TRUE); -- ID 21
+-- Validaciones públicas de registro / onboarding (permite_all=TRUE)
+INSERT INTO operation (path, name, http_method, module_id, permite_all, active) VALUES ('/api/v1/registration/check-email', 'REGISTRATION_CHECK_EMAIL', 'GET', 1, TRUE, TRUE); -- ID 22
+INSERT INTO operation (path, name, http_method, module_id, permite_all, active) VALUES ('/api/v1/registration/check-username', 'REGISTRATION_CHECK_USERNAME', 'GET', 1, TRUE, TRUE); -- ID 23
+INSERT INTO operation (path, name, http_method, module_id, permite_all, active) VALUES ('/api/v1/registration/check-phone', 'REGISTRATION_CHECK_PHONE', 'GET', 1, TRUE, TRUE); -- ID 24
 
 INSERT INTO role (name, active) VALUES ('ROLE_OUR_CLIENTE', TRUE); -- ID 1
 INSERT INTO role (name, active) VALUES ('ROLE_ASSISTANT_ADMINISTRATOR', TRUE); -- ID 2
@@ -52,6 +56,9 @@ INSERT INTO rol_operation (role_id, operation_id, active) VALUES (1, 14, TRUE);
 INSERT INTO rol_operation (role_id, operation_id, active) VALUES (1, 15, TRUE);
 INSERT INTO rol_operation (role_id, operation_id, active) VALUES (1, 16, TRUE);
 INSERT INTO rol_operation (role_id, operation_id, active) VALUES (1, 17, TRUE);
+INSERT INTO rol_operation (role_id, operation_id, active) VALUES (1, 22, TRUE);
+INSERT INTO rol_operation (role_id, operation_id, active) VALUES (1, 23, TRUE);
+INSERT INTO rol_operation (role_id, operation_id, active) VALUES (1, 24, TRUE);
 
 -- Operaciones para ROLE_ASSISTANT_ADMINISTRATOR (ID 2)
 INSERT INTO rol_operation (role_id, operation_id, active) VALUES (2, 1, TRUE);
@@ -70,6 +77,9 @@ INSERT INTO rol_operation (role_id, operation_id, active) VALUES (2, 14, TRUE);
 INSERT INTO rol_operation (role_id, operation_id, active) VALUES (2, 15, TRUE);
 INSERT INTO rol_operation (role_id, operation_id, active) VALUES (2, 16, TRUE);
 INSERT INTO rol_operation (role_id, operation_id, active) VALUES (2, 17, TRUE);
+INSERT INTO rol_operation (role_id, operation_id, active) VALUES (2, 22, TRUE);
+INSERT INTO rol_operation (role_id, operation_id, active) VALUES (2, 23, TRUE);
+INSERT INTO rol_operation (role_id, operation_id, active) VALUES (2, 24, TRUE);
 
 -- Operaciones para ROLE_ADMINISTRATOR (ID 3)
 INSERT INTO rol_operation (role_id, operation_id, active) VALUES (3, 1, TRUE);
@@ -88,6 +98,9 @@ INSERT INTO rol_operation (role_id, operation_id, active) VALUES (3, 14, TRUE);
 INSERT INTO rol_operation (role_id, operation_id, active) VALUES (3, 15, TRUE);
 INSERT INTO rol_operation (role_id, operation_id, active) VALUES (3, 16, TRUE);
 INSERT INTO rol_operation (role_id, operation_id, active) VALUES (3, 17, TRUE);
+INSERT INTO rol_operation (role_id, operation_id, active) VALUES (3, 22, TRUE);
+INSERT INTO rol_operation (role_id, operation_id, active) VALUES (3, 23, TRUE);
+INSERT INTO rol_operation (role_id, operation_id, active) VALUES (3, 24, TRUE);
 
 -- Operaciones para ROLE_OUR_PROVEEDOR (ID 4)
 INSERT INTO rol_operation (role_id, operation_id, active) VALUES (4, 1, TRUE);
@@ -108,6 +121,9 @@ INSERT INTO rol_operation (role_id, operation_id, active) VALUES (4, 17, TRUE);
 -- Activación: biometric + status para el proveedor (approve/reject son de soporte, rol 5 en add_soporte.sql).
 INSERT INTO rol_operation (role_id, operation_id, active) VALUES (4, 18, TRUE);
 INSERT INTO rol_operation (role_id, operation_id, active) VALUES (4, 19, TRUE);
+INSERT INTO rol_operation (role_id, operation_id, active) VALUES (4, 22, TRUE);
+INSERT INTO rol_operation (role_id, operation_id, active) VALUES (4, 23, TRUE);
+INSERT INTO rol_operation (role_id, operation_id, active) VALUES (4, 24, TRUE);
 
 -- ---------------------------------------------------------------------------
 -- Usuarios: NO se siembran. La base arranca SIN usuarios para probar el flujo

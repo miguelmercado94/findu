@@ -9,5 +9,9 @@ public interface PerfilEspecialistaRepository extends JpaRepository<PerfilEspeci
 
     List<PerfilEspecialistaEntity> findAllByPerfilProveedorIdAndActiveTrue(Long perfilProveedorId);
 
+    List<PerfilEspecialistaEntity> findAllByPerfilProveedorId(Long perfilProveedorId);
+
     boolean existsByPerfilProveedorIdAndServicioId(Long perfilProveedorId, Long servicioId);
+
+    void deleteAllByPerfilProveedorId(Long perfilProveedorId);
 }

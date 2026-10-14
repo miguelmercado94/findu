@@ -84,7 +84,7 @@ public class VerifyPhoneOtpUseCaseImpl implements VerifyPhoneOtpUseCase {
                     if (!passwordEncoder.matches(code.trim(), otp.codeHash())) {
                         return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST, "Código inválido o expirado"));
                     }
-                    return resolveAuthenticatedUser()
+                    return findAuthenticatedUser()
                             .flatMap(user -> {
                                 // La identidad SIEMPRE sale del token. Validamos coherencia con el
                                 // teléfono del request: si el usuario ya tiene uno distinto, se rechaza.
@@ -103,17 +103,23 @@ public class VerifyPhoneOtpUseCaseImpl implements VerifyPhoneOtpUseCase {
                                 if (STATUS_PENDING_PHONE.equals(user.getAccountStatus())) {
                                     user.setAccountStatus(STATUS_PENDING_EMAIL);
                                 }
-                                return usuarioService.save(user);
+                                return usuarioService.save(user)
+                                        .flatMap(saved -> phoneOtpStore.delete(e164)
+                                                .then(markOtpOk(saved))
+                                                .then(sendEmailVerificationUseCase.sendVerificationForUser(saved)
+                                                        .onErrorResume(e -> {
+                                                            log.warn("Email de verificación no enviado tras OTP (userId={}): {}",
+                                                                    saved.getId(), e.getMessage());
+                                                            return Mono.empty();
+                                                        }))
+                                                .thenReturn(new PhoneVerificationResponse(saved.isPhoneVerified(), saved.getAccountStatus())));
                             })
-                            .flatMap(saved -> phoneOtpStore.delete(e164)
-                                    .then(markOtpOk(saved))
-                                    .then(sendEmailVerificationUseCase.sendVerificationForUser(saved)
-                                            .onErrorResume(e -> {
-                                                log.warn("Email de verificación no enviado tras OTP (userId={}): {}",
-                                                        saved.getId(), e.getMessage());
-                                                return Mono.empty();
-                                            }))
-                                    .thenReturn(new PhoneVerificationResponse(saved.isPhoneVerified(), saved.getAccountStatus())));
+                            .switchIfEmpty(Mono.defer(() -> {
+                                log.info("Phone OTP verified anonymously for {}", e164);
+                                return phoneOtpStore.delete(e164)
+                                        .then(phoneOtpStore.markPhoneVerified(e164, java.time.Duration.ofMinutes(30)))
+                                        .thenReturn(new PhoneVerificationResponse(true, "PENDING_REGISTRATION"));
+                            }));
                 });
     }
 
@@ -131,12 +137,10 @@ public class VerifyPhoneOtpUseCaseImpl implements VerifyPhoneOtpUseCase {
     }
 
     /**
-     * Resuelve el usuario autenticado desde el contexto reactivo, siguiendo el mismo patrón que
-     * {@code JwtManagerImpl.getCurrentUserProfile()}: acepta un principal {@link Usuario} o
-     * {@link org.springframework.security.oauth2.jwt.Jwt} y busca por username y luego por email.
-     * Si no hay autenticación válida devuelve 401.
+     * Resuelve el usuario autenticado desde el contexto reactivo si existe.
+     * Si no hay autenticación válida devuelve Mono.empty() (flujo anónimo de registro).
      */
-    private Mono<Usuario> resolveAuthenticatedUser() {
+    private Mono<Usuario> findAuthenticatedUser() {
         return ReactiveSecurityContextHolder.getContext()
                 .flatMap(ctx -> {
                     Authentication auth = ctx.getAuthentication();
@@ -154,7 +158,6 @@ public class VerifyPhoneOtpUseCaseImpl implements VerifyPhoneOtpUseCase {
                     }
                     return usuarioService.getUserByUsername(username)
                             .switchIfEmpty(Mono.defer(() -> usuarioService.getUserByEmail(username)));
-                })
-                .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.UNAUTHORIZED, "No autenticado")));
+                });
     }
 }

@@ -7,4 +7,6 @@ import java.util.List;
 
 public interface EspecialistaCredencialRepository extends JpaRepository<EspecialistaCredencialEntity, Long> {
     List<EspecialistaCredencialEntity> findAllByPerfilEspecialistaId(Long perfilEspecialistaId);
+
+    void deleteAllByPerfilEspecialistaId(Long perfilEspecialistaId);
 }

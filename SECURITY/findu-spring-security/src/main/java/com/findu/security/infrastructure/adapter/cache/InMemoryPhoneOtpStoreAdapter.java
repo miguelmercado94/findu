@@ -18,6 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class InMemoryPhoneOtpStoreAdapter implements PhoneOtpStorePort {
 
     private final ConcurrentHashMap<String, Entry> store = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Long> verifiedStore = new ConcurrentHashMap<>();
 
     @Override
     public Mono<Void> save(String phoneKey, String json, Duration ttl) {
@@ -42,6 +43,32 @@ public class InMemoryPhoneOtpStoreAdapter implements PhoneOtpStorePort {
     @Override
     public Mono<Void> delete(String phoneKey) {
         store.remove(phoneKey);
+        return Mono.empty();
+    }
+
+    @Override
+    public Mono<Void> markPhoneVerified(String phoneKey, Duration ttl) {
+        long expiresAt = Instant.now().plus(ttl).toEpochMilli();
+        verifiedStore.put(phoneKey, expiresAt);
+        return Mono.empty();
+    }
+
+    @Override
+    public Mono<Boolean> isPhoneVerified(String phoneKey) {
+        Long expiresAt = verifiedStore.get(phoneKey);
+        if (expiresAt == null) {
+            return Mono.just(false);
+        }
+        if (Instant.now().toEpochMilli() > expiresAt) {
+            verifiedStore.remove(phoneKey);
+            return Mono.just(false);
+        }
+        return Mono.just(true);
+    }
+
+    @Override
+    public Mono<Void> deletePhoneVerified(String phoneKey) {
+        verifiedStore.remove(phoneKey);
         return Mono.empty();
     }
 

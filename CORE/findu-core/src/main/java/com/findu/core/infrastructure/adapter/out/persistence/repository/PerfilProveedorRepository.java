@@ -14,6 +14,10 @@ public interface PerfilProveedorRepository extends JpaRepository<PerfilProveedor
 
     boolean existsByAuthUserId(Long authUserId);
 
+    boolean existsByNumeroIdentificacion(String numeroIdentificacion);
+
+    Optional<PerfilProveedorEntity> findByNumeroIdentificacion(String numeroIdentificacion);
+
     @Query("""
         SELECT p FROM PerfilProveedorEntity p\s
         WHERE p.disponible = true\s

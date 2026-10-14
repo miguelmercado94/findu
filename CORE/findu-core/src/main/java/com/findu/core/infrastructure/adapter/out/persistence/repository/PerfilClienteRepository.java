@@ -12,4 +12,6 @@ public interface PerfilClienteRepository extends JpaRepository<PerfilClienteEnti
     boolean existsByAuthUserId(Long authUserId);
 
     boolean existsByNumeroIdentificacion(String numeroIdentificacion);
+
+    Optional<PerfilClienteEntity> findByNumeroIdentificacion(String numeroIdentificacion);
 }

@@ -107,9 +107,14 @@ class SendPhoneOtpUseCaseImplTest {
     }
 
     @Test
-    void sendOtp_notAuthenticated_errors() {
+    void sendOtp_notAuthenticated_succeedsForAnonymousRegistration() {
+        when(passwordEncoder.encode(anyString())).thenReturn("hashed_code");
+        when(phoneOtpStore.save(eq("+573003763301"), anyString(), any(Duration.class))).thenReturn(Mono.empty());
+        when(notificationPort.send(any(), any(), any(), any(), any())).thenReturn(Mono.empty());
+
         StepVerifier.create(useCase.sendOtp("3003763301", "+57"))
-                .expectError(ResponseStatusException.class)
-                .verify();
+                .verifyComplete();
+
+        verify(phoneOtpStore).save(eq("+573003763301"), anyString(), any(Duration.class));
     }
 }
