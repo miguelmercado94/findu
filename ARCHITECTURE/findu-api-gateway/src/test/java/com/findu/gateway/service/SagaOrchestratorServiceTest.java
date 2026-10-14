@@ -223,4 +223,60 @@ class SagaOrchestratorServiceTest {
 
         verifyNoInteractions(mockOrchestrator);
     }
+
+    @Test
+    void executeSaga_federatedRequest_sendsProviderAndProviderUserIdInT1() {
+        AtomicInteger t1Called = new AtomicInteger(0);
+
+        ExchangeFunction exchangeFunction = clientRequest -> {
+            String path = clientRequest.url().getPath();
+            HttpMethod method = clientRequest.method();
+
+            if (method == HttpMethod.POST && path.endsWith("/internal/users")) {
+                t1Called.incrementAndGet();
+                return Mono.just(jsonResponse(HttpStatus.CREATED, "{\"userId\": 88}"));
+            }
+            if (method == HttpMethod.POST && path.endsWith("/internal/perfiles")) {
+                return Mono.just(jsonResponse(HttpStatus.CREATED, "{\"perfilId\": 99}"));
+            }
+            if (method == HttpMethod.POST && path.endsWith("/cobertura") || method == HttpMethod.POST && path.endsWith("/especialidades")) {
+                return Mono.just(jsonResponse(HttpStatus.OK, "{}"));
+            }
+            if (method == HttpMethod.POST && path.endsWith("/internal/activation/init")) {
+                return Mono.just(jsonResponse(HttpStatus.OK, "{\"estadoActivacion\": \"PENDIENTE_VALIDACIONES\"}"));
+            }
+            if (method == HttpMethod.POST && path.contains("/tokens")) {
+                return Mono.just(jsonResponse(HttpStatus.OK, "{\"accessToken\": \"jwt_acc\", \"refreshToken\": \"jwt_ref\", \"tokenType\": \"Bearer\"}"));
+            }
+            return Mono.just(jsonResponse(HttpStatus.NOT_FOUND, "{}"));
+        };
+
+        WebClient.Builder builder = WebClient.builder().exchangeFunction(exchangeFunction);
+        when(otpValidationService.consumePhoneVerified(any(), any())).thenReturn(Mono.empty());
+
+        SagaOrchestratorService orchestrator = new SagaOrchestratorService(
+                builder, pendingCompensationStore, otpValidationService, circuitBreakerRegistry);
+
+        OnboardingRequest request = new OnboardingRequest(
+                "PROVEEDOR",
+                true,
+                new FederatedData("google", "sub-google-456", "token-xyz"),
+                new SecurityData("fed_user", "fed@findu.com", null, "3003763300", "+57", true),
+                new PersonaData("Fed User", "CC", "114000111", "1994-05-20", "MASCULINO"),
+                new DireccionData(149L, "Cra 1 # 2-3", 10.98, -74.80),
+                new CoberturaData(List.of(149L)),
+                List.of(new EspecialidadItem(12L, 5)),
+                new BiometriaData(false, false, 0.0, null, null, null),
+                "idemp-key-fed"
+        );
+
+        StepVerifier.create(orchestrator.executeSaga(request, "req-fed", "idemp-key-fed"))
+                .assertNext(response -> {
+                    assertThat(response.userId()).isEqualTo(88L);
+                    assertThat(response.perfilId()).isEqualTo(99L);
+                })
+                .verifyComplete();
+
+        assertThat(t1Called.get()).isEqualTo(1);
+    }
 }

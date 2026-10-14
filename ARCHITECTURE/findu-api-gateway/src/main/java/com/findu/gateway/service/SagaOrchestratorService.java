@@ -13,11 +13,13 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
 import reactor.util.retry.Retry;
 
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -70,6 +72,10 @@ public class SagaOrchestratorService {
 
         // T1: security.createUser
         return stepT1CreateUser(context)
+                .onErrorResume(e -> {
+                    log.error("[Saga][{}] T1 (security.createUser) failed: {}", context.correlationId, e.getMessage());
+                    return failWithSagaError("SECURITY_CREATE_USER", true, e);
+                })
                 // T2: core.createPerfil
                 .flatMap(ctx -> stepT2CreatePerfil(ctx)
                         .onErrorResume(e -> compensateAfterT2(ctx, e)))
@@ -110,20 +116,27 @@ public class SagaOrchestratorService {
         log.info("[Saga][{}] T1: Creating user in security", ctx.correlationId);
         String roleName = "CLIENTE".equalsIgnoreCase(ctx.request.flowType()) ? "ROLE_OUR_CLIENTE" : "ROLE_OUR_PROVEEDOR";
 
-        Map<String, Object> body = Map.of(
-                "username", ctx.request.security().username(),
-                "email", ctx.request.security().email(),
-                "password", ctx.request.security().password() != null ? ctx.request.security().password() : "",
-                "phone", ctx.request.security().phone(),
-                "codPhoneInternational", ctx.request.security().codPhoneInternational() != null ? ctx.request.security().codPhoneInternational() : "+57",
-                "roleName", roleName,
-                "isFederated", Boolean.TRUE.equals(ctx.request.isFederated())
-        );
+        Map<String, Object> body = new HashMap<>();
+        body.put("username", ctx.request.security().username());
+        body.put("email", ctx.request.security().email());
+        body.put("password", ctx.request.security().password() != null ? ctx.request.security().password() : "");
+        body.put("phone", ctx.request.security().phone());
+        body.put("codPhoneInternational", ctx.request.security().codPhoneInternational() != null ? ctx.request.security().codPhoneInternational() : "+57");
+        body.put("roleName", roleName);
+        body.put("isFederated", Boolean.TRUE.equals(ctx.request.isFederated()));
+        body.put("provider", ctx.request.federated() != null ? ctx.request.federated().provider() : null);
+        body.put("providerUserId", ctx.request.federated() != null ? ctx.request.federated().providerUserId() : null);
 
-        return webClient.post()
+        var reqSpec = webClient.post()
                 .uri(securityUrl + "/internal/users")
                 .header(HEADER_INTERNAL_KEY, internalServiceKey)
-                .header(HEADER_REQUEST_ID, ctx.correlationId)
+                .header(HEADER_REQUEST_ID, ctx.correlationId);
+
+        if (ctx.idempotencyKey != null && !ctx.idempotencyKey.isBlank()) {
+            reqSpec.header(HEADER_IDEMPOTENCY_KEY, ctx.idempotencyKey);
+        }
+
+        return reqSpec
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(body)
                 .retrieve()
@@ -153,10 +166,16 @@ public class SagaOrchestratorService {
                 "direccion", ctx.request.direccion()
         );
 
-        return webClient.post()
+        var reqSpec = webClient.post()
                 .uri(coreUrl + "/internal/perfiles")
                 .header(HEADER_INTERNAL_KEY, internalServiceKey)
-                .header(HEADER_REQUEST_ID, ctx.correlationId)
+                .header(HEADER_REQUEST_ID, ctx.correlationId);
+
+        if (ctx.idempotencyKey != null && !ctx.idempotencyKey.isBlank()) {
+            reqSpec.header(HEADER_IDEMPOTENCY_KEY, ctx.idempotencyKey);
+        }
+
+        return reqSpec
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(body)
                 .retrieve()
@@ -358,13 +377,26 @@ public class SagaOrchestratorService {
     }
 
     private <T> Mono<T> failWithSagaError(String step, boolean compensated, Throwable cause) {
+        HttpStatus status = HttpStatus.BAD_GATEWAY;
+        String message = "No se pudo completar el registro. Intenta de nuevo.";
+
+        if (cause instanceof WebClientResponseException wcre) {
+            if (wcre.getStatusCode().value() == HttpStatus.CONFLICT.value()) {
+                status = HttpStatus.CONFLICT;
+                message = "Ya existe una cuenta con estos datos, inicia sesión";
+            } else if (wcre.getStatusCode().value() == HttpStatus.BAD_REQUEST.value()) {
+                status = HttpStatus.BAD_REQUEST;
+                message = "Datos de registro inválidos. Verifica la información ingresada.";
+            }
+        }
+
         SagaErrorResponse err = new SagaErrorResponse(
                 "REGISTRATION_FAILED",
                 step,
                 compensated,
-                "No se pudo completar el registro. Intenta de nuevo."
+                message
         );
-        return Mono.error(new SagaException(HttpStatus.BAD_GATEWAY, err, cause));
+        return Mono.error(new SagaException(status, err, cause));
     }
 
     private OnboardingResponse buildResponse(SagaContext ctx) {
