@@ -44,9 +44,18 @@ spring:
           uri: ${DISPATCHER_SERVICE_URI:http://findu-notification-dispatcher.railway.internal:9000}
           predicates:
             - Path=/ws/events/**, /notification-dispatcher/**
+        - id: findu-validacion-route
+          uri: ${VALIDACION_SERVICE_URI:http://findu-validacion.railway.internal:8088}
+          predicates:
+            - Path=/findu-validacion/**
+
+findu:
+  services:
+    validacion-url: ${FINDU_VALIDACION_URL:http://findu-validacion.railway.internal:8088/findu-validacion}
 
 eureka:
   client:
     enabled: false
     register-with-eureka: false
     fetch-registry: false
+

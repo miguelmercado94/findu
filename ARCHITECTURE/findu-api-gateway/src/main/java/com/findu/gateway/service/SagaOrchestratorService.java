@@ -19,6 +19,7 @@ import reactor.core.publisher.Mono;
 import reactor.util.retry.Retry;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -47,6 +48,10 @@ public class SagaOrchestratorService {
 
     @Value("${findu.services.core-url:http://localhost:8082}")
     private String coreUrl;
+
+    @Value("${findu.services.validacion-url:http://localhost:8088/findu-validacion}")
+    private String validacionUrl;
+
 
     public SagaOrchestratorService(WebClient.Builder webClientBuilder,
                                    SagaPendingCompensationStore pendingCompensationStore,
@@ -100,7 +105,13 @@ public class SagaOrchestratorService {
                 // T6: security.issueTokens
                 .flatMap(ctx -> stepT6IssueTokens(ctx)
                         .onErrorResume(e -> compensateAfterT6(ctx, e)))
+                // Post-éxito: registrar validaciones pendientes en findu-validacion (best-effort, solo PROVEEDOR)
+                .flatMap(ctx -> {
+                    if (isCliente) return Mono.just(ctx);
+                    return stepRegisterValidationsBestEffort(ctx);
+                })
                 .map(this::buildResponse)
+
                 .doOnSuccess(res -> {
                     log.info("[Saga][{}] Saga successfully completed for userId={} perfilId={}",
                             correlationId, res.userId(), res.perfilId());
@@ -286,6 +297,71 @@ public class SagaOrchestratorService {
                     );
                     return ctx;
                 });
+    }
+
+    // --- PASO POST-ÉXITO (BEST-EFFORT): REGISTRO EN FINDU-VALIDACION ---
+    private Mono<SagaContext> stepRegisterValidationsBestEffort(SagaContext ctx) {
+        log.info("[Saga][{}] Registering passive validations in findu-validacion for userId={}",
+                ctx.correlationId, ctx.userId);
+
+        List<Map<String, Object>> evidences = new ArrayList<>();
+        if (ctx.request.biometria() != null) {
+            Map<String, Object> bioPayload = new HashMap<>();
+            bioPayload.put("intentada", ctx.request.biometria().intentada());
+            bioPayload.put("aprobada", ctx.request.biometria().aprobada());
+            bioPayload.put("faceMatchScore", ctx.request.biometria().faceMatchScore());
+            bioPayload.put("fotoFrontalUrl", ctx.request.biometria().fotoFrontalUrl());
+            bioPayload.put("cedulaNombre", ctx.request.biometria().cedulaNombre());
+            bioPayload.put("cedulaFechaNacimiento", ctx.request.biometria().cedulaFechaNacimiento());
+            evidences.add(Map.of("validationCode", "BIOMETRIC_FACIAL", "payload", bioPayload));
+        }
+        if (ctx.request.security() != null && ctx.request.security().email() != null) {
+            evidences.add(Map.of("validationCode", "EMAIL_VERIFICATION", "payload", Map.of("email", ctx.request.security().email())));
+        }
+
+        List<String> satisfied = new ArrayList<>();
+        satisfied.add("OTP_PHONE_SMS");
+        if (ctx.request.biometria() != null && Boolean.TRUE.equals(ctx.request.biometria().aprobada())) {
+            satisfied.add("BIOMETRIC_FACIAL");
+        }
+
+        Map<String, Object> body = Map.of(
+                "processCode", "ONBOARDING_PROVEEDOR",
+                "entityType", "USER",
+                "entityId", String.valueOf(ctx.userId),
+                "userId", ctx.userId,
+                "satisfied", satisfied,
+                "evidences", evidences
+        );
+
+        String endpointUri = buildValidacionEndpoint("/api/v1/validations/complete-process");
+
+        return webClient.post()
+                .uri(endpointUri)
+                .header(HEADER_INTERNAL_KEY, internalServiceKey)
+                .header(HEADER_REQUEST_ID, ctx.correlationId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(body)
+                .retrieve()
+                .toBodilessEntity()
+                .timeout(STEP_TIMEOUT)
+                .thenReturn(ctx)
+                .onErrorResume(e -> {
+                    log.warn("[Saga][{}] Failed to register passive validations in findu-validacion (best-effort, continuing): {}",
+                            ctx.correlationId, e.getMessage());
+                    return Mono.just(ctx);
+                });
+    }
+
+    private String buildValidacionEndpoint(String path) {
+        String base = validacionUrl != null ? validacionUrl.trim() : "http://localhost:8088/findu-validacion";
+        if (base.endsWith("/")) {
+            base = base.substring(0, base.length() - 1);
+        }
+        if (!base.endsWith("/findu-validacion")) {
+            base = base + "/findu-validacion";
+        }
+        return base + path;
     }
 
     // --- COMPENSACIONES ---

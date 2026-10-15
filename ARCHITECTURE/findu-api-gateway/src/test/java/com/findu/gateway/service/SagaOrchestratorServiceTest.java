@@ -92,6 +92,9 @@ class SagaOrchestratorServiceTest {
             if (method == HttpMethod.POST && path.contains("/tokens")) {
                 return Mono.just(jsonResponse(HttpStatus.OK, "{\"accessToken\": \"jwt_acc\", \"refreshToken\": \"jwt_ref\", \"tokenType\": \"Bearer\"}"));
             }
+            if (method == HttpMethod.POST && path.endsWith("/complete-process")) {
+                return Mono.just(jsonResponse(HttpStatus.OK, "{\"processCode\": \"ONBOARDING_PROVEEDOR\", \"pending\": [\"EMAIL_VERIFICATION\", \"BIOMETRIC_FACIAL\"], \"alertsEmitted\": 2}"));
+            }
             return Mono.just(jsonResponse(HttpStatus.NOT_FOUND, "{}"));
         };
 
@@ -112,6 +115,154 @@ class SagaOrchestratorServiceTest {
                 })
                 .verifyComplete();
     }
+
+    @Test
+    void executeSaga_callsFinduValidacionCompleteProcess_whenProveedor() {
+        AtomicInteger completeProcessCalls = new AtomicInteger(0);
+
+        ExchangeFunction exchangeFunction = request -> {
+            String path = request.url().getPath();
+            HttpMethod method = request.method();
+
+            if (method == HttpMethod.POST && path.endsWith("/internal/users")) {
+                return Mono.just(jsonResponse(HttpStatus.CREATED, "{\"userId\": 10}"));
+            }
+            if (method == HttpMethod.POST && path.endsWith("/internal/perfiles")) {
+                return Mono.just(jsonResponse(HttpStatus.CREATED, "{\"perfilId\": 20}"));
+            }
+            if (method == HttpMethod.POST && path.endsWith("/cobertura")) {
+                return Mono.just(jsonResponse(HttpStatus.OK, "{}"));
+            }
+            if (method == HttpMethod.POST && path.endsWith("/especialidades")) {
+                return Mono.just(jsonResponse(HttpStatus.OK, "{}"));
+            }
+            if (method == HttpMethod.POST && path.endsWith("/internal/activation/init")) {
+                return Mono.just(jsonResponse(HttpStatus.OK, "{\"estadoActivacion\": \"PENDIENTE_VALIDACIONES\"}"));
+            }
+            if (method == HttpMethod.POST && path.contains("/tokens")) {
+                return Mono.just(jsonResponse(HttpStatus.OK, "{\"accessToken\": \"jwt_acc\", \"refreshToken\": \"jwt_ref\", \"tokenType\": \"Bearer\"}"));
+            }
+            if (method == HttpMethod.POST && path.endsWith("/complete-process")) {
+                completeProcessCalls.incrementAndGet();
+                return Mono.just(jsonResponse(HttpStatus.OK, "{\"processCode\": \"ONBOARDING_PROVEEDOR\", \"pending\": [\"EMAIL_VERIFICATION\", \"BIOMETRIC_FACIAL\"], \"alertsEmitted\": 2}"));
+            }
+            return Mono.just(jsonResponse(HttpStatus.NOT_FOUND, "{}"));
+        };
+
+        WebClient.Builder builder = WebClient.builder().exchangeFunction(exchangeFunction);
+        when(otpValidationService.consumePhoneVerified(any(), any())).thenReturn(Mono.empty());
+
+        SagaOrchestratorService orchestrator = new SagaOrchestratorService(
+                builder, pendingCompensationStore, otpValidationService, circuitBreakerRegistry);
+
+        OnboardingRequest request = sampleRequest("PROVEEDOR");
+
+        StepVerifier.create(orchestrator.executeSaga(request, "req-val-1", "idemp-val-1"))
+                .assertNext(response -> {
+                    assertThat(response.userId()).isEqualTo(10L);
+                    assertThat(response.perfilId()).isEqualTo(20L);
+                })
+                .verifyComplete();
+
+        assertThat(completeProcessCalls.get()).isEqualTo(1);
+    }
+
+    @Test
+    void executeSaga_continuesWhenFinduValidacionFails_bestEffort() {
+        AtomicInteger completeProcessCalls = new AtomicInteger(0);
+
+        ExchangeFunction exchangeFunction = request -> {
+            String path = request.url().getPath();
+            HttpMethod method = request.method();
+
+            if (method == HttpMethod.POST && path.endsWith("/internal/users")) {
+                return Mono.just(jsonResponse(HttpStatus.CREATED, "{\"userId\": 10}"));
+            }
+            if (method == HttpMethod.POST && path.endsWith("/internal/perfiles")) {
+                return Mono.just(jsonResponse(HttpStatus.CREATED, "{\"perfilId\": 20}"));
+            }
+            if (method == HttpMethod.POST && path.endsWith("/cobertura")) {
+                return Mono.just(jsonResponse(HttpStatus.OK, "{}"));
+            }
+            if (method == HttpMethod.POST && path.endsWith("/especialidades")) {
+                return Mono.just(jsonResponse(HttpStatus.OK, "{}"));
+            }
+            if (method == HttpMethod.POST && path.endsWith("/internal/activation/init")) {
+                return Mono.just(jsonResponse(HttpStatus.OK, "{\"estadoActivacion\": \"PENDIENTE_VALIDACIONES\"}"));
+            }
+            if (method == HttpMethod.POST && path.contains("/tokens")) {
+                return Mono.just(jsonResponse(HttpStatus.OK, "{\"accessToken\": \"jwt_acc\", \"refreshToken\": \"jwt_ref\", \"tokenType\": \"Bearer\"}"));
+            }
+            if (method == HttpMethod.POST && path.endsWith("/complete-process")) {
+                completeProcessCalls.incrementAndGet();
+                // Falla 500 en findu-validacion
+                return Mono.just(jsonResponse(HttpStatus.INTERNAL_SERVER_ERROR, "{\"error\": \"db error\"}"));
+            }
+            return Mono.just(jsonResponse(HttpStatus.NOT_FOUND, "{}"));
+        };
+
+        WebClient.Builder builder = WebClient.builder().exchangeFunction(exchangeFunction);
+        when(otpValidationService.consumePhoneVerified(any(), any())).thenReturn(Mono.empty());
+
+        SagaOrchestratorService orchestrator = new SagaOrchestratorService(
+                builder, pendingCompensationStore, otpValidationService, circuitBreakerRegistry);
+
+        OnboardingRequest request = sampleRequest("PROVEEDOR");
+
+        // El registro sigue siendo exitoso porque el paso es best-effort y no compensa
+        StepVerifier.create(orchestrator.executeSaga(request, "req-val-fail", "idemp-val-fail"))
+                .assertNext(response -> {
+                    assertThat(response.userId()).isEqualTo(10L);
+                    assertThat(response.perfilId()).isEqualTo(20L);
+                })
+                .verifyComplete();
+
+        assertThat(completeProcessCalls.get()).isEqualTo(1);
+        verify(pendingCompensationStore, never()).savePendingCompensation(any());
+    }
+
+    @Test
+    void executeSaga_doesNotCallFinduValidacion_whenCliente() {
+        AtomicInteger completeProcessCalls = new AtomicInteger(0);
+
+        ExchangeFunction exchangeFunction = request -> {
+            String path = request.url().getPath();
+            HttpMethod method = request.method();
+
+            if (method == HttpMethod.POST && path.endsWith("/internal/users")) {
+                return Mono.just(jsonResponse(HttpStatus.CREATED, "{\"userId\": 5}"));
+            }
+            if (method == HttpMethod.POST && path.endsWith("/internal/perfiles")) {
+                return Mono.just(jsonResponse(HttpStatus.CREATED, "{\"perfilId\": 15}"));
+            }
+            if (method == HttpMethod.POST && path.contains("/tokens")) {
+                return Mono.just(jsonResponse(HttpStatus.OK, "{\"accessToken\": \"jwt_client\", \"refreshToken\": \"jwt_ref\", \"tokenType\": \"Bearer\"}"));
+            }
+            if (method == HttpMethod.POST && path.endsWith("/complete-process")) {
+                completeProcessCalls.incrementAndGet();
+                return Mono.just(jsonResponse(HttpStatus.OK, "{}"));
+            }
+            return Mono.just(jsonResponse(HttpStatus.NOT_FOUND, "{}"));
+        };
+
+        WebClient.Builder builder = WebClient.builder().exchangeFunction(exchangeFunction);
+        when(otpValidationService.consumePhoneVerified(any(), any())).thenReturn(Mono.empty());
+
+        SagaOrchestratorService orchestrator = new SagaOrchestratorService(
+                builder, pendingCompensationStore, otpValidationService, circuitBreakerRegistry);
+
+        OnboardingRequest request = sampleRequest("CLIENTE");
+
+        StepVerifier.create(orchestrator.executeSaga(request, "req-cli-1", "idemp-cli-1"))
+                .assertNext(response -> {
+                    assertThat(response.userId()).isEqualTo(5L);
+                    assertThat(response.perfilId()).isEqualTo(15L);
+                })
+                .verifyComplete();
+
+        assertThat(completeProcessCalls.get()).isEqualTo(0);
+    }
+
 
     @Test
     void executeSaga_failureInT2_triggersC1Compensation_success() {
@@ -279,4 +430,64 @@ class SagaOrchestratorServiceTest {
 
         assertThat(t1Called.get()).isEqualTo(1);
     }
+
+    @Test
+    void onboardingRequest_jacksonDeserialization_parsesFederatedFields() throws Exception {
+        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        String json = """
+                {
+                  "flowType": "PROVEEDOR",
+                  "isFederated": true,
+                  "federated": {
+                    "provider": "google",
+                    "providerUserId": "sub-google-456",
+                    "idToken": "token-xyz"
+                  },
+                  "security": {
+                    "username": "fed_user",
+                    "email": "fed@findu.com",
+                    "password": null,
+                    "phone": "3003763300",
+                    "codPhoneInternational": "+57",
+                    "phoneOtpVerified": true
+                  },
+                  "persona": {
+                    "nombreCompleto": "Fed User",
+                    "tipoDocumento": "CC",
+                    "numeroDocumento": "114000111",
+                    "fechaNacimiento": "1994-05-20",
+                    "sexo": "MASCULINO"
+                  },
+                  "direccion": {
+                    "municipioId": 149,
+                    "direccionTexto": "Cra 1 # 2-3",
+                    "lat": 10.98,
+                    "lng": -74.80
+                  },
+                  "cobertura": {
+                    "municipioIds": [149]
+                  },
+                  "especialidades": [
+                    {
+                      "servicioId": 12,
+                      "experienciaAnios": 5
+                    }
+                  ],
+                  "biometria": {
+                    "intentada": false,
+                    "aprobada": false,
+                    "faceMatchScore": 0.0
+                  },
+                  "idempotencyKey": "idemp-key-fed"
+                }
+                """;
+
+        OnboardingRequest req = mapper.readValue(json, OnboardingRequest.class);
+        System.out.println("DEBUG Jackson OnboardingRequest: isFederated=" + req.isFederated() + ", federated=" + req.federated());
+        assertThat(req.isFederated()).isTrue();
+        assertThat(req.federated()).isNotNull();
+        assertThat(req.federated().provider()).isEqualTo("google");
+        assertThat(req.federated().providerUserId()).isEqualTo("sub-google-456");
+    }
 }
+

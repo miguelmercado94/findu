@@ -46,6 +46,10 @@ spring:
           uri: lb://NOTIFICATION-DISPATCHER
           predicates:
             - Path=/ws/events/**, /notification-dispatcher/**
+        - id: findu-validacion-route
+          uri: ${FINDU_VALIDACION_ROUTE_URI:lb://FINDU-VALIDACION}
+          predicates:
+            - Path=/findu-validacion/**
 
   data:
     redis:
@@ -58,6 +62,8 @@ findu:
   services:
     security-url: ${FINDU_SECURITY_URL:http://localhost:8081/security-auth}
     core-url: ${FINDU_CORE_URL:http://localhost:8082/findu-core}
+    validacion-url: ${FINDU_VALIDACION_URL:http://localhost:8088/findu-validacion}
+
 
 resilience4j:
   circuitbreaker:
