@@ -1,0 +1,16 @@
+server:
+  port: 8088
+
+spring:
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/findu_validacion
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: findu
+    password: findu
+
+logging:
+  level:
+    com.findu.validacion: DEBUG

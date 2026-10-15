@@ -581,6 +581,59 @@ services:
       retries: 10
       start_period: 60s
 
+  # ─────────────────────────────────────────────────────────────────────
+  # MOTOR DE VALIDACIONES Y CATÁLOGO DE ENDPOINTS
+  # ─────────────────────────────────────────────────────────────────────
+
+  mongo-validacion:
+    image: mongo:7-jammy
+    container_name: findu-mongo-validacion
+    networks:
+      - findu-internal
+    volumes:
+      - findu-mongo-validacion-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 15s
+      retries: 5
+      start_period: 10s
+
+  findu-validacion:
+    build:
+      context: ./CORE/findu-validacion
+      dockerfile: Dockerfile
+    container_name: findu-validacion
+    hostname: findu-validacion
+    depends_on:
+      findu-eureka-server:
+        condition: service_healthy
+      findu-config:
+        condition: service_healthy
+      mongo-validacion:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - findu-internal
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      SPRING_CLOUD_CONFIG_URI: http://findu-config:8888
+      SPRING_DATA_MONGODB_URI: mongodb://mongo-validacion:27017/findu_validacion
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USERNAME: findu
+      RABBITMQ_PASSWORD: findu
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://findu-eureka-server:8761/eureka/
+      EUREKA_INSTANCE_PREFER_IP_ADDRESS: "false"
+      EUREKA_INSTANCE_HOSTNAME: findu-validacion
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8088/findu-validacion/actuator/health || exit 0"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
 # ─────────────────────────────────────────────────────────────────────
 # REDES Y VOLÚMENES
 # ─────────────────────────────────────────────────────────────────────
@@ -595,3 +648,5 @@ volumes:
   findu-pg-core-data:
   findu-pg-transaction-data:
   findu-mongo-help-data:
+  findu-mongo-validacion-data:
+
