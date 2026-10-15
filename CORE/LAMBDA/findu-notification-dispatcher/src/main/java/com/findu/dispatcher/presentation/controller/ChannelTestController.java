@@ -35,6 +35,7 @@ public class ChannelTestController {
             String targetUserId,
             String emisorId,
             TipoEventoCanal tipoEvento,
+            EventType eventType,
             Object contenido
     ) {}
 
@@ -56,8 +57,9 @@ public class ChannelTestController {
 
     @PostMapping("/simular-evento")
     public Mono<ResponseEntity<String>> simularEvento(@RequestBody SimularEventoRequest request) {
+        EventType tipo = request.eventType() != null ? request.eventType() : EventType.CHAT_MESSAGE;
         EventEnvelope<Object> envelope = EventEnvelope.of(
-                EventType.CHAT_MESSAGE,
+                tipo,
                 request.targetUserId(),
                 request.contenido()
         );

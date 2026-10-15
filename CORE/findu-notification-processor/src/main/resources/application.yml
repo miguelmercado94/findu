@@ -33,6 +33,7 @@ findu:
       email: findu.notifications.correo
       sms: findu.notifications.celular
       whatsapp: findu.notifications.whatsapp
+      alerts: findu.notifications.alerts
     templates:
       table: ${DYNAMODB_TEMPLATES_TABLE:notification_templates}
     firebase:
