@@ -1,6 +1,8 @@
 package com.findu.notification.processor.config;
 
 import org.springframework.amqp.core.*;
+import org.springframework.amqp.support.converter.DefaultJackson2JavaTypeMapper;
+import org.springframework.amqp.support.converter.Jackson2JavaTypeMapper;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -107,6 +109,17 @@ public class RabbitMqConfig {
 
     @Bean
     public Jackson2JsonMessageConverter jsonMessageConverter() {
-        return new Jackson2JsonMessageConverter();
+        Jackson2JsonMessageConverter converter = new Jackson2JsonMessageConverter();
+        DefaultJackson2JavaTypeMapper mapper = new DefaultJackson2JavaTypeMapper() {
+            @Override
+            protected String retrieveHeaderAsString(MessageProperties properties, String headerName) {
+                return null;
+            }
+        };
+        mapper.setTypePrecedence(Jackson2JavaTypeMapper.TypePrecedence.INFERRED);
+        mapper.setTrustedPackages("*");
+        converter.setJavaTypeMapper(mapper);
+        converter.setClassMapper(null);
+        return converter;
     }
 }

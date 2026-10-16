@@ -5,6 +5,7 @@ import com.findu.notification.processor.application.dto.event.PendingValidationA
 import com.findu.notification.processor.application.dto.event.ValidationResolvedEvent;
 import com.findu.notification.processor.application.port.in.ResolveTemplateUseCase;
 import com.findu.notification.processor.application.port.out.AlertEventPublisherPort;
+import com.findu.notification.processor.config.RabbitMqConfig;
 import com.findu.notification.processor.domain.enums.AlertCategory;
 import com.findu.notification.processor.domain.enums.TemplateType;
 import com.findu.notification.processor.domain.model.AlertMeta;
@@ -18,12 +19,14 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageProperties;
+import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -200,5 +203,38 @@ class AlertNotificationServiceTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> payload = (Map<String, Object>) captured.payload();
         assertThat(payload.get("action")).isEqualTo("ALERT_DISMISSED");
+    }
+
+    @Test
+    @DisplayName("jsonMessageConverter y AlertEventConsumer ignoran header __TypeId__ de clase inexistente del productor")
+    void converter_and_consumer_ignoreForeignTypeIdHeader() throws Exception {
+        ValidationResolvedEvent resolvedEvent = new ValidationResolvedEvent(
+                "evt-amqp-foreign-type",
+                99L,
+                "BIOMETRIA",
+                "uuid-foreign-1",
+                "APPROVED"
+        );
+
+        String json = objectMapper.writeValueAsString(resolvedEvent);
+        MessageProperties props = new MessageProperties();
+        props.setContentType(MessageProperties.CONTENT_TYPE_JSON);
+        props.setReceivedRoutingKey("alert.resolved");
+        props.setHeader("__TypeId__", "com.findu.validacion.application.dto.event.ValidationResolvedEvent");
+        Message message = new Message(json.getBytes(StandardCharsets.UTF_8), props);
+
+        Jackson2JsonMessageConverter converter = new RabbitMqConfig().jsonMessageConverter();
+
+        assertThatCode(() -> {
+            Object converted = converter.fromMessage(message);
+            assertThat(converted).isNotNull();
+        }).doesNotThrowAnyException();
+
+        consumer.consumeAlertMessage(message);
+
+        ArgumentCaptor<EventEnvelope<?>> captor = ArgumentCaptor.forClass(EventEnvelope.class);
+        verify(alertEventPublisherPort).publish(captor.capture());
+        assertThat(captor.getValue().eventId()).isEqualTo("evt-amqp-foreign-type");
+        assertThat(captor.getValue().targetUserId()).isEqualTo("PROVEEDOR_99");
     }
 }
