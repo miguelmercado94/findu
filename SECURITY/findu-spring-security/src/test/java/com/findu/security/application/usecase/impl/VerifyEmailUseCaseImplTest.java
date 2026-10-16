@@ -1,5 +1,6 @@
 package com.findu.security.application.usecase.impl;
 
+import com.findu.security.application.port.output.externalapi.ValidacionResolvePort;
 import com.findu.security.application.port.output.persistence.EmailVerificationTokenRepositoryPort;
 import com.findu.security.application.port.output.persistence.ProviderActivationRepositoryPort;
 import com.findu.security.application.service.UsuarioService;
@@ -36,13 +37,15 @@ class VerifyEmailUseCaseImplTest {
     private ProviderActivationRepositoryPort activationRepository;
     @Mock
     private ActivationProgressService activationProgressService;
+    @Mock
+    private ValidacionResolvePort validacionResolvePort;
 
     private VerifyEmailUseCaseImpl useCase;
 
     @BeforeEach
     void setUp() {
         useCase = new VerifyEmailUseCaseImpl(tokenRepository, usuarioService,
-                activationRepository, activationProgressService);
+                activationRepository, activationProgressService, validacionResolvePort);
     }
 
     @Test
@@ -107,6 +110,8 @@ class VerifyEmailUseCaseImplTest {
         activation.setUserId(10L);
         when(activationRepository.upsertValidation(eq(10L), any(), any(), any())).thenReturn(Mono.just(activation));
         when(activationProgressService.recompute(10L)).thenReturn(Mono.just(activation));
+        when(validacionResolvePort.markPassed(10L, "EMAIL_VERIFICATION", "auto:email-verified"))
+                .thenReturn(Mono.empty());
 
         StepVerifier.create(useCase.verify("tok"))
                 .expectNext(true)
@@ -114,5 +119,6 @@ class VerifyEmailUseCaseImplTest {
 
         verify(usuarioService).save(any());
         verify(activationProgressService).recompute(10L);
+        verify(validacionResolvePort).markPassed(10L, "EMAIL_VERIFICATION", "auto:email-verified");
     }
 }

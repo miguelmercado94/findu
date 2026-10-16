@@ -1,6 +1,7 @@
 package com.findu.security.application.usecase.impl;
 
 import com.findu.security.application.port.output.externalapi.CorePerfilPort;
+import com.findu.security.application.port.output.externalapi.ValidacionResolvePort;
 import com.findu.security.application.port.output.persistence.ProviderActivationRepositoryPort;
 import com.findu.security.application.service.AuthenticatedUserResolver;
 import com.findu.security.application.usecase.ActivationProgressService;
@@ -39,13 +40,15 @@ class SubmitBiometricUseCaseImplTest {
     private ProviderActivationRepositoryPort activationRepository;
     @Mock
     private ActivationProgressService activationProgressService;
+    @Mock
+    private ValidacionResolvePort validacionResolvePort;
 
     private SubmitBiometricUseCaseImpl useCase;
 
     @BeforeEach
     void setUp() {
         useCase = new SubmitBiometricUseCaseImpl(authenticatedUserResolver, corePerfilPort,
-                activationRepository, activationProgressService);
+                activationRepository, activationProgressService, validacionResolvePort);
     }
 
     private Usuario user() {
@@ -104,6 +107,7 @@ class SubmitBiometricUseCaseImplTest {
                 .verifyComplete();
 
         verify(activationProgressService, never()).recompute(anyLong());
+        verify(validacionResolvePort, never()).markPassed(anyLong(), any(), any());
     }
 
     @Test
@@ -117,6 +121,8 @@ class SubmitBiometricUseCaseImplTest {
         StepVerifier.create(useCase.submit(request("Carlos Mendoza", "1994-11-01", true)))
                 .expectNextMatches(r -> !r.biometriaOk() && "fecha_no_coincide".equals(r.motivo()))
                 .verifyComplete();
+
+        verify(validacionResolvePort, never()).markPassed(anyLong(), any(), any());
     }
 
     @Test
@@ -130,6 +136,8 @@ class SubmitBiometricUseCaseImplTest {
         StepVerifier.create(useCase.submit(request("Carlos Mendoza", "1994-11-01", false)))
                 .expectNextMatches(r -> !r.biometriaOk() && "rostro_no_coincide".equals(r.motivo()))
                 .verifyComplete();
+
+        verify(validacionResolvePort, never()).markPassed(anyLong(), any(), any());
     }
 
     @Test
@@ -146,6 +154,8 @@ class SubmitBiometricUseCaseImplTest {
         result.setEstado(ProviderActivationState.EN_REVISION_SOPORTE);
         result.setBiometriaOk(true);
         when(activationProgressService.recompute(42L)).thenReturn(Mono.just(result));
+        when(validacionResolvePort.markPassed(42L, "BIOMETRIC_FACIAL", "auto:biometric-passed"))
+                .thenReturn(Mono.empty());
 
         StepVerifier.create(useCase.submit(request("jose pena", "1994-11-01", true)))
                 .expectNextMatches(r -> r.biometriaOk() && r.motivo() == null)
@@ -153,5 +163,6 @@ class SubmitBiometricUseCaseImplTest {
 
         verify(corePerfilPort).pushProfilePhoto(eq(7L), any(), eq("https://cdn.findu.example/frontal.jpg"));
         verify(activationProgressService).recompute(42L);
+        verify(validacionResolvePort).markPassed(42L, "BIOMETRIC_FACIAL", "auto:biometric-passed");
     }
 }

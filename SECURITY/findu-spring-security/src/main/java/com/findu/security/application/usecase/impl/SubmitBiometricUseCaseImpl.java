@@ -1,6 +1,7 @@
 package com.findu.security.application.usecase.impl;
 
 import com.findu.security.application.port.output.externalapi.CorePerfilPort;
+import com.findu.security.application.port.output.externalapi.ValidacionResolvePort;
 import com.findu.security.application.port.output.persistence.ProviderActivationRepositoryPort;
 import com.findu.security.application.service.AuthenticatedUserResolver;
 import com.findu.security.application.usecase.ActivationProgressService;
@@ -35,20 +36,25 @@ public class SubmitBiometricUseCaseImpl implements SubmitBiometricUseCase {
     private static final String MOTIVO_NOMBRE = "nombre_no_coincide";
     private static final String MOTIVO_FECHA = "fecha_no_coincide";
     private static final String MOTIVO_ROSTRO = "rostro_no_coincide";
+    private static final String VALIDATION_CODE_BIOMETRIC = "BIOMETRIC_FACIAL";
+    private static final String NOTA_BIOMETRIC_PASSED = "auto:biometric-passed";
 
     private final AuthenticatedUserResolver authenticatedUserResolver;
     private final CorePerfilPort corePerfilPort;
     private final ProviderActivationRepositoryPort activationRepository;
     private final ActivationProgressService activationProgressService;
+    private final ValidacionResolvePort validacionResolvePort;
 
     public SubmitBiometricUseCaseImpl(AuthenticatedUserResolver authenticatedUserResolver,
                                       CorePerfilPort corePerfilPort,
                                       ProviderActivationRepositoryPort activationRepository,
-                                      ActivationProgressService activationProgressService) {
+                                      ActivationProgressService activationProgressService,
+                                      ValidacionResolvePort validacionResolvePort) {
         this.authenticatedUserResolver = authenticatedUserResolver;
         this.corePerfilPort = corePerfilPort;
         this.activationRepository = activationRepository;
         this.activationProgressService = activationProgressService;
+        this.validacionResolvePort = validacionResolvePort;
     }
 
     @Override
@@ -85,7 +91,7 @@ public class SubmitBiometricUseCaseImpl implements SubmitBiometricUseCase {
             return businessRejection(userId, MOTIVO_ROSTRO);
         }
 
-        // Éxito: captura OK (write-once foto), marca biometria_ok, propaga foto best-effort, recomputa.
+        // Éxito: captura OK (write-once foto), marca biometria_ok, propaga foto best-effort, recomputa y avisa a findu-validacion.
         return activationRepository.insertBiometricCapture(userId, request.cedulaNombre(), fechaRequest,
                         request.faceMatchScore(), request.fotoFrontalUrl(), ValidationState.OK)
                 .flatMap(fotoVigente -> activationRepository
@@ -97,6 +103,13 @@ public class SubmitBiometricUseCaseImpl implements SubmitBiometricUseCase {
                                     return Mono.empty();
                                 }))
                         .then(activationProgressService.recompute(userId)))
+                .flatMap(activation -> validacionResolvePort.markPassed(userId, VALIDATION_CODE_BIOMETRIC, NOTA_BIOMETRIC_PASSED)
+                        .onErrorResume(e -> {
+                            log.warn("Resolución de validación biométrica en findu-validacion falló (userId={}, best-effort): {}",
+                                    userId, e.getMessage());
+                            return Mono.empty();
+                        })
+                        .thenReturn(activation))
                 .map(ActivationStatusResponse::from);
     }
 

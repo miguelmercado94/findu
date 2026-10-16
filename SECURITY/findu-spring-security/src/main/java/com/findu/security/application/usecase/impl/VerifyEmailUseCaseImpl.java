@@ -1,5 +1,6 @@
 package com.findu.security.application.usecase.impl;
 
+import com.findu.security.application.port.output.externalapi.ValidacionResolvePort;
 import com.findu.security.application.port.output.persistence.EmailVerificationTokenRepositoryPort;
 import com.findu.security.application.port.output.persistence.ProviderActivationRepositoryPort;
 import com.findu.security.application.service.UsuarioService;
@@ -24,20 +25,25 @@ public class VerifyEmailUseCaseImpl implements VerifyEmailUseCase {
     private static final Logger log = LoggerFactory.getLogger(VerifyEmailUseCaseImpl.class);
     private static final String STATUS_PENDING_EMAIL = "PENDING_EMAIL_VERIFICATION";
     private static final String STATUS_DOCUMENTS_PENDING = "DOCUMENTS_PENDING";
+    private static final String VALIDATION_CODE_EMAIL = "EMAIL_VERIFICATION";
+    private static final String NOTA_EMAIL_VERIFIED = "auto:email-verified";
 
     private final EmailVerificationTokenRepositoryPort tokenRepository;
     private final UsuarioService usuarioService;
     private final ProviderActivationRepositoryPort activationRepository;
     private final ActivationProgressService activationProgressService;
+    private final ValidacionResolvePort validacionResolvePort;
 
     public VerifyEmailUseCaseImpl(EmailVerificationTokenRepositoryPort tokenRepository,
                                   UsuarioService usuarioService,
                                   ProviderActivationRepositoryPort activationRepository,
-                                  ActivationProgressService activationProgressService) {
+                                  ActivationProgressService activationProgressService,
+                                  ValidacionResolvePort validacionResolvePort) {
         this.tokenRepository = tokenRepository;
         this.usuarioService = usuarioService;
         this.activationRepository = activationRepository;
         this.activationProgressService = activationProgressService;
+        this.validacionResolvePort = validacionResolvePort;
     }
 
     @Override
@@ -74,12 +80,14 @@ public class VerifyEmailUseCaseImpl implements VerifyEmailUseCase {
     }
 
     /**
-     * Marca la validación EMAIL como OK (fila versionada) y recomputa el estado de activación.
+     * Marca la validación EMAIL como OK (fila versionada), recomputa el estado de activación
+     * y notifica a findu-validacion (PASSED) para desactivar la alerta en vivo.
      * No-fatal: un fallo aquí no revierte la verificación de correo ya persistida.
      */
     private Mono<Void> markEmailOkAndRecompute(Long userId) {
         return activationRepository.upsertValidation(userId, ValidationType.EMAIL, ValidationState.OK, null)
                 .then(activationProgressService.recompute(userId))
+                .then(validacionResolvePort.markPassed(userId, VALIDATION_CODE_EMAIL, NOTA_EMAIL_VERIFIED))
                 .onErrorResume(e -> {
                     log.warn("No se pudo recomputar activación tras verificar correo (userId={}): {}",
                             userId, e.getMessage());

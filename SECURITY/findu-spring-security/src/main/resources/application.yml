@@ -88,3 +88,7 @@ findu:
       base-url: ${FINDU_ACTIVATION_HELP_BASE_URL:http://localhost:8080}
       tickets-path: ${FINDU_ACTIVATION_HELP_TICKETS_PATH:/findu-help-v2/api/v1/help/tickets}
     retry-interval-ms: ${FINDU_ACTIVATION_RETRY_INTERVAL_MS:900000}
+  validacion:
+    base-url: ${FINDU_VALIDACION_BASE_URL:http://localhost:8080}
+    resolve-path: ${FINDU_VALIDACION_RESOLVE_PATH:/findu-validacion/api/v1/validations/support/resolve}
+
