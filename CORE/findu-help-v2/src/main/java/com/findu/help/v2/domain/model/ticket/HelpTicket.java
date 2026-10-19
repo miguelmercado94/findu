@@ -125,7 +125,11 @@ public class HelpTicket {
                 requester.getUserId(),
                 requester.getUserRole(),
                 solicitudId,
-                ticket.priority
+                ticket.priority,
+                ticket.categoryName,
+                ticket.subcategoryName,
+                ticket.subject,
+                ticket.description
         ));
 
         return ticket;
@@ -216,7 +220,9 @@ public class HelpTicket {
                 this.ticketCode.getValue(),
                 agent.getAgentId(),
                 agent.getName(),
-                agent.getEmail()
+                agent.getEmail(),
+                this.requester.getUserId(),
+                this.requester.getUserRole()
         ));
     }
 
@@ -243,7 +249,10 @@ public class HelpTicket {
                 senderType,
                 senderName,
                 content,
-                isInternalNote
+                isInternalNote,
+                this.requester.getUserId(),
+                this.requester.getUserRole(),
+                this.assignedAgent != null ? this.assignedAgent.getAgentId() : null
         ));
 
         return message;

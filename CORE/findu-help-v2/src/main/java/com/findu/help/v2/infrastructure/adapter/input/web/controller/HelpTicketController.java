@@ -34,7 +34,7 @@ import java.util.List;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/v1/help/tickets")
+@RequestMapping({"/api/v1/help/tickets", "/api/v1/tickets"})
 @RequiredArgsConstructor
 public class HelpTicketController {
 

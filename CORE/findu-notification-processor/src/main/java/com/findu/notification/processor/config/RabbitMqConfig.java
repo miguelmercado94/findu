@@ -32,6 +32,15 @@ public class RabbitMqConfig {
     @Value("${findu.rabbitmq.exchanges.events:findu.events.exchange}")
     private String eventsExchange;
 
+    @Value("${findu.rabbitmq.queues.fallback:findu.notifications.fallback.queue}")
+    private String fallbackQueue;
+
+    @Value("${findu.rabbitmq.exchanges.fallback:findu.notifications.fallback.exchange}")
+    private String fallbackExchange;
+
+    @Value("${findu.rabbitmq.routing-keys.fallback:findu.fallback.notification}")
+    private String fallbackRoutingKey;
+
     @Bean
     public TopicExchange notificationExchange() {
         return new TopicExchange(exchange, true, false);
@@ -105,6 +114,21 @@ public class RabbitMqConfig {
     @Bean
     public Binding alertResolvedBinding() {
         return BindingBuilder.bind(alertsQueue()).to(notificationExchange()).with("alert.resolved");
+    }
+
+    @Bean
+    public DirectExchange fallbackExchange() {
+        return new DirectExchange(fallbackExchange, true, false);
+    }
+
+    @Bean
+    public Queue fallbackQueue() {
+        return QueueBuilder.durable(fallbackQueue).build();
+    }
+
+    @Bean
+    public Binding fallbackBinding() {
+        return BindingBuilder.bind(fallbackQueue()).to(fallbackExchange()).with(fallbackRoutingKey);
     }
 
     @Bean

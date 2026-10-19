@@ -20,6 +20,25 @@ public class PushNotificationTemplate extends AbstractNotificationTemplate {
     @Override protected String resolveRecipient(NotificationMessage message) { return message.getRecipient(); }
 
     @Override
+    protected String buildSubject(NotificationMessage message) {
+        if ("TICKET_MESSAGE_RECEIVED".equalsIgnoreCase(message.getTemplateCode()) && message.getParams() != null) {
+            String ticketCode = message.getParams().getOrDefault("ticketCode", "");
+            return "Soporte FindU - Ticket #" + ticketCode;
+        }
+        return super.buildSubject(message);
+    }
+
+    @Override
+    protected String buildBody(NotificationMessage message) {
+        if ("TICKET_MESSAGE_RECEIVED".equalsIgnoreCase(message.getTemplateCode()) && message.getParams() != null) {
+            String senderName = message.getParams().getOrDefault("senderName", "Soporte FindU");
+            String msg = message.getParams().getOrDefault("mensaje", "");
+            return senderName + ": " + msg;
+        }
+        return super.buildBody(message);
+    }
+
+    @Override
     protected NotificationResult doSend(String recipient, String subject, String body, Map<String, String> metadata) {
         // requiresConnection: si true, enviar via WebSocket/SSE (real-time); si false, via FCM directo al dispositivo
         boolean realTime = metadata != null && "true".equals(metadata.get("requiresConnection"));

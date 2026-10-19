@@ -3,6 +3,8 @@ package com.findu.help.v2.infrastructure.adapter.input.web.mapper;
 import com.findu.help.v2.application.port.in.command.AddTicketMessageCommand;
 import com.findu.help.v2.application.port.in.command.ChangeTicketStatusCommand;
 import com.findu.help.v2.application.port.in.command.CreateTicketCommand;
+import com.findu.help.v2.domain.model.category.HelpCategory;
+import com.findu.help.v2.domain.model.category.HelpSubcategory;
 import com.findu.help.v2.domain.model.ticket.*;
 import com.findu.help.v2.domain.valueobject.*;
 import com.findu.help.v2.infrastructure.adapter.input.web.dto.request.AddTicketMessageRequest;
@@ -92,4 +94,10 @@ public interface HelpTicketWebMapper {
     List<HelpTicketResponse> toResponseList(List<HelpTicket> tickets);
 
     List<TicketMessageResponse> toMessageResponseList(List<TicketMessage> messages);
+
+    HelpCategoryResponse toResponse(HelpCategory category);
+
+    HelpSubcategoryResponse toResponse(HelpSubcategory subcategory);
+
+    List<HelpCategoryResponse> toCategoryResponseList(List<HelpCategory> categories);
 }

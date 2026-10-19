@@ -14,16 +14,30 @@ public class TicketCreatedEvent implements DomainEvent {
     private final UserRole userRole;
     private final Long solicitudId;
     private final PriorityLevel priority;
+    private final String categoryName;
+    private final String subcategoryName;
+    private final String subject;
+    private final String description;
     private final Instant occurredOn;
 
-    public TicketCreatedEvent(String ticketId, String ticketCode, Long userId, UserRole userRole, Long solicitudId, PriorityLevel priority) {
+    public TicketCreatedEvent(String ticketId, String ticketCode, Long userId, UserRole userRole,
+                              Long solicitudId, PriorityLevel priority,
+                              String categoryName, String subcategoryName, String subject, String description) {
         this.ticketId = ticketId;
         this.ticketCode = ticketCode;
         this.userId = userId;
         this.userRole = userRole;
         this.solicitudId = solicitudId;
         this.priority = priority;
+        this.categoryName = categoryName;
+        this.subcategoryName = subcategoryName;
+        this.subject = subject;
+        this.description = description;
         this.occurredOn = Instant.now();
+    }
+
+    public TicketCreatedEvent(String ticketId, String ticketCode, Long userId, UserRole userRole, Long solicitudId, PriorityLevel priority) {
+        this(ticketId, ticketCode, userId, userRole, solicitudId, priority, "", "", "", "");
     }
 
     @Override

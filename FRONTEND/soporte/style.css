@@ -229,10 +229,42 @@ body {
   text-transform: uppercase;
 }
 
-.badge-open { background: rgba(245, 158, 11, 0.2); color: var(--status-open); }
-.badge-in_progress { background: rgba(59, 130, 246, 0.2); color: var(--status-progress); }
-.badge-resolved { background: rgba(16, 185, 129, 0.2); color: var(--status-resolved); }
-.badge-closed { background: rgba(100, 116, 139, 0.2); color: var(--status-closed); }
+.badge-open, .badge-abierto { background: rgba(245, 158, 11, 0.2); color: var(--status-open); }
+.badge-in_progress, .badge-asignado { background: rgba(59, 130, 246, 0.2); color: var(--status-progress); }
+.badge-resolved, .badge-resuelto { background: rgba(16, 185, 129, 0.2); color: var(--status-resolved); }
+.badge-closed, .badge-cerrado { background: rgba(100, 116, 139, 0.2); color: var(--status-closed); }
+
+.btn-take-ticket {
+  background: #10b981;
+  color: #fff;
+  border: none;
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: background 0.15s ease;
+}
+.btn-take-ticket:hover { background: #059669; }
+
+.chat-attachments-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.chat-attachment-thumb {
+  max-width: 140px;
+  max-height: 100px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  object-fit: cover;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+.chat-attachment-thumb:hover {
+  transform: scale(1.05);
+}
 
 .ticket-subject {
   font-size: 0.95rem;
