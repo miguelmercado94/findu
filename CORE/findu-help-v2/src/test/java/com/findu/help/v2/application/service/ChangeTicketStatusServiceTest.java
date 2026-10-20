@@ -74,4 +74,96 @@ class ChangeTicketStatusServiceTest {
         verify(helpTicketRepository, times(1)).save(any(HelpTicket.class));
         verify(realtimeEventPublisher, times(1)).publishRealtime(any(DomainEvent.class));
     }
+
+    @Test
+    @DisplayName("Debe fallar al asignar ticket si falta el agente de soporte")
+    void execute_AssignAgent_FailsWithoutAgent() {
+        when(helpTicketRepository.findByTicketCode(any(TicketCode.class))).thenReturn(Optional.of(sampleTicket));
+
+        ChangeTicketStatusCommand command = ChangeTicketStatusCommand.builder()
+                .ticketReference(sampleTicket.getTicketCode().getValue())
+                .newStatus(TicketStatus.ASIGNADO)
+                .assignedAgent(null)
+                .build();
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> changeTicketStatusService.execute(command))
+                .isInstanceOf(com.findu.help.v2.domain.exception.TicketBusinessException.class)
+                .hasMessageContaining("agente de soporte");
+    }
+
+    @Test
+    @DisplayName("Debe resolver ticket cuando está en ASIGNADO y publicar evento con detalles")
+    void execute_Resolve_Success() {
+        sampleTicket.assignTo(new AssignedAgent(200L, "Soporte Maria", "maria@findu.com"));
+        sampleTicket.pullUncommittedEvents();
+
+        when(helpTicketRepository.findByTicketCode(any(TicketCode.class))).thenReturn(Optional.of(sampleTicket));
+        when(helpTicketRepository.save(any(HelpTicket.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ChangeTicketStatusCommand command = ChangeTicketStatusCommand.builder()
+                .ticketReference(sampleTicket.getTicketCode().getValue())
+                .newStatus(TicketStatus.RESUELTO)
+                .reason("Problema de conexión corregido")
+                .build();
+
+        HelpTicket updated = changeTicketStatusService.execute(command);
+
+        assertThat(updated.getStatus()).isEqualTo(TicketStatus.RESUELTO);
+        assertThat(updated.getResolution()).isNotNull();
+        assertThat(updated.getResolution().getAgentNotes()).isEqualTo("Problema de conexión corregido");
+
+        verify(realtimeEventPublisher, times(1)).publishRealtime(any(DomainEvent.class));
+    }
+
+    @Test
+    @DisplayName("Debe reabrir el ticket desde RESUELTO hacia ASIGNADO")
+    void execute_Reopen_FromResueltoToAssigned() {
+        sampleTicket.assignTo(new AssignedAgent(200L, "Soporte Maria", "maria@findu.com"));
+        sampleTicket.resolve(null, null, "Solución preliminar");
+        sampleTicket.pullUncommittedEvents();
+
+        when(helpTicketRepository.findByTicketCode(any(TicketCode.class))).thenReturn(Optional.of(sampleTicket));
+        when(helpTicketRepository.save(any(HelpTicket.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ChangeTicketStatusCommand command = ChangeTicketStatusCommand.builder()
+                .ticketReference(sampleTicket.getTicketCode().getValue())
+                .newStatus(TicketStatus.ASIGNADO)
+                .reason("Reapertura solicitada")
+                .build();
+
+        HelpTicket updated = changeTicketStatusService.execute(command);
+
+        assertThat(updated.getStatus()).isEqualTo(TicketStatus.ASIGNADO);
+        verify(realtimeEventPublisher, times(1)).publishRealtime(any(DomainEvent.class));
+    }
+
+    @Test
+    @DisplayName("Debe cerrar el ticket definitivamente y bloquear transiciones posteriores")
+    void execute_Close_AndBlockFurtherTransitions() {
+        sampleTicket.assignTo(new AssignedAgent(200L, "Soporte Maria", "maria@findu.com"));
+        sampleTicket.resolve(null, null, "Solución");
+        sampleTicket.pullUncommittedEvents();
+
+        when(helpTicketRepository.findByTicketCode(any(TicketCode.class))).thenReturn(Optional.of(sampleTicket));
+        when(helpTicketRepository.save(any(HelpTicket.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ChangeTicketStatusCommand closeCommand = ChangeTicketStatusCommand.builder()
+                .ticketReference(sampleTicket.getTicketCode().getValue())
+                .newStatus(TicketStatus.CERRADO)
+                .reason("Cierre definitivo")
+                .build();
+
+        HelpTicket closed = changeTicketStatusService.execute(closeCommand);
+        assertThat(closed.getStatus()).isEqualTo(TicketStatus.CERRADO);
+
+        // Intento de cambio posterior en ticket cerrado
+        ChangeTicketStatusCommand invalidCommand = ChangeTicketStatusCommand.builder()
+                .ticketReference(sampleTicket.getTicketCode().getValue())
+                .newStatus(TicketStatus.ASIGNADO)
+                .build();
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> changeTicketStatusService.execute(invalidCommand))
+                .isInstanceOf(com.findu.help.v2.domain.exception.TicketBusinessException.class)
+                .hasMessageContaining("CERRADO");
+    }
 }

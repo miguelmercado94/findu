@@ -32,5 +32,9 @@ public class CreateTicketRequest {
     @NotBlank(message = "La descripción es obligatoria")
     private String description;
 
+    private String userName;
+    private String requesterName;
+    private String userEmail;
+
     private LocationRequest location;
 }

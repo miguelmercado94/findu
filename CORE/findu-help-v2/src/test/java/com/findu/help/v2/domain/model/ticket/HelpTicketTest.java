@@ -101,26 +101,46 @@ class HelpTicketTest {
     }
 
     @Test
-    @DisplayName("Debe fallar al asignar si el ticket no está en estado ABIERTO")
-    void assignTo_Fails_IfNotAbierto() {
+    @DisplayName("Debe fallar al asignar si los datos del agente son inválidos o nulos")
+    void assignTo_Fails_IfAgentIsInvalid() {
         HelpTicket ticket = HelpTicket.create(
                 createSampleRequester(), 500L, "sub-123", "Cat", "Sub", PriorityLevel.MEDIA, "Subject", "Description", createSampleLocation(), Collections.emptyList(), null
         );
-        AssignedAgent agent = new AssignedAgent(200L, "Soporte Maria", "maria@findu.com");
-        ticket.assignTo(agent);
 
-        // Ya está ASIGNADO
-        assertThatThrownBy(() -> ticket.assignTo(agent))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Solo se pueden tomar o asignar tickets en estado ABIERTO");
+        assertThatThrownBy(() -> ticket.assignTo(null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("agente");
+
+        assertThatThrownBy(() -> new AssignedAgent(null, "Maria", "maria@findu.com"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("agentId");
     }
 
     @Test
-    @DisplayName("Debe agregar mensaje al chat del ticket")
-    void addMessage_Success() {
+    @DisplayName("Debe bloquear estrictamente el envío de mensajes cuando el ticket está en estado ABIERTO")
+    void addMessage_Blocked_WhenTicketIsAbierto() {
         HelpTicket ticket = HelpTicket.create(
                 createSampleRequester(), 500L, "sub-123", "Cat", "Sub", PriorityLevel.MEDIA, "Subject", "Description", createSampleLocation(), Collections.emptyList(), null
         );
+
+        assertThat(ticket.getStatus()).isEqualTo(TicketStatus.ABIERTO);
+
+        assertThatThrownBy(() -> ticket.addMessage(
+                100L, SenderType.USUARIO, "Juan Perez", "Hola soporte", false, Collections.emptyList()
+        )).isInstanceOf(IllegalStateException.class)
+          .hasMessageContaining("El chat está bloqueado: El ticket se encuentra en estado ABIERTO");
+    }
+
+    @Test
+    @DisplayName("Debe permitir enviar mensajes cuando el ticket pasa a estado ASIGNADO")
+    void addMessage_Success_WhenTicketIsAssigned() {
+        HelpTicket ticket = HelpTicket.create(
+                createSampleRequester(), 500L, "sub-123", "Cat", "Sub", PriorityLevel.MEDIA, "Subject", "Description", createSampleLocation(), Collections.emptyList(), null
+        );
+
+        AssignedAgent agent = new AssignedAgent(200L, "Soporte Maria", "maria@findu.com");
+        ticket.assignTo(agent);
+        assertThat(ticket.getStatus()).isEqualTo(TicketStatus.ASIGNADO);
 
         TicketMessage msg = ticket.addMessage(
                 100L, SenderType.USUARIO, "Juan Perez", "Respuesta adicional", false, Collections.emptyList()
@@ -132,7 +152,26 @@ class HelpTicketTest {
     }
 
     @Test
-    @DisplayName("Debe resolver y cerrar el ticket siguiendo el ciclo de vida de estados")
+    @DisplayName("Debe reabrir automáticamente a ASIGNADO si se envía un mensaje en estado RESUELTO")
+    void addMessage_AutoReopens_WhenTicketIsResuelto() {
+        HelpTicket ticket = HelpTicket.create(
+                createSampleRequester(), 500L, "sub-123", "Cat", "Sub", PriorityLevel.MEDIA, "Subject", "Description", createSampleLocation(), Collections.emptyList(), null
+        );
+        ticket.assignTo(new AssignedAgent(200L, "Soporte Maria", "maria@findu.com"));
+        ticket.resolve(ResolutionActionType.SOLO_INFORMACION, null, "Solución inicial");
+        assertThat(ticket.getStatus()).isEqualTo(TicketStatus.RESUELTO);
+
+        // Usuario envía mensaje de que el problema sigue
+        TicketMessage msg = ticket.addMessage(100L, SenderType.USUARIO, "Juan Perez", "Aún tengo el fallo", false, Collections.emptyList());
+
+        assertThat(msg).isNotNull();
+        assertThat(ticket.getStatus()).isEqualTo(TicketStatus.ASIGNADO);
+        assertThat(ticket.getStatusHistory().get(ticket.getStatusHistory().size() - 1).getReason())
+                .contains("Ticket reabierto automáticamente");
+    }
+
+    @Test
+    @DisplayName("Debe resolver y cerrar el ticket siguiendo el ciclo de vida y bloquear mensajes en CERRADO")
     void resolveAndClose_Success() {
         HelpTicket ticket = HelpTicket.create(
                 createSampleRequester(), 500L, "sub-123", "Cat", "Sub", PriorityLevel.MEDIA, "Subject", "Description", createSampleLocation(), Collections.emptyList(), null
@@ -140,7 +179,7 @@ class HelpTicketTest {
         AssignedAgent agent = new AssignedAgent(200L, "Soporte Maria", "maria@findu.com");
         ticket.assignTo(agent);
 
-        ticket.resolve(ResolutionActionType.REEMBOLSO_PARCIAL, new BigDecimal("15.50"), "Solucionado satisfactoriamente");
+        ticket.resolve(ResolutionActionType.REEMBOLSO_PARCIAL, new BigDecimal("15.50"), "Solucionado con reembolso");
         assertThat(ticket.getStatus()).isEqualTo(TicketStatus.RESUELTO);
         assertThat(ticket.getResolution()).isNotNull();
 
@@ -151,6 +190,25 @@ class HelpTicketTest {
         // No se puede agregar mensaje si está CERRADO
         assertThatThrownBy(() -> ticket.addMessage(100L, SenderType.USUARIO, "Juan", "Texto", false, Collections.emptyList()))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("No se pueden agregar mensajes a un ticket CERRADO");
+                .hasMessageContaining("El chat está bloqueado definitivamente: El ticket se encuentra CERRADO");
+
+        // Tampoco se puede asignar ni cambiar de estado si está CERRADO
+        assertThatThrownBy(() -> ticket.assignTo(agent))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("CERRADO");
+    }
+
+    @Test
+    @DisplayName("Debe permitir reapertura explícita desde RESUELTO hacia ASIGNADO")
+    void reopen_Success() {
+        HelpTicket ticket = HelpTicket.create(
+                createSampleRequester(), 500L, "sub-123", "Cat", "Sub", PriorityLevel.MEDIA, "Subject", "Description", createSampleLocation(), Collections.emptyList(), null
+        );
+        ticket.assignTo(new AssignedAgent(200L, "Soporte Maria", "maria@findu.com"));
+        ticket.resolve(ResolutionActionType.SOLO_INFORMACION, null, "Solución");
+        assertThat(ticket.getStatus()).isEqualTo(TicketStatus.RESUELTO);
+
+        ticket.reopen("Cliente requiere asistencia adicional", 200L);
+        assertThat(ticket.getStatus()).isEqualTo(TicketStatus.ASIGNADO);
     }
 }

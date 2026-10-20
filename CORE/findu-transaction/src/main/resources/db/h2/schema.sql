@@ -281,3 +281,32 @@ CREATE TABLE IF NOT EXISTS provider_debt_payments (
     created_at TIMESTAMP NOT NULL,
     updated_at TIMESTAMP NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS bre_b_payment_orders (
+    id VARCHAR(36) PRIMARY KEY,
+    order_code VARCHAR(64) NOT NULL UNIQUE,
+    provider_id BIGINT NOT NULL,
+    amount NUMERIC(19, 2) NOT NULL,
+    bre_b_key VARCHAR(64) NOT NULL,
+    qr_payload CLOB NOT NULL,
+    status VARCHAR(32) NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    confirmed_at TIMESTAMP,
+    external_transaction_id VARCHAR(128),
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS bank_consignment_reports (
+    id VARCHAR(36) PRIMARY KEY,
+    provider_id BIGINT NOT NULL,
+    amount NUMERIC(19, 2) NOT NULL,
+    reference VARCHAR(128) NOT NULL,
+    bank_name VARCHAR(64) NOT NULL,
+    status VARCHAR(32) NOT NULL,
+    confirmed_at TIMESTAMP,
+    confirmed_by VARCHAR(128),
+    notes VARCHAR(255),
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NOT NULL
+);

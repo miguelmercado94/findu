@@ -129,7 +129,8 @@ public class HelpTicket {
                 ticket.categoryName,
                 ticket.subcategoryName,
                 ticket.subject,
-                ticket.description
+                ticket.description,
+                requester.getName()
         ));
 
         return ticket;
@@ -201,11 +202,14 @@ public class HelpTicket {
      * Regla de negocio: Asignar / Tomar Ticket (ABIERTO -> ASIGNADO)
      */
     public void assignTo(AssignedAgent agent) {
-        if (this.status != TicketStatus.ABIERTO) {
-            throw new IllegalStateException("Solo se pueden tomar o asignar tickets en estado ABIERTO. Estado actual: " + this.status);
+        if (this.status == TicketStatus.CERRADO) {
+            throw new IllegalStateException("Un ticket en estado CERRADO no puede ser asignado.");
         }
-        if (agent == null) {
-            throw new IllegalArgumentException("El agente a asignar es obligatorio");
+        if (this.status != TicketStatus.ABIERTO && this.status != TicketStatus.ASIGNADO && this.status != TicketStatus.RESUELTO) {
+            throw new IllegalStateException("Solo se pueden tomar o asignar tickets en estado ABIERTO, ASIGNADO o RESUELTO. Estado actual: " + this.status);
+        }
+        if (agent == null || agent.getAgentId() == null || agent.getName() == null || agent.getName().isBlank()) {
+            throw new IllegalArgumentException("Para asignar el ticket se requiere información válida del agente de soporte (agentId, nombre).");
         }
 
         this.assignedAgent = agent;
@@ -213,7 +217,7 @@ public class HelpTicket {
         Instant now = Instant.now();
         this.updatedAt = now;
 
-        this.statusHistory.add(new TicketStatusHistory(TicketStatus.ASIGNADO, agent.getAgentId(), "Ticket tomado por agente: " + agent.getName(), now));
+        this.statusHistory.add(new TicketStatusHistory(TicketStatus.ASIGNADO, agent.getAgentId(), "Ticket tomado/asignado a agente: " + agent.getName(), now));
 
         this.uncommittedEvents.add(new TicketAssignedEvent(
                 this.id,
@@ -227,14 +231,61 @@ public class HelpTicket {
     }
 
     /**
+     * Regla de negocio: Reabrir Ticket (RESUELTO -> ASIGNADO)
+     */
+    public void reopen(String reason, Long reopenedByUserId) {
+        if (this.status != TicketStatus.RESUELTO) {
+            throw new IllegalStateException("Solo se puede reabrir un ticket en estado RESUELTO. Estado actual: " + this.status);
+        }
+
+        this.status = TicketStatus.ASIGNADO;
+        Instant now = Instant.now();
+        this.updatedAt = now;
+
+        String note = (reason != null && !reason.isBlank()) ? reason.trim() : "Ticket reabierto para atención continua";
+        Long userId = (reopenedByUserId != null) ? reopenedByUserId : (this.requester != null ? this.requester.getUserId() : 0L);
+
+        this.statusHistory.add(new TicketStatusHistory(TicketStatus.ASIGNADO, userId, "Ticket devuelto a ASIGNADO: " + note, now));
+
+        this.uncommittedEvents.add(new TicketAssignedEvent(
+                this.id,
+                this.ticketCode.getValue(),
+                this.assignedAgent != null ? this.assignedAgent.getAgentId() : null,
+                this.assignedAgent != null ? this.assignedAgent.getName() : null,
+                this.assignedAgent != null ? this.assignedAgent.getEmail() : null,
+                this.requester.getUserId(),
+                this.requester.getUserRole()
+        ));
+    }
+
+    /**
      * Regla de negocio: Enviar mensaje al chat
+     * Restricción estricta:
+     * - ABIERTO: Bloqueado. Ninguna de las partes puede escribir mientras no haya un agente asignado.
+     * - CERRADO: Bloqueo definitivo. No se permiten más mensajes.
+     * - RESUELTO: Si se recibe un nuevo mensaje, el ticket se reabre automáticamente a ASIGNADO.
      */
     public TicketMessage addMessage(Long senderId, SenderType senderType, String senderName, String content, Boolean isInternalNote, List<MessageAttachment> attachments) {
+        if (this.status == TicketStatus.ABIERTO) {
+            throw new IllegalStateException("El chat está bloqueado: El ticket se encuentra en estado ABIERTO y debe ser tomado por un agente de soporte antes de enviar mensajes.");
+        }
         if (this.status == TicketStatus.CERRADO) {
-            throw new IllegalStateException("No se pueden agregar mensajes a un ticket CERRADO.");
+            throw new IllegalStateException("El chat está bloqueado definitivamente: El ticket se encuentra CERRADO.");
         }
 
         Instant now = Instant.now();
+
+        // Si el ticket estaba resuelto y alguien envía un mensaje, se reabre automáticamente a ASIGNADO
+        if (this.status == TicketStatus.RESUELTO) {
+            this.status = TicketStatus.ASIGNADO;
+            this.statusHistory.add(new TicketStatusHistory(
+                    TicketStatus.ASIGNADO,
+                    senderId,
+                    "Ticket reabierto automáticamente por nuevo mensaje en chat (" + senderType + ")",
+                    now
+            ));
+        }
+
         String msgId = "MSG-" + UUID.randomUUID().toString().substring(0, 8);
 
         TicketMessage message = new TicketMessage(msgId, senderId, senderType, senderName, content, isInternalNote, attachments, now);
@@ -267,27 +318,38 @@ public class HelpTicket {
         }
 
         Instant now = Instant.now();
-        this.resolution = new TicketResolution(actionType, compensationAmount, agentNotes, now);
+        ResolutionActionType action = actionType != null ? actionType : ResolutionActionType.SOLO_INFORMACION;
+        String notes = (agentNotes != null && !agentNotes.isBlank()) ? agentNotes.trim() : "Ticket atendido y resuelto por el equipo de soporte.";
+
+        this.resolution = new TicketResolution(action, compensationAmount, notes, now);
         this.status = TicketStatus.RESUELTO;
         this.updatedAt = now;
 
         Long agentId = this.assignedAgent != null ? this.assignedAgent.getAgentId() : 0L;
-        this.statusHistory.add(new TicketStatusHistory(TicketStatus.RESUELTO, agentId, "Ticket resuelto con acción: " + actionType, now));
+        String agentName = this.assignedAgent != null ? this.assignedAgent.getName() : "Soporte FindU";
+        this.statusHistory.add(new TicketStatusHistory(TicketStatus.RESUELTO, agentId, "Ticket resuelto con acción: " + action + ". Detalle: " + notes, now));
 
         this.uncommittedEvents.add(new TicketResolvedEvent(
                 this.id,
                 this.ticketCode.getValue(),
-                actionType,
-                compensationAmount
+                action,
+                compensationAmount,
+                this.requester != null ? this.requester.getUserId() : null,
+                this.requester != null ? this.requester.getUserRole() : null,
+                this.requester != null ? this.requester.getName() : null,
+                this.requester != null ? this.requester.getEmail() : null,
+                this.subject,
+                notes,
+                agentName
         ));
     }
 
     /**
-     * Regla de negocio: Cerrar Ticket (RESUELTO -> CERRADO)
+     * Regla de negocio: Cerrar Ticket (RESUELTO o ASIGNADO -> CERRADO)
      */
     public void close(Long closedByUserId) {
-        if (this.status != TicketStatus.RESUELTO) {
-            throw new IllegalStateException("Solo se puede cerrar un ticket en estado RESUELTO. Estado actual: " + this.status);
+        if (this.status != TicketStatus.RESUELTO && this.status != TicketStatus.ASIGNADO) {
+            throw new IllegalStateException("Solo se puede cerrar un ticket en estado RESUELTO o ASIGNADO. Estado actual: " + this.status);
         }
 
         Instant now = Instant.now();
@@ -295,7 +357,8 @@ public class HelpTicket {
         this.closedAt = now;
         this.updatedAt = now;
 
-        this.statusHistory.add(new TicketStatusHistory(TicketStatus.CERRADO, closedByUserId, "Ticket cerrado definitivamente", now));
+        Long closer = (closedByUserId != null) ? closedByUserId : (this.assignedAgent != null ? this.assignedAgent.getAgentId() : 0L);
+        this.statusHistory.add(new TicketStatusHistory(TicketStatus.CERRADO, closer, "Ticket cerrado definitivamente", now));
 
         this.uncommittedEvents.add(new TicketClosedEvent(
                 this.id,

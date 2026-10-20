@@ -14,6 +14,8 @@ import com.findu.help.v2.domain.valueobject.TicketCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 public class ChangeTicketStatusService implements ChangeTicketStatusUseCase {
@@ -32,13 +34,25 @@ public class ChangeTicketStatusService implements ChangeTicketStatusUseCase {
                 .orElseThrow(() -> new TicketNotFoundException("Ticket no encontrado con referencia: " + command.getTicketReference()));
 
         try {
+            TicketStatus currentStatus = ticket.getStatus();
             TicketStatus targetStatus = command.getNewStatus();
             if (targetStatus == null) {
                 throw new IllegalArgumentException("El nuevo estado es obligatorio");
             }
 
+            if (currentStatus == TicketStatus.CERRADO) {
+                throw new IllegalStateException("El ticket se encuentra CERRADO definitivamente y no admite más transiciones de estado.");
+            }
+
             switch (targetStatus) {
-                case ASIGNADO -> ticket.assignTo(command.getAssignedAgent());
+                case ASIGNADO -> {
+                    if (currentStatus == TicketStatus.RESUELTO) {
+                        Long reopenedBy = command.getAssignedAgent() != null ? command.getAssignedAgent().getAgentId() : ticket.getRequester().getUserId();
+                        ticket.reopen(command.getReason(), reopenedBy);
+                    } else {
+                        ticket.assignTo(command.getAssignedAgent());
+                    }
+                }
                 case RESUELTO -> ticket.resolve(ResolutionActionType.SOLO_INFORMACION, null, command.getReason());
                 case CERRADO -> {
                     Long closedBy = command.getAssignedAgent() != null ? command.getAssignedAgent().getAgentId() : ticket.getRequester().getUserId();
@@ -50,9 +64,10 @@ public class ChangeTicketStatusService implements ChangeTicketStatusUseCase {
             throw new TicketBusinessException("No se pudo cambiar el estado del ticket: " + e.getMessage(), e);
         }
 
+        List<DomainEvent> events = ticket.pullUncommittedEvents();
         HelpTicket savedTicket = helpTicketRepository.save(ticket);
 
-        for (DomainEvent event : savedTicket.pullUncommittedEvents()) {
+        for (DomainEvent event : events) {
             realtimeEventPublisher.publishRealtime(event);
         }
 

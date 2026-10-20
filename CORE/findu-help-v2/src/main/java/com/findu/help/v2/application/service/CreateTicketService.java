@@ -14,10 +14,13 @@ import com.findu.help.v2.domain.model.priority.FixedPriorityCalculator;
 import com.findu.help.v2.domain.model.ticket.HelpTicket;
 import com.findu.help.v2.domain.valueobject.TicketRequester;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Optional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CreateTicketService implements CreateTicketUseCase {
@@ -63,19 +66,27 @@ public class CreateTicketService implements CreateTicketUseCase {
                             priority = subcategory.getBasePriority();
                         }
 
+                        // solicitudId es opcional: si el usuario lo tiene lo asocia, si no, se permite abrir el ticket de soporte
                         if (Boolean.TRUE.equals(subcategory.getRequiresSolicitudId()) && command.getSolicitudId() == null) {
-                            throw new TicketBusinessException("La subcategoría seleccionada (" + subcategory.getName() + ") requiere una solicitud id válida.");
+                            log.debug("Ticket creado para subcategoría {} sin solicitudId asociado", subcategory.getName());
                         }
                     }
                 }
             }
         }
 
+        String requesterName = (command.getUserName() != null && !command.getUserName().isBlank())
+                ? command.getUserName().trim()
+                : (command.getUserRole() + "_" + command.getUserId());
+        String requesterEmail = (command.getUserEmail() != null && !command.getUserEmail().isBlank())
+                ? command.getUserEmail().trim()
+                : ("user" + command.getUserId() + "@findu.com");
+
         TicketRequester requester = new TicketRequester(
                 command.getUserId(),
                 command.getUserRole(),
-                "Usuario " + command.getUserId(),
-                "user" + command.getUserId() + "@findu.com"
+                requesterName,
+                requesterEmail
         );
 
         HelpTicket ticket = HelpTicket.create(
@@ -96,9 +107,10 @@ public class CreateTicketService implements CreateTicketUseCase {
             ticket.assignExternalRef(command.getExternalRef());
         }
 
+        List<DomainEvent> events = ticket.pullUncommittedEvents();
         HelpTicket savedTicket = helpTicketRepository.save(ticket);
 
-        for (DomainEvent event : savedTicket.pullUncommittedEvents()) {
+        for (DomainEvent event : events) {
             realtimeEventPublisher.publishRealtime(event);
         }
 

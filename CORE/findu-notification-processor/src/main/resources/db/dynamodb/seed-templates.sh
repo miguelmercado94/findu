@@ -639,5 +639,23 @@ seed_template '{
   "audiencia": {"M": {"modo": {"S": "TODOS"}}}
 }'
 
+# =====================================================================
+# TICKET_RESOLVED — EMAIL (TICKET_RESOLVED#EMAIL#es) [Soporte FindU]
+# =====================================================================
+seed_template '{
+  "id": {"S": "TICKET_RESOLVED#EMAIL#es"},
+  "codigo": {"S": "TICKET_RESOLVED"},
+  "tipo": {"S": "EMAIL"},
+  "language": {"S": "es"},
+  "channel": {"S": "EMAIL"},
+  "content_type": {"S": "HTML"},
+  "subject": {"S": "FindU Soporte - Tu ticket #{{ticketCode}} ha sido resuelto"},
+  "body_template": {"S": "<html><body style=\"font-family: Arial, sans-serif; color: #1e293b;\"><div style=\"max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;\"><div style=\"background: #0284c7; padding: 24px; color: white;\"><h2>FindU Soporte</h2><p style=\"margin: 0;\">Caso Resuelto</p></div><div style=\"padding: 24px;\"><p>Hola <strong>{{userName}}</strong>,</p><p>Tu ticket <strong>#{{ticketCode}}</strong> ha sido resuelto.</p><div style=\"background: #f8fafc; padding: 16px; border-radius: 8px; margin: 16px 0;\"><p><strong>Asunto:</strong> {{subject}}</p><p><strong>Acción:</strong> {{actionType}}</p><p><strong>Atendido por:</strong> {{agentName}}</p></div><div style=\"background: #f0fdf4; border-left: 4px solid #10b981; padding: 16px;\"><p><strong>Detalle de la resolución:</strong></p><p>{{resolutionDetail}}</p></div><p style=\"font-size: 13px; color: #64748b; margin-top: 20px;\">Si el inconveniente persiste, puedes reabrir el caso respondiendo desde la app móvil FindU.</p></div></div></body></html>"},
+  "variables": {"L": [{"S": "ticketCode"}, {"S": "userName"}, {"S": "subject"}, {"S": "actionType"}, {"S": "agentName"}, {"S": "resolutionDetail"}]},
+  "version": {"N": "1"},
+  "is_active": {"BOOL": true},
+  "audiencia": {"M": {"modo": {"S": "USUARIO"}, "userIds": {"L": []}}}
+}'
+
 echo "=== Seed completado ==="
 $AWS dynamodb scan --table-name "$TABLE" --select COUNT

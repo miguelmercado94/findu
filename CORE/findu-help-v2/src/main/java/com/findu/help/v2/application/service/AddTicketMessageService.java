@@ -13,6 +13,8 @@ import com.findu.help.v2.domain.valueobject.TicketCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 public class AddTicketMessageService implements AddTicketMessageUseCase {
@@ -30,12 +32,18 @@ public class AddTicketMessageService implements AddTicketMessageUseCase {
                 .or(() -> helpTicketRepository.findByTicketCode(new TicketCode(command.getTicketId())))
                 .orElseThrow(() -> new TicketNotFoundException("Ticket no encontrado con identificador: " + command.getTicketId()));
 
+        String effectiveSenderName = (command.getSenderName() != null && !command.getSenderName().isBlank())
+                ? command.getSenderName().trim()
+                : ((command.getSenderType() == com.findu.help.v2.domain.enums.SenderType.AGENTE_INTERNO || command.getSenderType() == com.findu.help.v2.domain.enums.SenderType.AGENTE_EXTERNO)
+                    ? (ticket.getAssignedAgent() != null ? ticket.getAssignedAgent().getName() : "Soporte FindU")
+                    : (ticket.getRequester() != null ? ticket.getRequester().getName() : "Usuario"));
+
         TicketMessage addedMessage;
         try {
             addedMessage = ticket.addMessage(
                     command.getSenderId(),
                     command.getSenderType(),
-                    command.getSenderName(),
+                    effectiveSenderName,
                     command.getContent(),
                     command.getIsInternalNote(),
                     command.getAttachments()
@@ -44,9 +52,10 @@ public class AddTicketMessageService implements AddTicketMessageUseCase {
             throw new TicketBusinessException("No se pudo agregar el mensaje al ticket: " + e.getMessage(), e);
         }
 
+        List<DomainEvent> events = ticket.pullUncommittedEvents();
         HelpTicket savedTicket = helpTicketRepository.save(ticket);
 
-        for (DomainEvent event : savedTicket.pullUncommittedEvents()) {
+        for (DomainEvent event : events) {
             realtimeEventPublisher.publishRealtime(event);
         }
 

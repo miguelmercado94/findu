@@ -74,6 +74,53 @@ public class HttpRealtimeEventPublisher implements RealtimeEventPublisher {
         } else if (event instanceof TicketResolvedEvent e) {
             String eventType = "TICKET_RESOLVED";
             dispatch("SOPORTE_GENERAL", eventType, e);
+
+            String role = e.getRequesterRole() != null ? e.getRequesterRole().name() : "PROVEEDOR";
+            Long reqId = e.getRequesterUserId();
+            if (reqId != null) {
+                dispatch(role + "_" + reqId, eventType, e);
+            }
+
+            dispatchEmailResolutionNotification(e);
+        }
+    }
+
+    private void dispatchEmailResolutionNotification(TicketResolvedEvent event) {
+        String recipientEmail = (event.getRequesterEmail() != null && !event.getRequesterEmail().isBlank())
+                ? event.getRequesterEmail().trim()
+                : "usuario" + event.getRequesterUserId() + "@findu.com";
+
+        Map<String, Object> emailParams = new LinkedHashMap<>();
+        emailParams.put("ticketId", event.getTicketId());
+        emailParams.put("ticketCode", event.getTicketCode());
+        emailParams.put("userName", event.getRequesterName() != null ? event.getRequesterName() : "Usuario");
+        emailParams.put("userRole", event.getRequesterRole() != null ? event.getRequesterRole().name() : "PROVEEDOR");
+        emailParams.put("subject", event.getSubject() != null ? event.getSubject() : "Ticket de Soporte");
+        emailParams.put("resolutionDetail", event.getResolutionDetail() != null ? event.getResolutionDetail() : "Tu solicitud fue atendida y resuelta con éxito.");
+        emailParams.put("actionType", event.getActionType() != null ? event.getActionType().name() : "SOLO_INFORMACION");
+        emailParams.put("agentName", event.getAssignedAgentName() != null ? event.getAssignedAgentName() : "Soporte FindU");
+        emailParams.put("status", "RESUELTO");
+        emailParams.put("resolvedAt", event.occurredOn().toString());
+
+        DispatchNotificationRequestDto emailRequest = DispatchNotificationRequestDto.builder()
+                .type("EMAIL")
+                .recipient(recipientEmail)
+                .templateCode("TICKET_RESOLVED")
+                .language("es")
+                .params(emailParams)
+                .build();
+
+        try {
+            restClient.post()
+                    .uri("/api/v1/canales/dispatchNotification")
+                    .body(emailRequest)
+                    .retrieve()
+                    .toBodilessEntity();
+
+            log.info("Notificación transaccional EMAIL enviada al dispatcher para ticket resuelto: recipient={}, ticketCode={}",
+                    recipientEmail, event.getTicketCode());
+        } catch (Exception ex) {
+            log.error("Error al despachar notificación EMAIL para ticket resuelto {}: {}", event.getTicketCode(), ex.getMessage());
         }
     }
 
@@ -96,6 +143,7 @@ public class HttpRealtimeEventPublisher implements RealtimeEventPublisher {
             params.put("userRole", c.getUserRole() != null ? c.getUserRole().name() : "");
             params.put("categoryName", c.getCategoryName());
             params.put("subcategoryName", c.getSubcategoryName());
+            params.put("userName", c.getUserName());
             params.put("subject", c.getSubject());
             params.put("description", c.getDescription());
             params.put("priority", c.getPriority() != null ? c.getPriority().name() : "MEDIA");
@@ -115,6 +163,9 @@ public class HttpRealtimeEventPublisher implements RealtimeEventPublisher {
             params.put("ticketId", r.getTicketId());
             params.put("ticketCode", r.getTicketCode());
             params.put("actionType", r.getActionType() != null ? r.getActionType().name() : "");
+            params.put("resolutionDetail", r.getResolutionDetail() != null ? r.getResolutionDetail() : "");
+            params.put("agentName", r.getAssignedAgentName() != null ? r.getAssignedAgentName() : "");
+            params.put("subject", r.getSubject() != null ? r.getSubject() : "");
             params.put("status", "RESUELTO");
         }
 

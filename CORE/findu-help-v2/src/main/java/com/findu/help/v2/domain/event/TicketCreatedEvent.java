@@ -18,11 +18,13 @@ public class TicketCreatedEvent implements DomainEvent {
     private final String subcategoryName;
     private final String subject;
     private final String description;
+    private final String userName;
     private final Instant occurredOn;
 
     public TicketCreatedEvent(String ticketId, String ticketCode, Long userId, UserRole userRole,
                               Long solicitudId, PriorityLevel priority,
-                              String categoryName, String subcategoryName, String subject, String description) {
+                              String categoryName, String subcategoryName, String subject, String description,
+                              String userName) {
         this.ticketId = ticketId;
         this.ticketCode = ticketCode;
         this.userId = userId;
@@ -33,11 +35,18 @@ public class TicketCreatedEvent implements DomainEvent {
         this.subcategoryName = subcategoryName;
         this.subject = subject;
         this.description = description;
+        this.userName = userName != null ? userName : "";
         this.occurredOn = Instant.now();
     }
 
+    public TicketCreatedEvent(String ticketId, String ticketCode, Long userId, UserRole userRole,
+                              Long solicitudId, PriorityLevel priority,
+                              String categoryName, String subcategoryName, String subject, String description) {
+        this(ticketId, ticketCode, userId, userRole, solicitudId, priority, categoryName, subcategoryName, subject, description, "");
+    }
+
     public TicketCreatedEvent(String ticketId, String ticketCode, Long userId, UserRole userRole, Long solicitudId, PriorityLevel priority) {
-        this(ticketId, ticketCode, userId, userRole, solicitudId, priority, "", "", "", "");
+        this(ticketId, ticketCode, userId, userRole, solicitudId, priority, "", "", "", "", "");
     }
 
     @Override

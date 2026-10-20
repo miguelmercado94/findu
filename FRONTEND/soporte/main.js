@@ -157,14 +157,16 @@ function handleRealtimeEvent(envelope) {
   }
 
   const payload = envelope.payload || {};
-  console.log("Evento en tiempo real recibido:", envelope.eventType, payload);
+  const evt = (envelope.eventType || '').toUpperCase();
+  const subEvt = (payload.eventType || payload.type || payload.templateCode || '').toUpperCase();
+  console.log("Evento en tiempo real recibido:", evt, subEvt, payload);
 
-  if (envelope.eventType === 'TICKET_CREATED') {
+  if (evt === 'TICKET_CREATED' || subEvt === 'TICKET_CREATED') {
     const code = payload.ticketCode || payload.ticketId || '';
     const subject = payload.subject || '';
     showAlert('success', `⚡ Nuevo ticket creado #${code}: ${subject}`);
     fetchTickets();
-  } else if (envelope.eventType === 'CHAT_MESSAGE') {
+  } else if (evt === 'CHAT_MESSAGE' || subEvt === 'CHAT_MESSAGE') {
     const msgTicketCode = payload.ticketCode || payload.ticketId;
     const currentTicketCode = state.selectedTicket?.ticketCode || state.selectedTicket?.id;
 
@@ -192,7 +194,7 @@ function handleRealtimeEvent(envelope) {
       showAlert('info', `💬 Nuevo mensaje en ticket #${msgTicketCode} de ${payload.senderName || 'Usuario'}`);
       fetchTickets();
     }
-  } else if (envelope.eventType === 'TICKET_ASSIGNED' || envelope.eventType === 'SERVICE_UPDATE' || envelope.eventType === 'TICKET_CLOSED') {
+  } else if (evt === 'TICKET_ASSIGNED' || subEvt === 'TICKET_ASSIGNED' || evt === 'SERVICE_UPDATE' || evt === 'TICKET_CLOSED' || subEvt === 'TICKET_CLOSED') {
     fetchTickets();
     if (state.selectedTicket && (state.selectedTicket.ticketCode === payload.ticketCode || state.selectedTicket.id === payload.ticketId)) {
       selectTicket(state.selectedTicket);
@@ -262,6 +264,36 @@ async function handleTakeTicket() {
 async function handleChangeStatus(newStatus) {
   if (!state.selectedTicket) return;
   const ticketRef = state.selectedTicket.ticketCode || state.selectedTicket.id;
+  const currentStatus = state.selectedTicket.status;
+
+  if (currentStatus === 'CERRADO') {
+    showAlert('error', 'El ticket ya está CERRADO definitivamente y no admite más cambios de estado.');
+    render();
+    return;
+  }
+
+  let reason = 'Actualización de estado en portal de soporte';
+
+  if (newStatus === 'RESUELTO') {
+    const detail = prompt(
+      `Ingresa el detalle o motivo de la resolución para el ticket #${ticketRef}:\n(Este texto se enviará por correo electrónico al usuario/proveedor)`,
+      'Tu caso ha sido verificado y resuelto exitosamente por nuestro equipo de soporte.'
+    );
+    if (detail === null) {
+      render();
+      return;
+    }
+    reason = detail.trim() || 'Ticket atendido y resuelto por el equipo de soporte.';
+  } else if (newStatus === 'ASIGNADO') {
+    reason = `Ticket tomado/asignado al agente: ${state.user?.username || 'soporte'}`;
+  } else if (newStatus === 'CERRADO') {
+    const confirmClose = confirm(`¿Estás seguro de cerrar definitivamente el ticket #${ticketRef}?\nEsta acción archivará el caso y bloqueará permanentemente la mensajería.`);
+    if (!confirmClose) {
+      render();
+      return;
+    }
+    reason = 'Ticket cerrado definitivamente por soporte';
+  }
 
   try {
     const res = await fetch(`${API_GATEWAY_URL}/findu-help-v2/api/v1/help/tickets/${ticketRef}/status`, {
@@ -275,7 +307,8 @@ async function handleChangeStatus(newStatus) {
         agentId: state.user?.id || 1,
         agentName: state.user?.username || 'soporte',
         agentEmail: state.user?.email || 'soporte@findu.com',
-        reason: 'Actualización de estado en portal de soporte'
+        reason: reason,
+        resolutionDetail: reason
       })
     });
 
@@ -424,6 +457,7 @@ function render() {
             ${filteredTickets.map(t => {
               const code = t.ticketCode || t.ticketNumber || t.id?.substring(0,8);
               const isSelected = (state.selectedTicket?.ticketCode === t.ticketCode) || (state.selectedTicket?.id === t.id);
+              const requesterName = t.requester?.name || t.userName || 'Usuario';
               const role = t.requester?.userRole || t.userRole || 'USUARIO';
               const cat = t.categoryName || t.category || 'General';
               const subcat = t.subcategoryName ? ` • ${t.subcategoryName}` : '';
@@ -435,7 +469,7 @@ function render() {
                   </div>
                   <div class="ticket-subject">${t.subject}</div>
                   <div class="ticket-meta">
-                    <span>${role} (${cat}${subcat})</span>
+                    <span>👤 ${requesterName} (${role})</span>
                     <span>${t.createdAt ? new Date(t.createdAt).toLocaleDateString() : ''}</span>
                   </div>
                 </div>
@@ -456,10 +490,10 @@ function render() {
                 <h2>${state.selectedTicket.subject}</h2>
                 <div class="detail-submeta">
                   Ticket #${state.selectedTicket.ticketCode || state.selectedTicket.ticketNumber || state.selectedTicket.id} |
-                  Solicitante: <strong>${state.selectedTicket.requester?.name || state.selectedTicket.userName || 'Usuario'} (${state.selectedTicket.requester?.userRole || state.selectedTicket.userRole || 'USUARIO'})</strong> |
+                  Solicitante: <strong>👤 ${state.selectedTicket.requester?.name || state.selectedTicket.userName || 'Usuario'} (${state.selectedTicket.requester?.userRole || state.selectedTicket.userRole || 'USUARIO'})</strong> |
                   Categoría: <strong>${state.selectedTicket.categoryName || state.selectedTicket.category || 'General'}</strong>
                   ${state.selectedTicket.subcategoryName ? `(<em>${state.selectedTicket.subcategoryName}</em>)` : ''}
-                  ${state.selectedTicket.assignedAgent ? ` | Agente asignado: <strong>${state.selectedTicket.assignedAgent.name}</strong>` : ''}
+                  ${state.selectedTicket.assignedAgent ? ` | Agente asignado: <strong>🎧 ${state.selectedTicket.assignedAgent.name}</strong>` : ' | Agente asignado: <em>Sin asignar</em>'}
                 </div>
               </div>
 
@@ -468,8 +502,12 @@ function render() {
                   <button id="btn-take-ticket" class="btn-take-ticket">⚡ Tomar Ticket</button>
                 ` : ''}
 
-                <select id="change-status-select" class="select-filter">
-                  <option value="ABIERTO" ${state.selectedTicket.status === 'ABIERTO' ? 'selected' : ''}>ABIERTO</option>
+                ${state.selectedTicket.status === 'RESUELTO' ? `
+                  <button id="btn-reopen-ticket" class="btn-take-ticket" style="background: #3b82f6;">🔄 Reabrir Ticket</button>
+                ` : ''}
+
+                <select id="change-status-select" class="select-filter" ${state.selectedTicket.status === 'CERRADO' ? 'disabled title="Un ticket cerrado es definitivo e inmutable"' : ''}>
+                  <option value="ABIERTO" ${state.selectedTicket.status === 'ABIERTO' ? 'selected' : ''} ${state.selectedTicket.status !== 'ABIERTO' ? 'disabled' : ''}>ABIERTO</option>
                   <option value="ASIGNADO" ${state.selectedTicket.status === 'ASIGNADO' ? 'selected' : ''}>ASIGNADO</option>
                   <option value="RESUELTO" ${state.selectedTicket.status === 'RESUELTO' ? 'selected' : ''}>RESUELTO</option>
                   <option value="CERRADO" ${state.selectedTicket.status === 'CERRADO' ? 'selected' : ''}>CERRADO</option>
@@ -481,7 +519,7 @@ function render() {
               <!-- Mensaje Inicial de apertura -->
               <div class="message-bubble message-user">
                 <div class="message-header-info">
-                  <span>${state.selectedTicket.requester?.name || state.selectedTicket.userName || 'Usuario'} (${state.selectedTicket.requester?.userRole || state.selectedTicket.userRole || 'USUARIO'})</span>
+                  <span>👤 Usuario (${state.selectedTicket.requester?.userRole || state.selectedTicket.userRole || 'USUARIO'}): <strong>${state.selectedTicket.requester?.name || state.selectedTicket.userName || 'Usuario'}</strong></span>
                   <span>${state.selectedTicket.createdAt ? new Date(state.selectedTicket.createdAt).toLocaleString() : ''}</span>
                 </div>
                 <div>${state.selectedTicket.description || 'Sin descripción'}</div>
@@ -491,10 +529,22 @@ function render() {
               ${(state.selectedTicket.messages || []).map(m => {
                 const isSupport = m.senderType === 'AGENTE_INTERNO' || m.senderType === 'AGENTE_EXTERNO' || m.senderType === 'AGENT';
                 const bubbleClass = m.isInternalNote ? 'message-internal' : (isSupport ? 'message-support' : 'message-user');
+                const supportUsername = m.senderName || state.selectedTicket.assignedAgent?.name || state.user?.username || 'soporte';
+                const userUsername = m.senderName && !m.senderName.startsWith('Usuario ') && !m.senderName.startsWith('Soporte')
+                  ? m.senderName
+                  : (state.selectedTicket.requester?.name || state.selectedTicket.userName || 'Usuario');
+                const userRole = state.selectedTicket.requester?.userRole || state.selectedTicket.userRole || 'USUARIO';
+
+                const senderHeader = m.isInternalNote
+                  ? `📌 NOTA INTERNA (${supportUsername})`
+                  : (isSupport
+                    ? `🎧 Soporte: <strong>${supportUsername}</strong>`
+                    : `👤 Usuario (${userRole}): <strong>${userUsername}</strong>`);
+
                 return `
                   <div class="message-bubble ${bubbleClass}">
                     <div class="message-header-info">
-                      <span>${m.isInternalNote ? '📌 NOTA INTERNA DE AGENTE' : (m.senderName || m.senderType)}</span>
+                      <span>${senderHeader}</span>
                       <span>${m.createdAt ? new Date(m.createdAt).toLocaleString() : ''}</span>
                     </div>
                     <div>${m.content}</div>
@@ -514,19 +564,43 @@ function render() {
               }).join('')}
             </div>
 
-            <form class="chat-input-area" id="reply-form">
-              <div class="input-toolbar">
-                <label class="checkbox-label">
-                  <input type="checkbox" id="chk-internal" ${state.isInternalNote ? 'checked' : ''}>
-                  Nota Interna (visible solo para agentes de soporte)
-                </label>
+            ${state.selectedTicket.status === 'ABIERTO' ? `
+              <div class="chat-locked-banner chat-locked-open">
+                <span class="lock-icon">⚠️</span>
+                <div class="lock-info">
+                  <strong>Chat bloqueado en estado ABIERTO</strong>
+                  <p>Ninguna de las partes puede enviar mensajes hasta que un agente de soporte tome y se asigne el ticket.</p>
+                </div>
+                <button id="btn-take-ticket-bottom" class="btn-take-ticket">⚡ Tomar Ticket Ahora</button>
               </div>
+            ` : state.selectedTicket.status === 'CERRADO' ? `
+              <div class="chat-locked-banner chat-locked-closed">
+                <span class="lock-icon">🔒</span>
+                <div class="lock-info">
+                  <strong>Ticket Cerrado Definitivamente</strong>
+                  <p>Este ticket ha sido archivado. La mensajería y las respuestas se encuentran bloqueadas permanentemente.</p>
+                </div>
+              </div>
+            ` : `
+              <form class="chat-input-area" id="reply-form">
+                ${state.selectedTicket.status === 'RESUELTO' ? `
+                  <div style="background: rgba(16, 185, 129, 0.15); border: 1px solid #10b981; color: #6ee7b7; padding: 6px 12px; border-radius: 6px; font-size: 0.8rem; margin-bottom: 0.6rem;">
+                    ℹ️ El ticket se encuentra en estado <strong>RESUELTO</strong>. Si envías una nueva respuesta, se reabrirá automáticamente a <strong>ASIGNADO</strong>.
+                  </div>
+                ` : ''}
+                <div class="input-toolbar">
+                  <label class="checkbox-label">
+                    <input type="checkbox" id="chk-internal" ${state.isInternalNote ? 'checked' : ''}>
+                    Nota Interna (visible solo para agentes de soporte)
+                  </label>
+                </div>
 
-              <div class="input-box-row">
-                <textarea id="reply-text" placeholder="Escribe tu respuesta para el proveedor o cliente..." required>${state.replyText}</textarea>
-                <button type="submit" class="btn-send">Enviar</button>
-              </div>
-            </form>
+                <div class="input-box-row">
+                  <textarea id="reply-text" placeholder="Escribe tu respuesta para el proveedor o cliente..." required>${state.replyText}</textarea>
+                  <button type="submit" class="btn-send">Enviar</button>
+                </div>
+              </form>
+            `}
           `}
         </section>
       </div>
@@ -559,6 +633,14 @@ function render() {
     const btnTake = document.getElementById('btn-take-ticket');
     if (btnTake) {
       btnTake.addEventListener('click', handleTakeTicket);
+    }
+    const btnTakeBottom = document.getElementById('btn-take-ticket-bottom');
+    if (btnTakeBottom) {
+      btnTakeBottom.addEventListener('click', handleTakeTicket);
+    }
+    const btnReopen = document.getElementById('btn-reopen-ticket');
+    if (btnReopen) {
+      btnReopen.addEventListener('click', () => handleChangeStatus('ASIGNADO'));
     }
 
     const statusSelect = document.getElementById('change-status-select');

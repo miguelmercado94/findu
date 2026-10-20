@@ -10,6 +10,7 @@ import com.findu.help.v2.domain.event.DomainEvent;
 import com.findu.help.v2.domain.exception.TicketNotFoundException;
 import com.findu.help.v2.domain.model.ticket.HelpTicket;
 import com.findu.help.v2.domain.model.ticket.TicketMessage;
+import com.findu.help.v2.domain.valueobject.AssignedAgent;
 import com.findu.help.v2.domain.valueobject.Location;
 import com.findu.help.v2.domain.valueobject.TicketRequester;
 import org.junit.jupiter.api.BeforeEach;
@@ -55,8 +56,11 @@ class AddTicketMessageServiceTest {
     }
 
     @Test
-    @DisplayName("Debe agregar mensaje al ticket existente y publicar evento en tiempo real")
+    @DisplayName("Debe agregar mensaje al ticket cuando está en ASIGNADO y publicar evento en tiempo real")
     void execute_Success() {
+        existingTicket.assignTo(new AssignedAgent(200L, "Soporte Maria", "maria@findu.com"));
+        existingTicket.pullUncommittedEvents();
+
         when(helpTicketRepository.findById(existingTicket.getId())).thenReturn(Optional.of(existingTicket));
         when(helpTicketRepository.save(any(HelpTicket.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -77,6 +81,76 @@ class AddTicketMessageServiceTest {
 
         verify(helpTicketRepository, times(1)).save(any(HelpTicket.class));
         verify(realtimeEventPublisher, times(1)).publishRealtime(any(DomainEvent.class));
+    }
+
+    @Test
+    @DisplayName("Debe fallar con TicketBusinessException si el ticket está en estado ABIERTO")
+    void execute_Fails_WhenTicketIsAbierto() {
+        when(helpTicketRepository.findById(existingTicket.getId())).thenReturn(Optional.of(existingTicket));
+
+        AddTicketMessageCommand command = AddTicketMessageCommand.builder()
+                .ticketId(existingTicket.getId())
+                .senderId(100L)
+                .senderType(SenderType.USUARIO)
+                .senderName("Juan")
+                .content("Intentando escribir antes de ser tomado")
+                .isInternalNote(false)
+                .attachments(Collections.emptyList())
+                .build();
+
+        assertThatThrownBy(() -> addTicketMessageService.execute(command))
+                .isInstanceOf(com.findu.help.v2.domain.exception.TicketBusinessException.class)
+                .hasMessageContaining("ABIERTO");
+    }
+
+    @Test
+    @DisplayName("Debe fallar con TicketBusinessException si el ticket está CERRADO definitivamente")
+    void execute_Fails_WhenTicketIsCerrado() {
+        existingTicket.assignTo(new AssignedAgent(200L, "Soporte Maria", "maria@findu.com"));
+        existingTicket.resolve(null, null, "Solucionado");
+        existingTicket.close(200L);
+
+        when(helpTicketRepository.findById(existingTicket.getId())).thenReturn(Optional.of(existingTicket));
+
+        AddTicketMessageCommand command = AddTicketMessageCommand.builder()
+                .ticketId(existingTicket.getId())
+                .senderId(100L)
+                .senderType(SenderType.USUARIO)
+                .senderName("Juan")
+                .content("Intentando escribir en ticket cerrado")
+                .isInternalNote(false)
+                .attachments(Collections.emptyList())
+                .build();
+
+        assertThatThrownBy(() -> addTicketMessageService.execute(command))
+                .isInstanceOf(com.findu.help.v2.domain.exception.TicketBusinessException.class)
+                .hasMessageContaining("CERRADO");
+    }
+
+    @Test
+    @DisplayName("Debe reabrir ticket automáticamente cuando se recibe mensaje en estado RESUELTO")
+    void execute_AutoReopens_WhenTicketIsResuelto() {
+        existingTicket.assignTo(new AssignedAgent(200L, "Soporte Maria", "maria@findu.com"));
+        existingTicket.resolve(null, null, "Solucionado");
+        existingTicket.pullUncommittedEvents();
+
+        when(helpTicketRepository.findById(existingTicket.getId())).thenReturn(Optional.of(existingTicket));
+        when(helpTicketRepository.save(any(HelpTicket.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        AddTicketMessageCommand command = AddTicketMessageCommand.builder()
+                .ticketId(existingTicket.getId())
+                .senderId(100L)
+                .senderType(SenderType.USUARIO)
+                .senderName("Juan")
+                .content("El problema regresó")
+                .isInternalNote(false)
+                .attachments(Collections.emptyList())
+                .build();
+
+        TicketMessage msg = addTicketMessageService.execute(command);
+
+        assertThat(msg).isNotNull();
+        assertThat(existingTicket.getStatus()).isEqualTo(com.findu.help.v2.domain.enums.TicketStatus.ASIGNADO);
     }
 
     @Test

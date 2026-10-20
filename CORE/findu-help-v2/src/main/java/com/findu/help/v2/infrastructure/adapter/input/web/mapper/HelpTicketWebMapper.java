@@ -28,6 +28,10 @@ public interface HelpTicketWebMapper {
                 ? new Location(request.getLocation().getCountry(), request.getLocation().getDepartment(), request.getLocation().getCity())
                 : null;
 
+        String effectiveUserName = (request.getUserName() != null && !request.getUserName().isBlank())
+                ? request.getUserName()
+                : (request.getRequesterName() != null && !request.getRequesterName().isBlank() ? request.getRequesterName() : null);
+
         return CreateTicketCommand.builder()
                 .userId(request.getUserId())
                 .userRole(request.getUserRole())
@@ -37,6 +41,8 @@ public interface HelpTicketWebMapper {
                 .subcategoryId(request.getSubcategoryId())
                 .subject(request.getSubject())
                 .description(request.getDescription())
+                .userName(effectiveUserName)
+                .userEmail(request.getUserEmail())
                 .location(location)
                 .initialAttachments(Collections.emptyList())
                 .build();
@@ -50,11 +56,15 @@ public interface HelpTicketWebMapper {
             agent = new AssignedAgent(request.getAgentId(), request.getAgentName(), request.getAgentEmail());
         }
 
+        String effectiveReason = (request.getReason() != null && !request.getReason().isBlank())
+                ? request.getReason()
+                : request.getResolutionDetail();
+
         return ChangeTicketStatusCommand.builder()
                 .ticketReference(ticketReference)
                 .newStatus(request.getNewStatus())
                 .assignedAgent(agent)
-                .reason(request.getReason())
+                .reason(effectiveReason)
                 .build();
     }
 

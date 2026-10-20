@@ -417,3 +417,38 @@ body {
 }
 .alert-error { background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid #ef4444; }
 .alert-success { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; border: 1px solid #10b981; }
+
+.chat-locked-banner {
+  padding: 1.25rem 1.5rem;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.chat-locked-open {
+  background: rgba(245, 158, 11, 0.12);
+  border-top-color: rgba(245, 158, 11, 0.3);
+  color: #fbbf24;
+}
+.chat-locked-closed {
+  background: rgba(100, 116, 139, 0.15);
+  border-top-color: rgba(100, 116, 139, 0.3);
+  color: #94a3b8;
+}
+.lock-icon {
+  font-size: 1.8rem;
+  line-height: 1;
+}
+.lock-info {
+  flex: 1;
+}
+.lock-info strong {
+  display: block;
+  font-size: 0.95rem;
+  margin-bottom: 0.2rem;
+}
+.lock-info p {
+  font-size: 0.82rem;
+  opacity: 0.85;
+  margin: 0;
+}

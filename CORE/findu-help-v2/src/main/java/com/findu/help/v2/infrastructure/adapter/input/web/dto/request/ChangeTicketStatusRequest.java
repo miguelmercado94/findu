@@ -20,4 +20,5 @@ public class ChangeTicketStatusRequest {
     private String agentName;
     private String agentEmail;
     private String reason;
+    private String resolutionDetail;
 }

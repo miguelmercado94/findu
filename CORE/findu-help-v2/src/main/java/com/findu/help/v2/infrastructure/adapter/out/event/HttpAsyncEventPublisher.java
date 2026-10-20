@@ -57,11 +57,18 @@ public class HttpAsyncEventPublisher implements AsyncEventPublisher {
             params.put("ticketCode", e.getTicketCode());
             params.put("agentName", e.getAgentName());
         } else if (event instanceof TicketResolvedEvent e) {
-            recipient = "CLIENTE_TICKET";
+            recipient = (e.getRequesterEmail() != null && !e.getRequesterEmail().isBlank())
+                    ? e.getRequesterEmail()
+                    : "usuario" + e.getRequesterUserId() + "@findu.com";
+            type = "EMAIL";
             templateCode = "TICKET_RESOLVED";
             params.put("ticketId", e.getTicketId());
             params.put("ticketCode", e.getTicketCode());
-            params.put("actionType", e.getActionType().name());
+            params.put("actionType", e.getActionType() != null ? e.getActionType().name() : "");
+            params.put("subject", e.getSubject() != null ? e.getSubject() : "");
+            params.put("resolutionDetail", e.getResolutionDetail() != null ? e.getResolutionDetail() : "");
+            params.put("agentName", e.getAssignedAgentName() != null ? e.getAssignedAgentName() : "");
+            params.put("status", "RESUELTO");
         } else if (event instanceof TicketClosedEvent e) {
             recipient = "CLIENTE_" + e.getUserId();
             templateCode = "TICKET_CLOSED";

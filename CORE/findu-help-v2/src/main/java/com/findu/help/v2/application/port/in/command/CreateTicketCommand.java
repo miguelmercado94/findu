@@ -19,6 +19,8 @@ public class CreateTicketCommand {
     private final String subcategoryId;
     private final String subject;
     private final String description;
+    private final String userName;
+    private final String userEmail;
     private final Location location;
     private final List<MessageAttachment> initialAttachments;
 }
