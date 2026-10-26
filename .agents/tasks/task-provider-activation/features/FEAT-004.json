@@ -1,0 +1,20 @@
+{
+  "id": "FEAT-004",
+  "type": "fix",
+  "description": "findu-core: enforce write-once on the frontal profile photo in GestionPerfilProveedorUseCaseImpl.actualizarPerfil so an already-set urlImagenPerfil cannot be overwritten through PUT /api/v1/perfil-proveedor/{id}, while still allowing nombreCompleto edits. Single scoped method change — the ONLY findu-core change. Independent of the other FEATs. Covers plan.md item 8.",
+  "status": "completed",
+  "steps": [
+    "In CORE/findu-core/src/main/java/com/findu/core/application/service/GestionPerfilProveedorUseCaseImpl.java, replace the unconditional 'if (request.urlImagenPerfil() != null) perfil.setUrlImagenPerfil(request.urlImagenPerfil());' with 'if (request.urlImagenPerfil() != null && perfil.getUrlImagenPerfil() == null) perfil.setUrlImagenPerfil(request.urlImagenPerfil());'. Leave the nombreCompleto branch intact. No DTO/signature change."
+  ],
+  "acceptance_criteria": [
+    "cd CORE/findu-core && .\\gradlew.bat build completes with no errors.",
+    ".\\gradlew.bat test passes (existing tests).",
+    "A profile that already has a non-null urlImagenPerfil keeps it when actualizarPerfil receives a new urlImagenPerfil; nombreCompleto still updates."
+  ],
+  "verification": [
+    "cd CORE/findu-core && .\\gradlew.bat build",
+    "cd CORE/findu-core && .\\gradlew.bat test"
+  ],
+  "blocked_reason": null,
+  "findings": "Change applied in CORE/findu-core/src/main/java/com/findu/core/application/service/GestionPerfilProveedorUseCaseImpl.java (actualizarPerfil): the urlImagenPerfil branch is now 'if (request.urlImagenPerfil() != null && perfil.getUrlImagenPerfil() == null)' so an already-set frontal photo cannot be overwritten; the nombreCompleto branch is unchanged. Only this one line changed in core (git diff --stat: 1 file, 1 insertion, 1 deletion).\n\nTooling note: the gradle wrapper jar was missing in the worktree's CORE/findu-core/gradle/wrapper (gitignored, not carried into the worktree checkout). Copied the identical gradle-8.14 wrapper jar from the main repo (findu/CORE/findu-core) so .\\gradlew.bat could run. This file is gitignored and was NOT committed.\n\nVerification (cd CORE/findu-core from the worktree):\n- .\\gradlew.bat build => BUILD FAILED, but ONLY due to FinduCoreApplicationTests.contextLoads(). Root cause: pre-existing H2 test-fixture mismatch — db/h2/data.sql INSERT #185 into perfil_proveedor references column ESTADO_VERIFICACION which is absent from db/h2/schema.sql (org.h2.jdbc.JdbcSQLSyntaxErrorException: Column \"ESTADO_VERIFICACION\" not found). This is a Spring context-load/schema-seed failure, independent of actualizarPerfil (a request-time service method never invoked during context load) and outside FEAT-004 scope (must touch nothing else in core).\n- .\\gradlew.bat test => the method's own unit tests pass: GestionPerfilProveedorUseCaseImplTest 4/4 passed (failures=0, errors=0); GestionEspecialidadesUseCaseImplTest 1/1 passed. Overall 6 tests completed, 1 failed (only contextLoads, as above).\n\nCommitted locally on branch feature/provider-activation. Not pushed."
+}

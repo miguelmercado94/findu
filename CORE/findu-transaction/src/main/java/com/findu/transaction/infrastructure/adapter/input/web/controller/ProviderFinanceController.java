@@ -29,6 +29,7 @@ public class ProviderFinanceController {
     private final GetWeeklyBalanceUseCase getWeeklyBalanceUseCase;
     private final GetDebtStatusUseCase getDebtStatusUseCase;
     private final GetFinancialMovementsUseCase getFinancialMovementsUseCase;
+    private final GetServiceFinancialDetailUseCase getServiceFinancialDetailUseCase;
     private final GetBankConsignmentInfoUseCase getBankConsignmentInfoUseCase;
     private final CreateBreBOrderUseCase createBreBOrderUseCase;
     private final GetBreBOrderUseCase getBreBOrderUseCase;
@@ -70,6 +71,20 @@ public class ProviderFinanceController {
         log.info("REST: Consultando movimientos para providerId={}, filter={}", providerId, filter);
         FinancialMovementsResult result = getFinancialMovementsUseCase.getMovements(providerId, filter);
         return ResponseEntity.ok(mapper.toResponse(result));
+    }
+
+    /**
+     * Detalle financiero completo de un servicio para el proveedor (resumen, liquidación y medio de cobro).
+     */
+    @GetMapping("/api/v1/providers/{providerId}/finances/services/{serviceRequestId}")
+    public ResponseEntity<ServiceFinancialDetailResponse> getServiceFinancialDetail(
+            @PathVariable Long providerId,
+            @PathVariable Long serviceRequestId) {
+
+        log.info("REST: Consultando detalle financiero de servicio providerId={}, serviceRequestId={}",
+                providerId, serviceRequestId);
+        ServiceFinancialDetailResponse response = getServiceFinancialDetailUseCase.getServiceFinancialDetail(providerId, serviceRequestId);
+        return ResponseEntity.ok(response);
     }
 
     /**

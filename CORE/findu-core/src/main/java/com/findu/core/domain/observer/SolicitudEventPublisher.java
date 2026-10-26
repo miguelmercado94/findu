@@ -69,5 +69,27 @@ public class SolicitudEventPublisher {
             }
         }
     }
+
+    public void notifyServicioIniciado(SolicitudServicio solicitud, PerfilCliente cliente, PerfilProveedor proveedor) {
+        if (observers == null) return;
+        for (SolicitudObserver observer : observers) {
+            try {
+                observer.onServicioIniciado(solicitud, cliente, proveedor);
+            } catch (Exception e) {
+                // Non-blocking
+            }
+        }
+    }
+
+    public void notifyServicioFinalizado(SolicitudServicio solicitud, PerfilCliente cliente, PerfilProveedor proveedor) {
+        if (observers == null) return;
+        for (SolicitudObserver observer : observers) {
+            try {
+                observer.onServicioFinalizado(solicitud, cliente, proveedor);
+            } catch (Exception e) {
+                // Non-blocking
+            }
+        }
+    }
 }
 

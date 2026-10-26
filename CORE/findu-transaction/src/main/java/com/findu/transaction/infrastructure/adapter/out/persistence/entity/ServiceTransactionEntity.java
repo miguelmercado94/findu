@@ -61,6 +61,10 @@ public class ServiceTransactionEntity {
     @Column(name = "transaction_status", length = 32, nullable = false)
     private String transactionStatus;
 
+    @Column(name = "currency", length = 3, nullable = false)
+    @Builder.Default
+    private String currency = "COP";
+
     @Column(name = "service_completed_at")
     private Instant serviceCompletedAt;
 

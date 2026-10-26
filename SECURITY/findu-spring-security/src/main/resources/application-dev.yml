@@ -29,6 +29,7 @@ findu:
     recovery-token-expiry-minutes: ${FINDU_AUTH_RECOVERY_TOKEN_EXPIRY_MINUTES:60}
     recovery-code-expiry-minutes: ${FINDU_AUTH_RECOVERY_CODE_EXPIRY_MINUTES:3}
     email-verify-base-url: ${FINDU_AUTH_EMAIL_VERIFY_BASE_URL:http://localhost:8081/security-auth/api/v1/auth/email/verify}
+    auto-verify-email: ${FINDU_AUTH_AUTO_VERIFY_EMAIL:true}
     # --- Pruebas en LOCAL (perfil dev): no dependemos de SMS/correo reales ---
     # OTP de celular fijo: en dev el codigo SIEMPRE es 123456 (se guarda en el store igual).
     # Correo generico por defecto y log del enlace magico para poder completar el flujo a mano.

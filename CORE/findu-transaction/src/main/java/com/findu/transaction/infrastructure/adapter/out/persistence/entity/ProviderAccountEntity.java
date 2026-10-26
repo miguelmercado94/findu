@@ -38,6 +38,14 @@ public class ProviderAccountEntity {
     @Column(name = "status", length = 32, nullable = false)
     private String status;
 
+    @Column(name = "currency", length = 3, nullable = false)
+    @Builder.Default
+    private String currency = "COP";
+
+    @Column(name = "debt_limit", precision = 19, scale = 2, nullable = false)
+    @Builder.Default
+    private BigDecimal debtLimit = BigDecimal.ZERO;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

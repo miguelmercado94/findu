@@ -17,7 +17,13 @@ public class EstadoSolicitudAbierta implements SolicitudEstadoState {
 
     @Override
     public void aceptarOferta(SolicitudServicio solicitud, Oferta oferta) {
-        throw new IllegalStateException("No se puede aceptar oferta directamente desde estado ABIERTA sin ofertas previas.");
+        if (oferta == null) {
+            throw new IllegalStateException("No se puede aceptar oferta directamente desde estado ABIERTA sin ofertas previas.");
+        }
+        solicitud.setEstadoSolicitud("ACEPTADA");
+        if (oferta.getHoraInicioPropuesta() != null && solicitud.getFechaProgramada() != null) {
+            solicitud.setFechaProgramada(solicitud.getFechaProgramada().toLocalDate().atTime(oferta.getHoraInicioPropuesta()));
+        }
     }
 
     @Override

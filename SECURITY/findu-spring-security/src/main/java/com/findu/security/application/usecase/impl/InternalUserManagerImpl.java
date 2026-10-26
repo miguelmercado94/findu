@@ -21,6 +21,7 @@ import com.findu.security.util.ReactiveUserAuthoritiesLoader;
 import io.r2dbc.spi.ConnectionFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.r2dbc.core.DatabaseClient;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -48,6 +49,9 @@ public class InternalUserManagerImpl implements InternalUserManager {
     private final JwtManager jwtManager;
     private final SendEmailVerificationUseCase sendEmailVerificationUseCase;
     private final DatabaseClient databaseClient;
+
+    @Value("${findu.auth.auto-verify-email:false}")
+    private boolean autoVerifyEmail;
 
     private final Map<String, Long> idempotencyCache = new ConcurrentHashMap<>();
 
@@ -140,10 +144,15 @@ public class InternalUserManagerImpl implements InternalUserManager {
         usuario.setPassword(passwordEncoder.encode(password));
         usuario.setEstado("INCOMPLETO");
         usuario.setActive(true);
-        usuario.setPhoneVerified(true);
         boolean federated = Boolean.TRUE.equals(request.isFederated());
-        usuario.setEmailVerified(false);
-        usuario.setAccountStatus("PENDING_EMAIL_VERIFICATION");
+        if (autoVerifyEmail) {
+            usuario.setEmailVerified(true);
+            usuario.setAccountStatus("DOCUMENTS_PENDING");
+            log.info("[DEV] autoVerifyEmail=true: Email verificado automáticamente para {}", usuario.getEmail());
+        } else {
+            usuario.setEmailVerified(false);
+            usuario.setAccountStatus("PENDING_EMAIL_VERIFICATION");
+        }
         usuario.setEstadoActivacion("PENDIENTE_VALIDACIONES");
 
         String roleName = (request.roleName() != null && !request.roleName().isBlank())
@@ -226,7 +235,7 @@ public class InternalUserManagerImpl implements InternalUserManager {
                 .flatMap(user -> {
                     boolean bioOk = Boolean.TRUE.equals(request.biometriaAprobada());
                     ValidationState bioState = bioOk ? ValidationState.OK : ValidationState.PENDIENTE;
-                    ValidationState emailState = user.isEmailVerified() ? ValidationState.OK : ValidationState.PENDIENTE;
+                    ValidationState emailState = (autoVerifyEmail || user.isEmailVerified()) ? ValidationState.OK : ValidationState.PENDIENTE;
 
                     LocalDate fechaNac = null;
                     if (request.cedulaFechaNacimiento() != null && !request.cedulaFechaNacimiento().isBlank()) {

@@ -26,6 +26,11 @@ public class CategoriaRepoAdapter implements CategoriaRepositoryPort {
     }
 
     @Override
+    public java.util.Optional<Categoria> findById(Long id) {
+        return repository.findById(id).map(mapper::toDomain);
+    }
+
+    @Override
     public List<Categoria> findByPadreId(Long categoriaPadreId) {
         return repository.findAllByCategoriaPadreIdAndActiveTrue(categoriaPadreId).stream()
                 .map(mapper::toDomain)

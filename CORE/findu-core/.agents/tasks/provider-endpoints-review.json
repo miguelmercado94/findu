@@ -1,0 +1,18 @@
+{
+  "verdict": "APPROVED",
+  "findings": [
+    {
+      "label": "Doble findById del perfil en el detalle",
+      "severity": "non-blocking",
+      "confidence": "confirmed",
+      "detail": "consultarPerfil ahora delega en consultarCobertura(id), que vuelve a cargar el mismo perfil ya cargado al inicio del método. No afecta corrección; lectura extra dentro de la misma transacción readOnly. Opcional: pasar el perfil ya cargado o un flag que omita la re-validación."
+    },
+    {
+      "label": "Rutas nuevas sin cobertura de tests",
+      "severity": "non-blocking",
+      "confidence": "confirmed",
+      "detail": "mis-solicitudes y /cobertura no tienen pruebas automatizadas; el módulo carece de src/test. La unica evidencia es la build del bootJar (BUILD SUCCESSFUL). La tarea prohibe correr suites y no existe infraestructura de test previa. Sugerencia: @WebMvcTest o test de datos para la @Query del subselect de ofertas ACEPTADA."
+    }
+  ],
+  "reviewDoc": "c:\\Users\\ADMIN\\Documents\\FIND-U-PROJECT\\findu\\CORE\\findu-core\\.agents\\tasks\\provider-endpoints-review.md"
+}

@@ -13,6 +13,7 @@ import com.findu.transaction.domain.model.debt.ProviderDebtPayment;
 import com.findu.transaction.domain.model.finance.BankConsignmentReport;
 import com.findu.transaction.domain.model.finance.BreBPaymentOrder;
 import com.findu.transaction.domain.model.settlement.ProviderSettlementProfile;
+import com.findu.transaction.domain.model.transaction.ServiceTransaction;
 import com.findu.transaction.domain.valueobject.Money;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -59,6 +60,12 @@ class ProviderFinanceServiceTest {
 
     @Mock
     private BreBPaymentGatewayPort breBGatewayPort;
+
+    @Mock
+    private com.findu.transaction.infrastructure.adapter.out.client.ValidationBrebClient validationBrebClient;
+
+    @Mock
+    private com.findu.transaction.infrastructure.adapter.out.client.CoreServiceClient coreServiceClient;
 
     @InjectMocks
     private ProviderFinanceService financeService;
@@ -252,5 +259,45 @@ class ProviderFinanceServiceTest {
         assertEquals(PaymentStatus.COMPLETED, report.getStatus());
         assertEquals("ADMIN_OPERATIONS", report.getConfirmedBy());
         assertEquals(new BigDecimal("35000.00"), account.getReceivableBalance().getAmount());
+    }
+
+    @Test
+    @DisplayName("Debe consultar el detalle financiero de un servicio con medio de cobro correctamente")
+    void testGetServiceFinancialDetail_Success() {
+        Long providerId = 100L;
+        Long serviceRequestId = 10482L;
+
+        ServiceTransaction tx = ServiceTransaction.create(
+                serviceRequestId,
+                providerId,
+                50L,
+                Money.of(new BigDecimal("80000.00")),
+                new BigDecimal("0.10"),
+                Money.ZERO,
+                Money.ZERO,
+                PaymentMethod.TRANSFER
+        );
+
+        when(serviceTransactionRepository.findByServiceRequestId(serviceRequestId))
+                .thenReturn(Optional.of(tx));
+        when(coreServiceClient.getSolicitud(serviceRequestId))
+                .thenReturn(Optional.of(com.findu.transaction.infrastructure.adapter.out.client.CoreServiceClient.SolicitudCoreDto.builder()
+                        .id(serviceRequestId)
+                        .servicioNombre("Enfermería a domicilio")
+                        .categoriaNombre("Cuidado de adulto mayor")
+                        .build()));
+
+        var response = financeService.getServiceFinancialDetail(providerId, serviceRequestId);
+
+        assertNotNull(response);
+        assertEquals(serviceRequestId, response.getIdentificacion().getServiceRequestId());
+        assertEquals("Enfermería a domicilio", response.getIdentificacion().getServicioNombre());
+        assertEquals("Cuidado de adulto mayor", response.getIdentificacion().getEspecialidadNombre());
+        assertEquals(new BigDecimal("80000.00"), response.getResumenEconomico().getTotalCobradoCliente());
+        assertEquals(new BigDecimal("72000.00"), response.getLiquidacion().getGananciaNetaProveedor());
+        assertEquals(new BigDecimal("-8000.00"), response.getLiquidacion().getComisionFinduMonto());
+        assertNotNull(response.getMedioCobro());
+        assertEquals("Transferencia bancaria", response.getMedioCobro().getMetodo());
+        assertEquals("Confirmado", response.getMedioCobro().getEstado());
     }
 }

@@ -33,9 +33,11 @@ spring:
           predicates:
             - Path=/findu-core/**
         - id: findu-transaction-route
-          uri: lb://FINDU-TRANSACTION
+          uri: ${FINDU_TRANSACTION_ROUTE_URI:lb://FINDU-TRANSACTION}
           predicates:
-            - Path=/findu-transaction/**, /internal/**
+            - Path=/findu-transaction/**
+          filters:
+            - StripPrefix=1
         - id: findu-help-route
           uri: lb://FINDU-HELP-V2
           predicates:
@@ -44,3 +46,7 @@ spring:
           uri: lb://NOTIFICATION-DISPATCHER
           predicates:
             - Path=/ws/events/**, /notification-dispatcher/**
+        - id: findu-validacion-route
+          uri: ${FINDU_VALIDACION_ROUTE_URI:lb://FINDU-VALIDACION}
+          predicates:
+            - Path=/findu-validacion/**

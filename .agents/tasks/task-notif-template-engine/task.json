@@ -1,0 +1,7 @@
+{
+  "task_id": "task-notif-template-engine",
+  "task_description": "Refactor findu-notification-processor into a dynamic, multi-type, admin-manageable template engine: 6 functional TemplateType values, extended domain model with per-type metadata, versioned DynamoDB persistence (PK id = CODE#TIPO#LANG + SK sk = v#<n> / v#ACTIVE, TransactWriteItems, 3 GSIs), admin REST CRUD use cases, DTOs, OpenAPI docs, variable-validated {{var}} rendering, re-layout to the findu-core hexagonal standard, and an updated LocalStack seed. Must NOT break the existing SMS/EMAIL/PUSH/WHATSAPP send flow over RabbitMQ nor OTP resolution. Follows DISENO_MODELO_PLANTILLAS_DINAMICAS.md exactly.",
+  "status": "completed",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004"],
+  "blocked_reason": null
+}

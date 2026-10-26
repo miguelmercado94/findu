@@ -76,6 +76,7 @@ eureka:
 findu:
   auth:
     recovery-code-expiry-minutes: ${FINDU_AUTH_RECOVERY_CODE_EXPIRY_MINUTES:3}
+    auto-verify-email: ${FINDU_AUTH_AUTO_VERIFY_EMAIL:false}
   notification:
     enabled: ${FINDU_NOTIFICATION_ENABLED:false}
     lambda-url: ${FINDU_NOTIFICATION_LAMBDA_URL:http://localhost:9000}

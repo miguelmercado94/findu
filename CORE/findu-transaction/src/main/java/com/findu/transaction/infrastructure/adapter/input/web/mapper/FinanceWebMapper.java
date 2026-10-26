@@ -46,16 +46,74 @@ public class FinanceWebMapper {
                 .netWeekBalance(r.getNetWeekBalance() != null ? r.getNetWeekBalance().getAmount() : null)
                 .build();
 
+        java.math.BigDecimal commissionRatePct = r.getFinduCommissionRate() != null
+                ? r.getFinduCommissionRate().multiply(java.math.BigDecimal.valueOf(100)).setScale(1, java.math.RoundingMode.HALF_UP)
+                : java.math.BigDecimal.valueOf(10.0);
+
+        DebtStatusResult debt = r.getDebtSummary();
+        java.math.BigDecimal debtLimit = (debt != null && debt.getDebtLimit() != null)
+                ? debt.getDebtLimit().getAmount()
+                : java.math.BigDecimal.valueOf(125000.0);
+        java.math.BigDecimal currentDebt = (debt != null && debt.getCurrentDebt() != null)
+                ? debt.getCurrentDebt().getAmount()
+                : java.math.BigDecimal.ZERO;
+        boolean blocked = debt != null && debt.isBlocked();
+        String restStatus = (debt != null && debt.getRestrictionStatus() != null)
+                ? debt.getRestrictionStatus().name()
+                : "NORMAL";
+        String restMessage = (debt != null && debt.getRestrictionMessage() != null)
+                ? debt.getRestrictionMessage()
+                : "Tu balance está al día. Buena semana.";
+
+        String financialState;
+        if (currentDebt.compareTo(java.math.BigDecimal.ZERO) <= 0) {
+            financialState = "POSITIVE";
+        } else if (blocked || "RESTRICTED".equalsIgnoreCase(restStatus)) {
+            financialState = "CRITICAL_NEGATIVE";
+        } else {
+            financialState = "WARNING_NEGATIVE";
+        }
+
+        java.time.LocalDateTime fInicio = r.getFechaInicio() != null ? r.getFechaInicio() : (r.getStartDate() != null ? r.getStartDate().atStartOfDay() : null);
+        java.time.LocalDateTime fFin = r.getFechaFin() != null ? r.getFechaFin() : (r.getEndDate() != null ? r.getEndDate().atTime(23, 59, 59) : null);
+        java.math.BigDecimal montoBal = r.getProvisionalBalance() != null ? r.getProvisionalBalance().getAmount() : java.math.BigDecimal.ZERO;
+        java.math.BigDecimal totServicios = r.getCompletedServicesAmount() != null ? r.getCompletedServicesAmount().getAmount() : java.math.BigDecimal.ZERO;
+        java.math.BigDecimal comisionesFindu = r.getFinduCommissionAmount() != null ? r.getFinduCommissionAmount().getAmount() : java.math.BigDecimal.ZERO;
+        java.math.BigDecimal pagosEfectivo = r.getCashPaymentsReceived() != null ? r.getCashPaymentsReceived().getAmount() : java.math.BigDecimal.ZERO;
+        java.math.BigDecimal ajustes = r.getAdjustmentsAmount() != null ? r.getAdjustmentsAmount().getAmount() : java.math.BigDecimal.ZERO;
+        java.math.BigDecimal proxLiqMonto = r.getNextSettlementEstimatedAmount() != null ? r.getNextSettlementEstimatedAmount().getAmount() : java.math.BigDecimal.ZERO;
+
         return WeeklyBalanceResponse.builder()
+                .periodo(r.getPeriodLabel())
+                .fechaInicio(fInicio)
+                .fechaFin(fFin)
+                .montoBalance(montoBal)
+                .serviciosCompletados(r.getCompletedServicesCount())
+                .serviciosPendientesLiquidar(r.getPendingSettlementCount())
+                .pagosEnEfectivoCount(r.getPagosEnEfectivoCount())
+                .totalServiciosMonto(totServicios)
+                .comisionesFinduMonto(comisionesFindu)
+                .comisionPorcentaje(commissionRatePct)
+                .pagosEfectivoMonto(pagosEfectivo)
+                .ajustesMonto(ajustes)
+                .proximaLiquidacionFecha(r.getNextSettlementDateLabel())
+                .proximaLiquidacionMonto(proxLiqMonto)
+                .proximaLiquidacionEstado(r.getNextSettlementStatus() != null ? r.getNextSettlementStatus() : "PROGRAMADO")
+                .limiteDeuda(debtLimit)
+                .deudaPendiente(currentDebt)
+                .estadoFinanciero(financialState)
+                .restrictionStatus(restStatus)
+                .isBlocked(blocked)
+                .restrictionMessage(restMessage)
+                .cutoffNote(r.getCutoffNote() != null ? r.getCutoffNote() : "El corte se realiza el domingo")
                 .startDate(r.getStartDate())
                 .endDate(r.getEndDate())
                 .periodLabel(r.getPeriodLabel())
-                .provisionalBalance(r.getProvisionalBalance() != null ? r.getProvisionalBalance().getAmount() : null)
+                .provisionalBalance(montoBal)
                 .currency("COP")
                 .balanceType(r.getBalanceType())
                 .completedServicesCount(r.getCompletedServicesCount())
                 .pendingSettlementCount(r.getPendingSettlementCount())
-                .cutoffNote(r.getCutoffNote())
                 .nextSettlement(nextDto)
                 .weeklyActivity(activityDto)
                 .debtSummary(toResponse(r.getDebtSummary()))
@@ -86,6 +144,8 @@ public class FinanceWebMapper {
                 .totalIncome(r.getTotalIncome() != null ? r.getTotalIncome().getAmount() : null)
                 .totalExpenses(r.getTotalExpenses() != null ? r.getTotalExpenses().getAmount() : null)
                 .netBalance(r.getNetBalance() != null ? r.getNetBalance().getAmount() : null)
+                .completedServicesCount(r.getCompletedServicesCount())
+                .activeDaysCount(r.getActiveDaysCount())
                 .movements(r.getMovements() != null ? r.getMovements().stream().map(this::toItemDto).collect(Collectors.toList()) : Collections.emptyList())
                 .build();
     }
@@ -94,10 +154,15 @@ public class FinanceWebMapper {
         if (item == null) return null;
         return FinancialMovementsResponse.MovementItemDto.builder()
                 .id(item.getId())
+                .serviceRequestId(item.getServiceRequestId())
+                .serviceCode(item.getServiceCode())
+                .serviceName(item.getServiceName())
+                .specializationName(item.getSpecializationName())
                 .title(item.getTitle())
                 .subtitle(item.getSubtitle())
                 .date(item.getDate())
                 .dateLabel(item.getDateLabel())
+                .timeLabel(item.getTimeLabel())
                 .amount(item.getAmount() != null ? item.getAmount().getAmount() : null)
                 .currency("COP")
                 .isIncome(item.isIncome())

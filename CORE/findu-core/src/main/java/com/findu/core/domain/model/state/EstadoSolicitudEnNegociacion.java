@@ -19,6 +19,9 @@ public class EstadoSolicitudEnNegociacion implements SolicitudEstadoState {
     @Override
     public void aceptarOferta(SolicitudServicio solicitud, Oferta oferta) {
         solicitud.setEstadoSolicitud("ACEPTADA");
+        if (oferta != null && oferta.getHoraInicioPropuesta() != null && solicitud.getFechaProgramada() != null) {
+            solicitud.setFechaProgramada(solicitud.getFechaProgramada().toLocalDate().atTime(oferta.getHoraInicioPropuesta()));
+        }
     }
 
     @Override

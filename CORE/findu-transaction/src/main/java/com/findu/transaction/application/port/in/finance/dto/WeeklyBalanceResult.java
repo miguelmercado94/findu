@@ -17,6 +17,9 @@ public class WeeklyBalanceResult {
     private final String balanceType; // PROVISIONAL, AVAILABLE, NEGATIVE_WARNING, RESTRICTED
     private final int completedServicesCount;
     private final int pendingSettlementCount;
+    private final int pagosEnEfectivoCount;
+    private final java.time.LocalDateTime fechaInicio;
+    private final java.time.LocalDateTime fechaFin;
     private final String cutoffNote;
 
     // Próxima liquidación

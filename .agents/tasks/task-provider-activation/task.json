@@ -1,0 +1,14 @@
+{
+  "task_id": "task-provider-activation",
+  "task_description": "Provider activation flow across findu-spring-security (state machine + 4 validations + profile exposure + events), findu-help-v2 (idempotent provider-review ticket), findu-notification-processor (template seed + alert read endpoint), findu-core (write-once frontal photo), and the Flutter app findu_proveedores (BiometricVerifier abstraction + mock, register wizard, profile 'no activo' banner + INFO alerts + realtime). Reactive/hexagonal/Lombok; additive idempotent Postgres migration that does not break Railway qa; no Railway deploy or real AWS writes.",
+  "status": "completed",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004", "FEAT-005"],
+  "feature_status": {
+    "FEAT-001": "completed",
+    "FEAT-002": "completed",
+    "FEAT-003": "completed",
+    "FEAT-004": "completed",
+    "FEAT-005": "completed"
+  },
+  "blocked_reason": null
+}

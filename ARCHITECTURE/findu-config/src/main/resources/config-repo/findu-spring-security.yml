@@ -20,3 +20,15 @@ findu:
     recovery-code-expiry-minutes: ${FINDU_AUTH_RECOVERY_CODE_EXPIRY_MINUTES:3}
     recovery-token-expiry-minutes: ${FINDU_AUTH_RECOVERY_TOKEN_EXPIRY_MINUTES:60}
     reset-password-base-url: ${FINDU_AUTH_RESET_PASSWORD_BASE_URL:http://localhost:3000/reset-password}
+  activation:
+    core:
+      base-url: ${FINDU_ACTIVATION_CORE_BASE_URL:http://findu-api-gateway:8080}
+      perfil-path: /findu-core/api/v1/perfil-proveedor
+    help:
+      base-url: ${FINDU_ACTIVATION_HELP_BASE_URL:http://findu-api-gateway:8080}
+      tickets-path: /findu-help-v2/api/v1/help/tickets
+    biometric:
+      mock-always-pass: ${FINDU_BIOMETRIC_MOCK_ALWAYS_PASS:true}
+  validacion:
+    base-url: ${FINDU_VALIDACION_BASE_URL:http://findu-api-gateway:8080}
+    resolve-path: /findu-validacion/api/v1/validations/support/resolve

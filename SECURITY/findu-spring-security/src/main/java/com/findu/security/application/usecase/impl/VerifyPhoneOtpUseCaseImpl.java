@@ -19,6 +19,7 @@ import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import reactor.core.publisher.Mono;
 
@@ -42,6 +43,9 @@ public class VerifyPhoneOtpUseCaseImpl implements VerifyPhoneOtpUseCase {
     private final ObjectMapper objectMapper;
     private final ProviderActivationRepositoryPort activationRepository;
     private final SendEmailVerificationUseCase sendEmailVerificationUseCase;
+
+    @Value("${findu.auth.auto-verify-email:false}")
+    private boolean autoVerifyEmail;
 
     public VerifyPhoneOtpUseCaseImpl(PhoneOtpStorePort phoneOtpStore,
                                      UsuarioService usuarioService,
@@ -109,10 +113,10 @@ public class VerifyPhoneOtpUseCaseImpl implements VerifyPhoneOtpUseCase {
                                                 .then(markOtpOk(saved))
                                                 .then(sendEmailVerificationUseCase.sendVerificationForUser(saved)
                                                         .onErrorResume(e -> {
-                                                            log.warn("Email de verificación no enviado tras OTP (userId={}): {}",
-                                                                    saved.getId(), e.getMessage());
-                                                            return Mono.empty();
-                                                        }))
+                                                             log.warn("Email de verificación no enviado tras OTP (userId={}): {}",
+                                                                     saved.getId(), e.getMessage());
+                                                             return Mono.empty();
+                                                         }))
                                                 .thenReturn(new PhoneVerificationResponse(saved.isPhoneVerified(), saved.getAccountStatus())));
                             })
                             .switchIfEmpty(Mono.defer(() -> {

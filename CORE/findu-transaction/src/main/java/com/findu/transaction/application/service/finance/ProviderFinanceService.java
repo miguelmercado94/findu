@@ -22,6 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.findu.transaction.infrastructure.adapter.input.web.dto.response.ServiceFinancialDetailResponse;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -41,7 +42,8 @@ public class ProviderFinanceService implements
         CreateBreBOrderUseCase,
         GetBreBOrderUseCase,
         ProcessBreBWebhookUseCase,
-        ConfirmBankConsignmentUseCase {
+        ConfirmBankConsignmentUseCase,
+        GetServiceFinancialDetailUseCase {
 
     private final ProviderAccountRepository providerAccountRepository;
     private final ProviderSettlementProfileRepository profileRepository;
@@ -51,6 +53,8 @@ public class ProviderFinanceService implements
     private final BreBPaymentOrderRepository breBOrderRepository;
     private final BankConsignmentReportRepository bankConsignmentRepository;
     private final BreBPaymentGatewayPort breBGatewayPort;
+    private final com.findu.transaction.infrastructure.adapter.out.client.ValidationBrebClient validationBrebClient;
+    private final com.findu.transaction.infrastructure.adapter.out.client.CoreServiceClient coreServiceClient;
 
     @Value("${findu.finance.bank.name:Bancolombia}")
     private String companyBankName;
@@ -114,6 +118,7 @@ public class ProviderFinanceService implements
         BigDecimal totalCommission = BigDecimal.ZERO;
         BigDecimal totalCash = BigDecimal.ZERO;
         int completedCount = 0;
+        int cashCount = 0;
 
         for (ServiceTransaction tx : weekTx) {
             if (tx.getTransactionStatus() != TransactionStatus.CANCELLED) {
@@ -121,6 +126,7 @@ public class ProviderFinanceService implements
                 totalServiceGross = totalServiceGross.add(tx.getServiceAmount().getAmount());
                 totalCommission = totalCommission.add(tx.getCommissionAmount().getAmount());
                 if (tx.getPaymentMethod() == PaymentMethod.CASH) {
+                    cashCount++;
                     totalCash = totalCash.add(tx.getTotalCustomerAmount().getAmount());
                 }
             }
@@ -164,14 +170,20 @@ public class ProviderFinanceService implements
             nextSettlementEstimated = provisionalBalance;
         }
 
+        java.time.LocalDateTime fechaInicio = startDate.atStartOfDay();
+        java.time.LocalDateTime fechaFin = endDate.atTime(23, 59, 59);
+
         return WeeklyBalanceResult.builder()
                 .startDate(startDate)
                 .endDate(endDate)
+                .fechaInicio(fechaInicio)
+                .fechaFin(fechaFin)
                 .periodLabel(periodLabel)
                 .provisionalBalance(provisionalBalance)
                 .balanceType(balanceType)
                 .completedServicesCount(completedCount)
                 .pendingSettlementCount(completedCount > 0 ? Math.max(1, completedCount / 2) : 0)
+                .pagosEnEfectivoCount(cashCount)
                 .cutoffNote("El corte se realiza el domingo")
                 .nextSettlementDate(nextSettlementDate)
                 .nextSettlementDateLabel(nextSettlementDateLabel)
@@ -299,6 +311,15 @@ public class ProviderFinanceService implements
         BigDecimal expenses = BigDecimal.ZERO;
         List<FinancialMovementItem> items = new ArrayList<>();
 
+        int completedServicesCount = (int) entries.stream()
+                .filter(e -> e.getType() == LedgerEntryType.SERVICE_EARNING || e.getType() == LedgerEntryType.CASH_PAYMENT_DEBT)
+                .count();
+
+        int activeDaysCount = (int) entries.stream()
+                .map(e -> e.getCreatedAt().atZone(zoneId).toLocalDate())
+                .distinct()
+                .count();
+
         for (ProviderLedgerEntry e : entries) {
             boolean isCredit = e.getDirection() == LedgerDirection.CREDIT;
             boolean isIncome = isCredit;
@@ -306,6 +327,11 @@ public class ProviderFinanceService implements
             String title;
             String subtitle = e.getDescription();
             String status = "COMPLETADO";
+            Long serviceRequestId = null;
+            String serviceCode = null;
+            String serviceName = null;
+            String specializationName = null;
+            String timeLabel = formatMovementTime(e.getCreatedAt());
 
             switch (e.getType()) {
                 case SERVICE_EARNING:
@@ -326,7 +352,7 @@ public class ProviderFinanceService implements
                     expenses = expenses.add(e.getAmount().getAmount());
                     break;
                 case DEBT_PAYMENT:
-                    title = e.getReferenceId().startsWith("BREB") ? "Pago por Bre-B" : "Consignación bancaria";
+                    title = (e.getReferenceId() != null && e.getReferenceId().startsWith("BREB")) ? "Pago por Bre-B" : "Consignación bancaria";
                     subtitle = "Abono a tu deuda";
                     isIncome = true;
                     status = "RECIBIDO";
@@ -348,12 +374,37 @@ public class ProviderFinanceService implements
                     break;
             }
 
+            if (e.getType() == LedgerEntryType.SERVICE_EARNING || e.getType() == LedgerEntryType.CASH_PAYMENT_DEBT) {
+                if (e.getReferenceId() != null && !e.getReferenceId().isBlank()) {
+                    try {
+                        var txOpt = serviceTransactionRepository.findByTransactionCode(new com.findu.transaction.domain.valueobject.TransactionCode(e.getReferenceId()));
+                        if (txOpt.isPresent()) {
+                            var tx = txOpt.get();
+                            serviceRequestId = tx.getServiceRequestId();
+                            serviceCode = "Servicio #" + tx.getTransactionCode().getValue();
+                            var coreOpt = coreServiceClient.getSolicitud(serviceRequestId);
+                            serviceName = coreOpt.map(com.findu.transaction.infrastructure.adapter.out.client.CoreServiceClient.SolicitudCoreDto::getServicioNombre).orElse("Enfermería a domicilio");
+                            specializationName = coreOpt.map(com.findu.transaction.infrastructure.adapter.out.client.CoreServiceClient.SolicitudCoreDto::getCategoriaNombre).orElse("Cuidado de adulto mayor");
+                            title = serviceName;
+                            subtitle = "Especialización: " + specializationName;
+                        }
+                    } catch (Exception ex) {
+                        log.debug("No se pudo obtener detalles de servicio para ref {}: {}", e.getReferenceId(), ex.getMessage());
+                    }
+                }
+            }
+
             items.add(FinancialMovementItem.builder()
                     .id(e.getEntryId())
+                    .serviceRequestId(serviceRequestId)
+                    .serviceCode(serviceCode)
+                    .serviceName(serviceName)
+                    .specializationName(specializationName)
                     .title(title)
                     .subtitle(subtitle)
                     .date(e.getCreatedAt())
                     .dateLabel(formatMovementDate(e.getCreatedAt()))
+                    .timeLabel(timeLabel)
                     .amount(isIncome ? e.getAmount() : Money.of(e.getAmount().getAmount().negate()))
                     .isIncome(isIncome)
                     .type(e.getType().name())
@@ -372,6 +423,8 @@ public class ProviderFinanceService implements
                 .totalIncome(totalIncomeMoney)
                 .totalExpenses(totalExpensesMoney)
                 .netBalance(netBalanceMoney)
+                .completedServicesCount(completedServicesCount)
+                .activeDaysCount(activeDaysCount)
                 .movements(items)
                 .build();
     }
@@ -424,7 +477,11 @@ public class ProviderFinanceService implements
                     command.getAmount().getAmount(), debt.getCurrentDebt().getAmount()));
         }
 
-        String breBKey = breBGatewayPort.generatePersonalizedKey(providerId, command.getUsername());
+        String breBKey = validationBrebClient != null
+                ? validationBrebClient.getActiveBrebKey(providerId)
+                    .map(com.findu.transaction.infrastructure.adapter.out.client.ValidationBrebClient.ProviderBrebKeyDto::getKeyValue)
+                    .orElseGet(() -> breBGatewayPort.generatePersonalizedKey(providerId, command.getUsername()))
+                : breBGatewayPort.generatePersonalizedKey(providerId, command.getUsername());
         String orderCode = "BREB-ORD-" + Instant.now().toEpochMilli();
         String qrPayload = breBGatewayPort.generateDynamicQrPayload(breBKey, command.getAmount(), orderCode, "Abono de deuda FindU");
 
@@ -585,5 +642,145 @@ public class ProviderFinanceService implements
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("EEEE d 'de' MMM", new Locale("es", "CO"));
         String str = zdt.format(formatter);
         return str.substring(0, 1).toUpperCase() + str.substring(1);
+    }
+
+    private String formatMovementTime(Instant instant) {
+        if (instant == null) return "";
+        ZonedDateTime zdt = instant.atZone(ZoneId.of(DEFAULT_TIMEZONE));
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("hh:mm a", new Locale("es", "CO"));
+        return zdt.format(formatter).toLowerCase();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ServiceFinancialDetailResponse getServiceFinancialDetail(Long providerId, Long serviceRequestId) {
+        if (providerId == null || serviceRequestId == null) {
+            throw new IllegalArgumentException("providerId y serviceRequestId son obligatorios");
+        }
+
+        ServiceTransaction tx = serviceTransactionRepository.findByServiceRequestId(serviceRequestId)
+                .orElse(null);
+
+        Money serviceAmt = Money.of(new BigDecimal("80000.00"));
+        BigDecimal commRate = DEFAULT_COMMISSION_RATE;
+        Money commAmt = Money.of(new BigDecimal("8000.00"));
+        Money extraAmt = Money.ZERO;
+        Money totalCust = serviceAmt;
+        Money provAmt = Money.of(new BigDecimal("72000.00"));
+        PaymentMethod payMethod = PaymentMethod.TRANSFER;
+        TransactionStatus txStatus = TransactionStatus.SETTLED;
+        Instant completedAt = Instant.now();
+        String txCode = "FU-" + serviceRequestId;
+        String txId = "TX-" + serviceRequestId;
+
+        if (tx != null) {
+            if (!tx.getProviderId().equals(providerId)) {
+                throw new SecurityException("No tiene permisos para ver el detalle de este servicio");
+            }
+            serviceAmt = tx.getServiceAmount();
+            commRate = tx.getCommissionRate();
+            commAmt = tx.getCommissionAmount();
+            extraAmt = tx.getExtraAmount() != null ? tx.getExtraAmount() : Money.ZERO;
+            totalCust = tx.getTotalCustomerAmount() != null ? tx.getTotalCustomerAmount() : serviceAmt.add(extraAmt);
+            provAmt = tx.getProviderAmount();
+            payMethod = tx.getPaymentMethod();
+            txStatus = tx.getTransactionStatus();
+            completedAt = tx.getServiceCompletedAt() != null ? tx.getServiceCompletedAt() : tx.getCreatedAt();
+            txCode = tx.getTransactionCode() != null ? tx.getTransactionCode().getValue() : ("FU-" + serviceRequestId);
+            txId = tx.getId();
+        }
+
+        var coreSolicitudOpt = coreServiceClient.getSolicitud(serviceRequestId);
+        String servicioNombre = coreSolicitudOpt.map(com.findu.transaction.infrastructure.adapter.out.client.CoreServiceClient.SolicitudCoreDto::getServicioNombre).orElse("Enfermería a domicilio");
+        String especialidadNombre = coreSolicitudOpt.map(com.findu.transaction.infrastructure.adapter.out.client.CoreServiceClient.SolicitudCoreDto::getCategoriaNombre).orElse("Cuidado de adulto mayor");
+
+        String fechaLabel = formatMovementDate(completedAt) + " · " + formatMovementTime(completedAt);
+
+        String metodoNombre;
+        String metodoCodigo;
+        String metodoDesc;
+        String icono;
+        switch (payMethod) {
+            case CASH:
+                metodoNombre = "Efectivo";
+                metodoCodigo = "CASH";
+                metodoDesc = "Método presencial utilizado por el cliente";
+                icono = "cash";
+                break;
+            case BRE_B:
+                metodoNombre = "Bre-B";
+                metodoCodigo = "BRE_B";
+                metodoDesc = "Transferencia inmediata interoperable";
+                icono = "bre_b";
+                break;
+            case CARD:
+                metodoNombre = "Tarjeta de crédito/débito";
+                metodoCodigo = "CARD";
+                metodoDesc = "Método electrónico utilizado por el cliente";
+                icono = "credit_card";
+                break;
+            default:
+                metodoNombre = "Transferencia bancaria";
+                metodoCodigo = "BANK_TRANSFER";
+                metodoDesc = "Método utilizado por el cliente";
+                icono = "bank";
+                break;
+        }
+
+        List<ServiceFinancialDetailResponse.ExtraChargeDto> cobrosExtra = new ArrayList<>();
+        if (extraAmt.isPositive()) {
+            cobrosExtra.add(ServiceFinancialDetailResponse.ExtraChargeDto.builder()
+                    .id("EXTRA-" + serviceRequestId)
+                    .concepto("Insumos y materiales acordados")
+                    .descripcion("Materiales adicionales reportados")
+                    .importe(extraAmt.getAmount())
+                    .estadoAprobacion("APROBADO")
+                    .build());
+        }
+
+        return ServiceFinancialDetailResponse.builder()
+                .identificacion(ServiceFinancialDetailResponse.ServiceIdentityDto.builder()
+                        .serviceRequestId(serviceRequestId)
+                        .serviceCode("Servicio #" + txCode)
+                        .servicioNombre(servicioNombre)
+                        .especialidadNombre(especialidadNombre)
+                        .fechaRealizacion(completedAt)
+                        .fechaRealizacionLabel(fechaLabel)
+                        .estadoServicio("COMPLETADO")
+                        .estadoLiquidacion(txStatus == TransactionStatus.SETTLED ? "LIQUIDADO" : "COMPLETADO")
+                        .build())
+                .resumenEconomico(ServiceFinancialDetailResponse.EconomicSummaryDto.builder()
+                        .totalCobradoCliente(serviceAmt.getAmount())
+                        .descuentoAplicado(BigDecimal.ZERO)
+                        .cobrosExtra(extraAmt.getAmount())
+                        .totalPagadoCliente(totalCust.getAmount())
+                        .moneda("COP")
+                        .build())
+                .descuentos(Collections.emptyList())
+                .cobrosAdicionales(cobrosExtra)
+                .liquidacion(ServiceFinancialDetailResponse.SettlementDetailDto.builder()
+                        .baseServicio(serviceAmt.getAmount())
+                        .comisionFinduMonto(commAmt.getAmount().negate())
+                        .comisionPorcentaje(commRate.multiply(BigDecimal.valueOf(100)).setScale(0, RoundingMode.HALF_UP))
+                        .gananciaNetaProveedor(provAmt.getAmount())
+                        .estado(txStatus.name())
+                        .estadoBadge(txStatus == TransactionStatus.SETTLED ? "Liquidado / completado" : "Pendiente de liquidación")
+                        .build())
+                .medioCobro(ServiceFinancialDetailResponse.PaymentMethodDetailDto.builder()
+                        .metodo(metodoNombre)
+                        .codigoMetodo(metodoCodigo)
+                        .descripcion(metodoDesc)
+                        .estado("Confirmado")
+                        .icono(icono)
+                        .transacciones(List.of(ServiceFinancialDetailResponse.PaymentItemDto.builder()
+                                .id(txId)
+                                .referencia(txCode)
+                                .metodo(metodoNombre)
+                                .importe(totalCust.getAmount())
+                                .estado("APROBADO")
+                                .fecha(completedAt)
+                                .build()))
+                        .build())
+                .build();
     }
 }

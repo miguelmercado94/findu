@@ -8,6 +8,7 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 
 @Entity
 @Table(name = "oferta")
@@ -31,6 +32,9 @@ public class OfertaEntity {
 
     @Column(name = "valor_propuesto", nullable = false)
     private BigDecimal valorPropuesto;
+
+    @Column(name = "hora_inicio_propuesta")
+    private LocalTime horaInicioPropuesta;
 
     @Column(name = "tiempo_estimado")
     private String tiempoEstimado;

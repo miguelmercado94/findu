@@ -20,7 +20,8 @@ CREATE TABLE IF NOT EXISTS service_transactions (
     transaction_status VARCHAR(32) NOT NULL,
     service_completed_at TIMESTAMP,
     created_at TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP NOT NULL
+    updated_at TIMESTAMP NOT NULL,
+    currency VARCHAR(3) NOT NULL DEFAULT 'COP'
 );
 
 CREATE TABLE IF NOT EXISTS payments (
@@ -115,7 +116,9 @@ CREATE TABLE IF NOT EXISTS provider_accounts (
     last_balance_date DATE,
     status VARCHAR(32) NOT NULL,
     created_at TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP NOT NULL
+    updated_at TIMESTAMP NOT NULL,
+    currency VARCHAR(3) NOT NULL DEFAULT 'COP',
+    debt_limit NUMERIC(19, 2) NOT NULL DEFAULT 0.00
 );
 
 CREATE TABLE IF NOT EXISTS provider_ledger_entries (
@@ -149,6 +152,7 @@ CREATE TABLE IF NOT EXISTS daily_balances (
     status VARCHAR(32),
     created_at TIMESTAMP NOT NULL,
     updated_at TIMESTAMP NOT NULL,
+    currency VARCHAR(3) NOT NULL DEFAULT 'COP',
     CONSTRAINT uk_daily_balance_provider_date UNIQUE (provider_id, balance_date)
 );
 

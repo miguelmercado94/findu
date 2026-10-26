@@ -14,5 +14,7 @@ public class FinancialMovementsResult {
     private final Money totalIncome;
     private final Money totalExpenses;
     private final Money netBalance;
+    private final Integer completedServicesCount;
+    private final Integer activeDaysCount;
     private final List<FinancialMovementItem> movements;
 }

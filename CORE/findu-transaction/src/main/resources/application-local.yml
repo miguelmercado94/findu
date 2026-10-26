@@ -20,7 +20,7 @@ spring:
   sql:
     init:
       mode: always
-      schema-locations: classpath:db/h2/schema.sql
+      schema-locations: ${SPRING_SQL_INIT_SCHEMA_LOCATIONS:classpath:db/h2/schema.sql}
 
 logging:
   level:

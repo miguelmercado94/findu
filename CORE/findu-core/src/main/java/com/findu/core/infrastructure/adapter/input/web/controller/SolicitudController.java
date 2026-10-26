@@ -104,6 +104,47 @@ public class SolicitudController {
         return ResponseEntity.ok(solicitudesUseCase.cancelarSolicitud(id));
     }
 
+    @GetMapping("/{id}")
+    @Operation(summary = "Obtener detalle de solicitud", description = "Obtiene los detalles completos de una solicitud por su ID")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Solicitud encontrada exitosamente",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = SolicitudResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Solicitud no encontrada", content = @Content)
+    })
+    public ResponseEntity<SolicitudResponse> obtenerSolicitudPorId(
+            @Parameter(description = "ID de la solicitud", required = true, example = "1")
+            @PathVariable Long id) {
+        return ResponseEntity.ok(solicitudesUseCase.obtenerSolicitudPorId(id));
+    }
+
+    @RequestMapping(value = "/{id}/iniciar", method = {RequestMethod.POST, RequestMethod.PATCH})
+    @Operation(summary = "Iniciar servicio", description = "Transiciona el servicio al estado EN_CURSO")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Servicio iniciado exitosamente",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = SolicitudResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Solicitud no encontrada", content = @Content),
+            @ApiResponse(responseCode = "409", description = "La solicitud no puede iniciarse en su estado actual", content = @Content)
+    })
+    public ResponseEntity<SolicitudResponse> iniciarServicio(
+            @Parameter(description = "ID de la solicitud", required = true, example = "1")
+            @PathVariable Long id) {
+        return ResponseEntity.ok(solicitudesUseCase.iniciarServicio(id));
+    }
+
+    @RequestMapping(value = "/{id}/finalizar", method = {RequestMethod.POST, RequestMethod.PUT})
+    @Operation(summary = "Finalizar solicitud", description = "Finaliza el servicio y registra la transacción financiera en findu-transaction")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Solicitud finalizada exitosamente",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = SolicitudResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Solicitud no encontrada", content = @Content),
+            @ApiResponse(responseCode = "500", description = "Error interno del servidor", content = @Content)
+    })
+    public ResponseEntity<SolicitudResponse> finalizarServicio(
+            @Parameter(description = "ID de la solicitud", required = true, example = "1")
+            @PathVariable Long id) {
+        return ResponseEntity.ok(solicitudesUseCase.finalizarServicio(id));
+    }
+
     @GetMapping("/{id}/direccion")
     @Operation(summary = "Obtener dirección de la solicitud", description = "Retorna la dirección asociada a una solicitud de servicio")
     @ApiResponses(value = {

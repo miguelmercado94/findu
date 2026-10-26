@@ -1,0 +1,18 @@
+{
+  "verdict": "APPROVED",
+  "findings": [
+    "6 TemplateType values present (SMS, EMAIL, WHATSAPP, EVENTO, NOTIFICACION, ALERTA) in domain/enums/TemplateType.java with fromChannel() mapping PUSH->NOTIFICACION.",
+    "Extended domain model uses Audience/AlertMeta/NotificationRouting value objects (not raw maps); NotificationTemplate carries all common + per-type fields.",
+    "Versioned persistence verified in DynamoDbTemplateAdapter: PK id=CODE#TIPO#LANG + SK v#<n>/v#ACTIVE; createNewVersion writes immutable v#<n+1> + v#ACTIVE pointer via TransactWriteItems; activateVersion rollback; findHistory via begins_with 'v#'; findByTipo via GSI.",
+    "DynamoDB confined to infrastructure: zero software.amazon.awssdk imports in application/ or domain/ (verified by grep).",
+    "Admin CRUD complete: ManageTemplateUseCase port, request/response DTOs with jakarta.validation, TemplateAdminController at /api/v1/admin/templates with 6 endpoints and full OpenAPI @Operation/@ApiResponses; cache evicted on all mutations with key matching the @Cacheable key.",
+    "Variable-validated {{var}} render via VariableValidator + TemplateRenderer; missing declared vars surface as InvalidTemplateException.",
+    "Hexagonal re-layout matches design section 10 (application/{dto,port/{in,out},service/impl,util}; domain/{enums,exception,model}; infrastructure/{adapter/input/web/controller, adapter/out/{persistence,externalapi}, config, consumer}).",
+    "Send flow UNBROKEN: 4 @RabbitListener consumers (push/email/sms/whatsapp) intact; senders relocated to infrastructure/adapter/out/externalapi behaviorally unchanged; OTP resolves via VERIFICACION_OTP#SMS#es + VERIFICACION_EMAIL#EMAIL#es seeded templates.",
+    "Seed script rewritten to composite key id(HASH)+sk(RANGE) with 3 GSIs (GSI_tipo, GSI_pantalla, GSI_codigo), all 6 types + OTP SMS/EMAIL + converted legacy templates, each writing v#1 + v#ACTIVE with attribute names matching the mapper; 'bash -n' passes.",
+    "No other microservice touched: all changes under CORE/findu-notification-processor plus the root .gitignore negation '!**/src/**/out/' that correctly un-ignores the hexagonal out/ source packages (8 tracked and compiled).",
+    "No Railway/real-AWS usage: seed targets LocalStack endpoint and is not executed against AWS.",
+    "Clean '.\\gradlew.bat clean build' => BUILD SUCCESSFUL with all tests passing (mapper round-trip, validator, renderer, adapter transaction assembly, admin service, FinancialEventRouter). The non-zero PowerShell exit is only the JVM 'Sharing is only supported' stderr warning, not a build failure."
+  ],
+  "summary": "APPROVED. The template-engine refactor fully meets DISENO_MODELO_PLANTILLAS_DINAMICAS.md and the task: 6 functional TemplateTypes, extended domain with Audience/AlertMeta/NotificationRouting VOs, versioned PK+SK persistence (TransactWriteItems, v#ACTIVE pointer, 3 GSIs) with DynamoDB confined to infrastructure, admin CRUD use cases + DTOs + OpenAPI-annotated TemplateAdminController, variable-validated {{var}} rendering, and findu-core-aligned hexagonal layout. The SMS/EMAIL/PUSH/WHATSAPP RabbitMQ send flow and OTP resolution remain unbroken, no other micro was touched, and no Railway/real-AWS is involved. Clean build is green."
+}

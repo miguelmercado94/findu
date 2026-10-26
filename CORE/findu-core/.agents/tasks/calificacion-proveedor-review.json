@@ -1,0 +1,12 @@
+{
+  "verdict": "APPROVED",
+  "findings": [
+    {
+      "severity": "non-blocking",
+      "confidence": "confirmed",
+      "label": "Typo en prosa del mensaje de commit",
+      "detail": "El mensaje de commit escribe 'new BigDecimal(3.5)' (constructor double) en la prosa, pero el codigo real usa 'new BigDecimal(\"3.5\")' (constructor String) en los tres sitios (agregarEspecialidad, crearPerfil, fallback de calcularCalificacionGeneral). Es un typo de redaccion del mensaje, no del codigo. Sin impacto funcional; no requiere cambio de codigo."
+    }
+  ],
+  "reviewDoc": "c:\\Users\\ADMIN\\Documents\\FIND-U-PROJECT\\findu\\CORE\\findu-core/.agents/tasks/calificacion-proveedor-review.md"
+}

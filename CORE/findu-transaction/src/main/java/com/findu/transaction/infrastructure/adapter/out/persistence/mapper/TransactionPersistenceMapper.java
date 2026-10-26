@@ -15,12 +15,14 @@ import com.findu.transaction.domain.valueobject.TransactionCode;
 import com.findu.transaction.infrastructure.adapter.out.persistence.entity.*;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Component
 public class TransactionPersistenceMapper {
 
+    // ==========================================
     // ==========================================
     // SERVICE TRANSACTION
     // ==========================================
@@ -42,6 +44,7 @@ public class TransactionPersistenceMapper {
                 .paymentMethod(domain.getPaymentMethod() != null ? domain.getPaymentMethod().name() : null)
                 .paymentStatus(domain.getPaymentStatus() != null ? domain.getPaymentStatus().name() : null)
                 .transactionStatus(domain.getTransactionStatus() != null ? domain.getTransactionStatus().name() : null)
+                .currency(domain.getServiceAmount() != null && domain.getServiceAmount().getCurrency() != null ? domain.getServiceAmount().getCurrency().getCurrencyCode() : "COP")
                 .serviceCompletedAt(domain.getServiceCompletedAt())
                 .createdAt(domain.getCreatedAt())
                 .updatedAt(domain.getUpdatedAt())
@@ -83,6 +86,8 @@ public class TransactionPersistenceMapper {
                 .providerType(domain.getProviderType() != null ? domain.getProviderType().name() : null)
                 .payableBalance(domain.getPayableBalance() != null ? domain.getPayableBalance().getAmount() : null)
                 .receivableBalance(domain.getReceivableBalance() != null ? domain.getReceivableBalance().getAmount() : null)
+                .currency("COP")
+                .debtLimit(domain.getDebtLimit() != null ? domain.getDebtLimit().getAmount() : (domain.getProviderType() != null ? BigDecimal.valueOf(domain.getProviderType().getDebtLimitCop()) : new BigDecimal("125000.00")))
                 .lastBalanceDate(null)
                 .status(domain.getStatus() != null ? domain.getStatus().name() : null)
                 .createdAt(domain.getCreatedAt())
@@ -96,6 +101,7 @@ public class TransactionPersistenceMapper {
                 ledgerEntities.stream().map(this::toDomain).collect(Collectors.toList()) : List.of();
 
         ProviderType type = entity.getProviderType() != null ? ProviderType.valueOf(entity.getProviderType()) : ProviderType.PERSONA_NATURAL;
+        BigDecimal debtLimit = entity.getDebtLimit() != null ? entity.getDebtLimit() : BigDecimal.valueOf(type.getDebtLimitCop());
 
         return ProviderAccount.reconstitute(
                 entity.getId(),
@@ -103,7 +109,7 @@ public class TransactionPersistenceMapper {
                 type,
                 new Money(entity.getPayableBalance()),
                 new Money(entity.getReceivableBalance()),
-                Money.of(type.getDebtLimitCop()),
+                new Money(debtLimit),
                 entity.getStatus() != null ? ProviderAccountStatus.valueOf(entity.getStatus()) : ProviderAccountStatus.NORMAL,
                 ledger,
                 entity.getCreatedAt(),
@@ -161,6 +167,7 @@ public class TransactionPersistenceMapper {
                 .providerDebt(domain.getProviderDebt() != null ? domain.getProviderDebt().getAmount() : null)
                 .pendingPayout(domain.getPendingPayout() != null ? domain.getPendingPayout().getAmount() : null)
                 .closingBalance(domain.getClosingBalance() != null ? domain.getClosingBalance().getAmount() : null)
+                .currency("COP")
                 .status("COMPLETED")
                 .createdAt(domain.getCreatedAt())
                 .updatedAt(domain.getCreatedAt())

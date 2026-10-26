@@ -64,6 +64,10 @@ public class DailyBalanceEntity {
     @Column(name = "status", length = 32)
     private String status;
 
+    @Column(name = "currency", length = 3, nullable = false)
+    @Builder.Default
+    private String currency = "COP";
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

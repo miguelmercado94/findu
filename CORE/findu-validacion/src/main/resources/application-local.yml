@@ -4,12 +4,12 @@ server:
 spring:
   data:
     mongodb:
-      uri: mongodb://localhost:27017/findu_validacion
+      uri: ${SPRING_DATA_MONGODB_URI:mongodb://localhost:27017/findu_validacion}
   rabbitmq:
-    host: localhost
-    port: 5672
-    username: findu
-    password: findu
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:findu}
+    password: ${RABBITMQ_PASSWORD:findu}
 
 logging:
   level:

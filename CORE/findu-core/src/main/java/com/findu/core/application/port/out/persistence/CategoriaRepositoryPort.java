@@ -10,6 +10,8 @@ public interface CategoriaRepositoryPort {
 
     List<Categoria> findAll();
 
+    java.util.Optional<Categoria> findById(Long id);
+
     List<Categoria> findByPadreId(Long categoriaPadreId);
 
     Page<Categoria> findRootCategorias(Pageable pageable);

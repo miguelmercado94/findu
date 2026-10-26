@@ -1,25 +1,9 @@
 -- =====================================================================
 -- FINDU Core — Schema para PostgreSQL (perfil dev)
--- DROP + CREATE en cada arranque
+-- Tablas persistentes con IF NOT EXISTS para evitar pérdida de datos en reinicio.
 -- =====================================================================
 
-DROP TABLE IF EXISTS calificacion CASCADE;
-DROP TABLE IF EXISTS factura_detalle CASCADE;
-DROP TABLE IF EXISTS factura CASCADE;
-DROP TABLE IF EXISTS oferta CASCADE;
-DROP TABLE IF EXISTS solicitud_servicio CASCADE;
-DROP TABLE IF EXISTS direccion CASCADE;
-DROP TABLE IF EXISTS proveedor_cobertura CASCADE;
-DROP TABLE IF EXISTS especialista_credenciales CASCADE;
-DROP TABLE IF EXISTS portafolio_item CASCADE;
-DROP TABLE IF EXISTS perfil_especialista CASCADE;
-DROP TABLE IF EXISTS perfil_proveedor CASCADE;
-DROP TABLE IF EXISTS perfil_cliente CASCADE;
-DROP TABLE IF EXISTS servicio CASCADE;
-DROP TABLE IF EXISTS categoria CASCADE;
-DROP TABLE IF EXISTS municipio CASCADE;
-
-CREATE TABLE municipio (
+CREATE TABLE IF NOT EXISTS municipio (
     id BIGSERIAL PRIMARY KEY,
     codigo_dane VARCHAR(10) NOT NULL UNIQUE,
     nombre VARCHAR(100) NOT NULL,
@@ -27,7 +11,7 @@ CREATE TABLE municipio (
     active BOOLEAN NOT NULL DEFAULT TRUE
 );
 
-CREATE TABLE categoria (
+CREATE TABLE IF NOT EXISTS categoria (
     id BIGSERIAL PRIMARY KEY,
     nombre VARCHAR(100) NOT NULL,
     descripcion VARCHAR(500),
@@ -37,7 +21,7 @@ CREATE TABLE categoria (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE servicio (
+CREATE TABLE IF NOT EXISTS servicio (
     id BIGSERIAL PRIMARY KEY,
     nombre VARCHAR(100) NOT NULL,
     descripcion VARCHAR(500),
@@ -49,7 +33,7 @@ CREATE TABLE servicio (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE perfil_cliente (
+CREATE TABLE IF NOT EXISTS perfil_cliente (
     id BIGSERIAL PRIMARY KEY,
     auth_user_id BIGINT NOT NULL UNIQUE,
     username VARCHAR(50) NOT NULL UNIQUE,
@@ -68,7 +52,7 @@ CREATE TABLE perfil_cliente (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE perfil_proveedor (
+CREATE TABLE IF NOT EXISTS perfil_proveedor (
     id BIGSERIAL PRIMARY KEY,
     auth_user_id BIGINT NOT NULL UNIQUE,
     nombre_completo VARCHAR(200) NOT NULL,
@@ -87,7 +71,7 @@ CREATE TABLE perfil_proveedor (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE perfil_especialista (
+CREATE TABLE IF NOT EXISTS perfil_especialista (
     id BIGSERIAL PRIMARY KEY,
     perfil_proveedor_id BIGINT NOT NULL REFERENCES perfil_proveedor(id),
     servicio_id BIGINT NOT NULL REFERENCES servicio(id),
@@ -99,7 +83,7 @@ CREATE TABLE perfil_especialista (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE portafolio_item (
+CREATE TABLE IF NOT EXISTS portafolio_item (
     id BIGSERIAL PRIMARY KEY,
     perfil_especialista_id BIGINT NOT NULL REFERENCES perfil_especialista(id),
     titulo VARCHAR(100),
@@ -109,7 +93,7 @@ CREATE TABLE portafolio_item (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE especialista_credenciales (
+CREATE TABLE IF NOT EXISTS especialista_credenciales (
     id BIGSERIAL PRIMARY KEY,
     perfil_especialista_id BIGINT NOT NULL REFERENCES perfil_especialista(id),
     tipo_certificado VARCHAR(30) NOT NULL,
@@ -122,13 +106,13 @@ CREATE TABLE especialista_credenciales (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE proveedor_cobertura (
+CREATE TABLE IF NOT EXISTS proveedor_cobertura (
     id BIGSERIAL PRIMARY KEY,
     perfil_proveedor_id BIGINT NOT NULL REFERENCES perfil_proveedor(id),
     municipio_id BIGINT NOT NULL REFERENCES municipio(id)
 );
 
-CREATE TABLE direccion (
+CREATE TABLE IF NOT EXISTS direccion (
     id BIGSERIAL PRIMARY KEY,
     perfil_cliente_id BIGINT REFERENCES perfil_cliente(id),
     perfil_proveedor_id BIGINT REFERENCES perfil_proveedor(id),
@@ -147,7 +131,7 @@ CREATE TABLE direccion (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE solicitud_servicio (
+CREATE TABLE IF NOT EXISTS solicitud_servicio (
     id BIGSERIAL PRIMARY KEY,
     perfil_cliente_id BIGINT NOT NULL REFERENCES perfil_cliente(id),
     servicio_id BIGINT NOT NULL REFERENCES servicio(id),
@@ -157,6 +141,7 @@ CREATE TABLE solicitud_servicio (
     telefono_contacto VARCHAR(20),
     prioridad INT DEFAULT 3,
     presupuesto_maximo DECIMAL(12,2),
+    es_presupuesto_estricto BOOLEAN DEFAULT FALSE,
     cantidad_estimada INT DEFAULT 1,
     detalles TEXT,
     fotos TEXT,
@@ -165,11 +150,12 @@ CREATE TABLE solicitud_servicio (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE oferta (
+CREATE TABLE IF NOT EXISTS oferta (
     id BIGSERIAL PRIMARY KEY,
     solicitud_servicio_id BIGINT NOT NULL REFERENCES solicitud_servicio(id),
     perfil_proveedor_id BIGINT NOT NULL REFERENCES perfil_proveedor(id),
     valor_propuesto DECIMAL(12,2) NOT NULL,
+    hora_inicio_propuesta TIME,
     tiempo_estimado VARCHAR(50),
     mensaje_presentacion VARCHAR(1000),
     estado_oferta VARCHAR(30) NOT NULL DEFAULT 'ENVIADA',
@@ -177,7 +163,7 @@ CREATE TABLE oferta (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE factura (
+CREATE TABLE IF NOT EXISTS factura (
     id BIGSERIAL PRIMARY KEY,
     solicitud_servicio_id BIGINT NOT NULL UNIQUE REFERENCES solicitud_servicio(id),
     subtotal DECIMAL(12,2) NOT NULL,
@@ -188,7 +174,7 @@ CREATE TABLE factura (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE factura_detalle (
+CREATE TABLE IF NOT EXISTS factura_detalle (
     id BIGSERIAL PRIMARY KEY,
     factura_id BIGINT NOT NULL REFERENCES factura(id),
     concepto VARCHAR(200) NOT NULL,
@@ -197,7 +183,7 @@ CREATE TABLE factura_detalle (
     estado_aprobacion VARCHAR(30) DEFAULT 'APROBADO'
 );
 
-CREATE TABLE calificacion (
+CREATE TABLE IF NOT EXISTS calificacion (
     id BIGSERIAL PRIMARY KEY,
     solicitud_servicio_id BIGINT NOT NULL REFERENCES solicitud_servicio(id),
     evaluador_id BIGINT NOT NULL,

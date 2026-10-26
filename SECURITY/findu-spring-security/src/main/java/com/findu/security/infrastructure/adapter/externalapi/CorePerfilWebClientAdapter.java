@@ -27,7 +27,7 @@ public class CorePerfilWebClientAdapter implements CorePerfilPort {
     private final String perfilPath;
 
     public CorePerfilWebClientAdapter(
-            @Value("${findu.activation.core.base-url:http://localhost:8080}") String baseUrl,
+            @Value("${findu.activation.core.base-url:http://findu-api-gateway:8080}") String baseUrl,
             @Value("${findu.activation.core.perfil-path:/findu-core/api/v1/perfil-proveedor}") String perfilPath) {
         this.perfilPath = perfilPath;
         this.webClient = WebClient.builder().baseUrl(baseUrl).build();

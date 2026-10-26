@@ -32,7 +32,7 @@ public class SagaOrchestratorService {
     private static final String HEADER_INTERNAL_KEY = "X-Internal-Service-Key";
     private static final String HEADER_REQUEST_ID = "X-Request-Id";
     private static final String HEADER_IDEMPOTENCY_KEY = "Idempotency-Key";
-    private static final Duration STEP_TIMEOUT = Duration.ofSeconds(3);
+    private static final Duration STEP_TIMEOUT = Duration.ofSeconds(10);
 
     private final WebClient webClient;
     private final SagaPendingCompensationStore pendingCompensationStore;
@@ -51,6 +51,9 @@ public class SagaOrchestratorService {
 
     @Value("${findu.services.validacion-url:http://localhost:8088/findu-validacion}")
     private String validacionUrl;
+
+    @Value("${findu.auth.auto-verify-email:false}")
+    private boolean autoVerifyEmail;
 
 
     public SagaOrchestratorService(WebClient.Builder webClientBuilder,
@@ -321,6 +324,9 @@ public class SagaOrchestratorService {
 
         List<String> satisfied = new ArrayList<>();
         satisfied.add("OTP_PHONE_SMS");
+        if (autoVerifyEmail) {
+            satisfied.add("EMAIL_VERIFICATION");
+        }
         if (ctx.request.biometria() != null && Boolean.TRUE.equals(ctx.request.biometria().aprobada())) {
             satisfied.add("BIOMETRIC_FACIAL");
         }

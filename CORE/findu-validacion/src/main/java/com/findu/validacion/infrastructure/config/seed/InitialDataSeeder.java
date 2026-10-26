@@ -31,6 +31,8 @@ public class InitialDataSeeder implements ApplicationRunner {
     private final EndpointValidationConfigRepositoryPort configRepo;
 
     public static final String ONBOARDING_PROCESS_CODE = "ONBOARDING_PROVEEDOR";
+    public static final String BREB_VINCULACION_PROCESS_CODE = "VINCULACION_LLAVE_BREB";
+    public static final String BREB_CAMBIO_PROCESS_CODE = "CAMBIO_LLAVE_BREB";
 
     @Override
     public void run(ApplicationArguments args) {
@@ -45,22 +47,45 @@ public class InitialDataSeeder implements ApplicationRunner {
     }
 
     public Mono<Void> seedMonitoredEndpoints() {
-        return endpointRepo.existsByProcessCode(ONBOARDING_PROCESS_CODE)
+        return seedEndpointIfNotExists(new MonitoredEndpoint(
+                null,
+                "findu-spring-security",
+                HttpMethod.POST,
+                "/api/v1/registration/onboarding",
+                ONBOARDING_PROCESS_CODE,
+                "Registro de proveedor (saga onboarding)",
+                true,
+                Instant.now()
+        ))
+        .then(seedEndpointIfNotExists(new MonitoredEndpoint(
+                null,
+                "findu-validacion",
+                HttpMethod.POST,
+                "/api/v1/validations/bre-b-keys",
+                BREB_VINCULACION_PROCESS_CODE,
+                "Vinculación y registro de llave Bre-B para proveedor",
+                true,
+                Instant.now()
+        )))
+        .then(seedEndpointIfNotExists(new MonitoredEndpoint(
+                null,
+                "findu-validacion",
+                HttpMethod.PUT,
+                "/api/v1/validations/bre-b-keys",
+                BREB_CAMBIO_PROCESS_CODE,
+                "Actualización de llave Bre-B para proveedor",
+                true,
+                Instant.now()
+        )));
+    }
+
+    private Mono<Void> seedEndpointIfNotExists(MonitoredEndpoint endpoint) {
+        return endpointRepo.existsByProcessCode(endpoint.processCode())
                 .flatMap(exists -> {
                     if (Boolean.TRUE.equals(exists)) {
-                        log.debug("Monitored endpoint for '{}' already exists, skipping", ONBOARDING_PROCESS_CODE);
+                        log.debug("Monitored endpoint for '{}' already exists, skipping", endpoint.processCode());
                         return Mono.empty();
                     }
-                    MonitoredEndpoint endpoint = new MonitoredEndpoint(
-                            null,
-                            "findu-spring-security",
-                            HttpMethod.POST,
-                            "/api/v1/registration/onboarding",
-                            ONBOARDING_PROCESS_CODE,
-                            "Registro de proveedor (saga onboarding)",
-                            true,
-                            Instant.now()
-                    );
                     return endpointRepo.save(endpoint)
                             .doOnSuccess(saved -> log.info("Seeded monitored endpoint for processCode='{}'", saved.processCode()))
                             .then();
@@ -127,50 +152,39 @@ public class InitialDataSeeder implements ApplicationRunner {
     }
 
     public Mono<Void> seedEndpointValidationConfigs() {
-        return configRepo.existsByProcessCode(ONBOARDING_PROCESS_CODE)
+        return seedConfigIfNotExists(new EndpointValidationConfig(
+                null,
+                ONBOARDING_PROCESS_CODE,
+                List.of(
+                        new EndpointValidationConfig.ConfigItem("OTP_PHONE_SMS", ValidationMode.ACTIVE, 1, true, "otp.required"),
+                        new EndpointValidationConfig.ConfigItem("EMAIL_VERIFICATION", ValidationMode.PASSIVE, 2, false, "email.pending"),
+                        new EndpointValidationConfig.ConfigItem("BIOMETRIC_FACIAL", ValidationMode.PASSIVE, 3, false, "bio.pending"),
+                        new EndpointValidationConfig.ConfigItem("JUDICIAL_BACKGROUND", ValidationMode.PASSIVE, 4, false, "legal.pending")
+                )
+        ))
+        .then(seedConfigIfNotExists(new EndpointValidationConfig(
+                null,
+                BREB_VINCULACION_PROCESS_CODE,
+                List.of(
+                        new EndpointValidationConfig.ConfigItem("OTP_PHONE_SMS", ValidationMode.ACTIVE, 1, true, "otp.required")
+                )
+        )))
+        .then(seedConfigIfNotExists(new EndpointValidationConfig(
+                null,
+                BREB_CAMBIO_PROCESS_CODE,
+                List.of(
+                        new EndpointValidationConfig.ConfigItem("OTP_PHONE_SMS", ValidationMode.ACTIVE, 1, true, "otp.required")
+                )
+        )));
+    }
+
+    private Mono<Void> seedConfigIfNotExists(EndpointValidationConfig config) {
+        return configRepo.existsByProcessCode(config.processCode())
                 .flatMap(exists -> {
                     if (Boolean.TRUE.equals(exists)) {
-                        log.debug("Endpoint validation config for '{}' already exists, skipping", ONBOARDING_PROCESS_CODE);
+                        log.debug("Endpoint validation config for '{}' already exists, skipping", config.processCode());
                         return Mono.empty();
                     }
-
-                    List<EndpointValidationConfig.ConfigItem> items = List.of(
-                            new EndpointValidationConfig.ConfigItem(
-                                    "OTP_PHONE_SMS",
-                                    ValidationMode.ACTIVE,
-                                    1,
-                                    true,
-                                    "otp.required"
-                            ),
-                            new EndpointValidationConfig.ConfigItem(
-                                    "EMAIL_VERIFICATION",
-                                    ValidationMode.PASSIVE,
-                                    2,
-                                    false,
-                                    "email.pending"
-                            ),
-                            new EndpointValidationConfig.ConfigItem(
-                                    "BIOMETRIC_FACIAL",
-                                    ValidationMode.PASSIVE,
-                                    3,
-                                    false,
-                                    "bio.pending"
-                            ),
-                            new EndpointValidationConfig.ConfigItem(
-                                    "JUDICIAL_BACKGROUND",
-                                    ValidationMode.PASSIVE,
-                                    4,
-                                    false,
-                                    "legal.pending"
-                            )
-                    );
-
-                    EndpointValidationConfig config = new EndpointValidationConfig(
-                            null,
-                            ONBOARDING_PROCESS_CODE,
-                            items
-                    );
-
                     return configRepo.save(config)
                             .doOnSuccess(saved -> log.info("Seeded endpoint validation config for processCode='{}'", saved.processCode()))
                             .then();

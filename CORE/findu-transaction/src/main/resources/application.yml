@@ -9,11 +9,26 @@ spring:
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:local}
 
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://findu-eureka-server:8761/eureka/}
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    prefer-ip-address: ${EUREKA_INSTANCE_PREFER_IP_ADDRESS:false}
+    hostname: ${EUREKA_INSTANCE_HOSTNAME:findu-transaction}
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30
+
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health, info, metrics
+  endpoint:
+    health:
+      show-details: always
 
 logging:
   level:

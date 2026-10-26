@@ -1,0 +1,18 @@
+{
+  "verdict": "APPROVED",
+  "findings": [
+    {
+      "label": "Redundant qa routing block",
+      "severity": "non-blocking",
+      "confidence": "confirmed",
+      "detail": "El dispatcher application-qa.yml agrega su propia copia del bloque findu.rabbitmq.notification (exchange + routing-keys) que ya hereda de application.yml, contradiciendo la nota del plan de que qa no requería cambios. No altera el comportamiento (los defaults son idénticos). Opcional: eliminarlo para mantener una sola fuente de verdad."
+    },
+    {
+      "label": "Orden de arranque exchange/binding",
+      "severity": "non-blocking",
+      "confidence": "possible",
+      "detail": "El dispatcher declara el topic exchange findu.notifications pero no las colas/bindings del processor; un publish anterior a que el processor declare sus bindings (notification.sms, etc.) se descarta en el topic exchange. Operacional, ya documentado en application.yml. Asegurar que el processor esté desplegado y arrancado en QA antes de emitir notificaciones transaccionales."
+    }
+  ],
+  "reviewDoc": "c:\\Users\\ADMIN\\Documents\\FIND-U-PROJECT\\findu\\.agents\\tasks/dispatcher-routing-review.md"
+}

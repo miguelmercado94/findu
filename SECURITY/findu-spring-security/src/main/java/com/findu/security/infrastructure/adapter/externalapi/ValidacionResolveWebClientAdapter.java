@@ -27,7 +27,7 @@ public class ValidacionResolveWebClientAdapter implements ValidacionResolvePort 
     private final String resolvePath;
 
     public ValidacionResolveWebClientAdapter(
-            @Value("${findu.validacion.base-url:http://localhost:8080}") String baseUrl,
+            @Value("${findu.validacion.base-url:http://findu-api-gateway:8080}") String baseUrl,
             @Value("${findu.validacion.resolve-path:/findu-validacion/api/v1/validations/support/resolve}") String resolvePath) {
         this.resolvePath = resolvePath;
         this.webClient = WebClient.builder().baseUrl(baseUrl).build();

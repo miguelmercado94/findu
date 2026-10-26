@@ -14,6 +14,7 @@ import com.findu.security.dto.response.ActivationStatusResponse;
 import com.findu.security.util.TextNormalizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -45,6 +46,9 @@ public class SubmitBiometricUseCaseImpl implements SubmitBiometricUseCase {
     private final ActivationProgressService activationProgressService;
     private final ValidacionResolvePort validacionResolvePort;
 
+    @Value("${findu.activation.biometric.mock-always-pass:true}")
+    private boolean mockAlwaysPass;
+
     public SubmitBiometricUseCaseImpl(AuthenticatedUserResolver authenticatedUserResolver,
                                       CorePerfilPort corePerfilPort,
                                       ProviderActivationRepositoryPort activationRepository,
@@ -72,7 +76,7 @@ public class SubmitBiometricUseCaseImpl implements SubmitBiometricUseCase {
 
         return authenticatedUserResolver.resolve()
                 .flatMap(user -> corePerfilPort.fetchByAuthUserId(user.getId())
-                        .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.CONFLICT, "perfil_core_requerido")))
+                        .defaultIfEmpty(new CorePerfilPort.PerfilProveedor(user.getId(), request.cedulaNombre(), fechaRequest, null))
                         .flatMap(perfil -> evaluate(user, perfil, request, fechaRequest)));
     }
 
@@ -80,23 +84,33 @@ public class SubmitBiometricUseCaseImpl implements SubmitBiometricUseCase {
                                                     BiometricSubmitRequest request, LocalDate fechaRequest) {
         Long userId = user.getId();
 
-        // Rechazos de negocio (200 con motivo), en orden: nombre, fecha, rostro.
-        if (!TextNormalizer.equalsIgnoringAccents(request.cedulaNombre(), perfil.nombreCompleto())) {
-            return businessRejection(userId, MOTIVO_NOMBRE);
-        }
-        if (perfil.fechaNacimiento() == null || !perfil.fechaNacimiento().isEqual(fechaRequest)) {
-            return businessRejection(userId, MOTIVO_FECHA);
-        }
-        if (!Boolean.TRUE.equals(request.faceMatched())) {
-            return businessRejection(userId, MOTIVO_ROSTRO);
+        // En modo mock / dev (mockAlwaysPass = true), se aprueba siempre que se reciban los datos biométricos.
+        if (!mockAlwaysPass) {
+            // Rechazos de negocio (200 con motivo), en orden: nombre, fecha, rostro.
+            if (!TextNormalizer.equalsIgnoringAccents(request.cedulaNombre(), perfil.nombreCompleto())) {
+                return businessRejection(userId, MOTIVO_NOMBRE);
+            }
+            if (perfil.fechaNacimiento() == null || !perfil.fechaNacimiento().isEqual(fechaRequest)) {
+                return businessRejection(userId, MOTIVO_FECHA);
+            }
+            if (!Boolean.TRUE.equals(request.faceMatched())) {
+                return businessRejection(userId, MOTIVO_ROSTRO);
+            }
+        } else {
+            log.info("Biometria mock mode activo: validando exitosamente para userId={}", userId);
         }
 
+        String nombreFinal = (perfil.nombreCompleto() != null && !perfil.nombreCompleto().isBlank())
+                ? perfil.nombreCompleto()
+                : request.cedulaNombre();
+        LocalDate fechaFinal = perfil.fechaNacimiento() != null ? perfil.fechaNacimiento() : fechaRequest;
+
         // Éxito: captura OK (write-once foto), marca biometria_ok, propaga foto best-effort, recomputa y avisa a findu-validacion.
-        return activationRepository.insertBiometricCapture(userId, request.cedulaNombre(), fechaRequest,
+        return activationRepository.insertBiometricCapture(userId, nombreFinal, fechaFinal,
                         request.faceMatchScore(), request.fotoFrontalUrl(), ValidationState.OK)
                 .flatMap(fotoVigente -> activationRepository
                         .upsertValidation(userId, ValidationType.BIOMETRIA, ValidationState.OK, null)
-                        .then(corePerfilPort.pushProfilePhoto(perfil.id(), perfil.nombreCompleto(), fotoVigente)
+                        .then(corePerfilPort.pushProfilePhoto(perfil.id(), nombreFinal, fotoVigente)
                                 .onErrorResume(e -> {
                                     log.warn("Propagación de foto a core falló (userId={}, best-effort): {}",
                                             userId, e.getMessage());

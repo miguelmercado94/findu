@@ -26,6 +26,11 @@ public class ServicioRepoAdapter implements ServicioRepositoryPort {
     }
 
     @Override
+    public java.util.Optional<Servicio> findById(Long id) {
+        return repository.findById(id).map(mapper::toDomain);
+    }
+
+    @Override
     public List<Servicio> findByCategoriaId(Long categoriaId) {
         return repository.findAllByCategoriaIdAndActiveTrue(categoriaId).stream()
                 .map(mapper::toDomain)

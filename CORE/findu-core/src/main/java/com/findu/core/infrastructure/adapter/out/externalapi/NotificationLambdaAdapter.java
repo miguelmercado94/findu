@@ -48,7 +48,12 @@ public class NotificationLambdaAdapter implements NotificationPort {
             body.put("language", language != null ? language : "es");
             body.put("params", params != null ? params : Map.of());
 
-            restTemplate.postForObject(lambdaUrl, body, String.class);
+            String targetUrl = lambdaUrl != null ? lambdaUrl.trim() : "http://localhost:9000";
+            if (!targetUrl.contains("/dispatchNotification") && !targetUrl.contains("/api/v1/canales/dispatchNotification")) {
+                targetUrl = targetUrl.replaceAll("/+$", "") + "/dispatchNotification";
+            }
+
+            restTemplate.postForObject(targetUrl, body, String.class);
             log.info("Notification dispatched: type={} recipient={} template={}", type, recipient, templateCode);
         } catch (Exception e) {
             log.warn("Notification failed (non-blocking): type={} recipient={} error={}", type, recipient, e.getMessage());

@@ -7,6 +7,7 @@ import com.findu.core.application.service.SolicitudServicioService;
 import com.findu.core.application.port.in.GestionSolicitudesUseCase;
 import com.findu.core.domain.model.Direccion;
 import com.findu.core.domain.model.Oferta;
+import com.findu.core.domain.model.PerfilCliente;
 import com.findu.core.domain.model.PerfilProveedor;
 import com.findu.core.domain.model.SolicitudServicio;
 import com.findu.core.domain.observer.SolicitudEventPublisher;
@@ -34,9 +35,14 @@ public class GestionSolicitudesUseCaseImpl implements GestionSolicitudesUseCase 
 
     private final SolicitudServicioService solicitudService;
     private final PerfilProveedorService proveedorService;
+    private final PerfilClienteService perfilClienteService;
     private final DireccionService direccionService;
     private final OfertaService ofertaService;
     private final SolicitudEventPublisher eventPublisher;
+    private final com.findu.core.application.port.out.persistence.ServicioRepositoryPort servicioPort;
+    private final com.findu.core.application.port.out.persistence.CategoriaRepositoryPort categoriaPort;
+    private final com.findu.core.application.port.out.persistence.MunicipioRepositoryPort municipioPort;
+    private final com.findu.core.infrastructure.adapter.out.externalapi.TransactionServiceClient transactionServiceClient;
 
     @Override
     public SolicitudResponse crearSolicitud(CrearSolicitudRequest request) {
@@ -168,12 +174,155 @@ public class GestionSolicitudesUseCaseImpl implements GestionSolicitudesUseCase 
         return toResponse(updated);
     }
 
+    @Override
+    public SolicitudResponse iniciarServicio(Long id) {
+        SolicitudServicio solicitud = solicitudService.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Solicitud no encontrada con id: " + id));
+
+        solicitud.iniciarServicio();
+        SolicitudServicio updated = solicitudService.save(solicitud);
+
+        PerfilCliente cliente = solicitud.getPerfilClienteId() != null
+                ? perfilClienteService.findById(solicitud.getPerfilClienteId()).orElse(null)
+                : null;
+
+        List<Oferta> ofertas = ofertaService.findBySolicitudId(id);
+        Oferta aceptada = ofertas.stream()
+                .filter(o -> "ACEPTADA".equalsIgnoreCase(o.getEstadoOferta()))
+                .findFirst()
+                .orElse(null);
+
+        PerfilProveedor proveedor = (aceptada != null && aceptada.getPerfilProveedorId() != null)
+                ? proveedorService.findById(aceptada.getPerfilProveedorId()).orElse(null)
+                : null;
+
+        eventPublisher.notifyServicioIniciado(updated, cliente, proveedor);
+
+        return toResponse(updated);
+    }
+
+    @Override
+    public SolicitudResponse finalizarServicio(Long id) {
+        SolicitudServicio solicitud = solicitudService.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Solicitud no encontrada con id: " + id));
+
+        solicitud.finalizarServicio();
+        SolicitudServicio updated = solicitudService.save(solicitud);
+
+        List<Oferta> ofertas = ofertaService.findBySolicitudId(id);
+        Oferta aceptada = ofertas.stream()
+                .filter(o -> "ACEPTADA".equalsIgnoreCase(o.getEstadoOferta()))
+                .findFirst()
+                .orElse(null);
+
+        Long providerId = aceptada != null ? aceptada.getPerfilProveedorId() : 1L;
+        java.math.BigDecimal amount = (aceptada != null && aceptada.getValorPropuesto() != null)
+                ? aceptada.getValorPropuesto()
+                : (solicitud.getPresupuestoMaximo() != null ? solicitud.getPresupuestoMaximo() : java.math.BigDecimal.valueOf(100000));
+
+        if (transactionServiceClient != null) {
+            transactionServiceClient.registrarCreditoServicio(updated, providerId, amount);
+        }
+
+        PerfilCliente cliente = solicitud.getPerfilClienteId() != null
+                ? perfilClienteService.findById(solicitud.getPerfilClienteId()).orElse(null)
+                : null;
+
+        PerfilProveedor proveedor = proveedorService.findById(providerId).orElse(null);
+
+        eventPublisher.notifyServicioFinalizado(updated, cliente, proveedor);
+
+        return toResponse(updated);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public SolicitudResponse obtenerSolicitudPorId(Long id) {
+        SolicitudServicio solicitud = solicitudService.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Solicitud no encontrada con id: " + id));
+        return toResponse(solicitud);
+    }
+
     private SolicitudResponse toResponse(SolicitudServicio s) {
+        String servicioNombre = null;
+        String categoriaNombre = null;
+        if (s.getServicioId() != null) {
+            var servOpt = servicioPort.findById(s.getServicioId());
+            if (servOpt.isPresent()) {
+                var serv = servOpt.get();
+                servicioNombre = serv.getNombre();
+                if (serv.getCategoriaId() != null) {
+                    categoriaNombre = categoriaPort.findById(serv.getCategoriaId())
+                            .map(com.findu.core.domain.model.Categoria::getNombre)
+                            .orElse(null);
+                }
+            }
+        }
+
+        String direccionTexto = null;
+        String municipioNombre = null;
+        String codigoDane = null;
+        if (s.getDireccionId() != null) {
+            var dirOpt = direccionService.findById(s.getDireccionId());
+            if (dirOpt.isPresent()) {
+                var dir = dirOpt.get();
+                direccionTexto = dir.getDireccionTexto();
+                if (dir.getMunicipioId() != null) {
+                    var munOpt = municipioPort.findById(dir.getMunicipioId());
+                    if (munOpt.isPresent()) {
+                        municipioNombre = munOpt.get().getNombre();
+                        codigoDane = munOpt.get().getCodigoDane();
+                    }
+                }
+            }
+        }
+
+        String nombreCliente = s.getNombreContacto();
+        java.math.BigDecimal clienteCalificacion = java.math.BigDecimal.valueOf(5.0);
+        if (s.getPerfilClienteId() != null) {
+            var cliOpt = perfilClienteService.findById(s.getPerfilClienteId());
+            if (cliOpt.isPresent()) {
+                if (nombreCliente == null || nombreCliente.isBlank()) {
+                    nombreCliente = cliOpt.get().getNombreCompleto();
+                }
+                if (cliOpt.get().getCalificacionPromedio() != null) {
+                    clienteCalificacion = cliOpt.get().getCalificacionPromedio();
+                }
+            }
+        }
+
+        java.math.BigDecimal tarifaAcordada = null;
+        List<Oferta> ofertas = ofertaService.findBySolicitudId(s.getId());
+        for (Oferta o : ofertas) {
+            if ("ACEPTADA".equalsIgnoreCase(o.getEstadoOferta())) {
+                tarifaAcordada = o.getValorPropuesto();
+                break;
+            }
+        }
+
         return new SolicitudResponse(
-                s.getId(), null, null, s.getFechaProgramada(), s.getNombreContacto(),
-                s.getTelefonoContacto(), s.getPrioridad(), s.getPresupuestoMaximo(), s.getEsPresupuestoEstricto(),
-                s.getDetalles(), s.getFotos(), s.getEstadoSolicitud()
+                s.getId(),
+                servicioNombre,
+                categoriaNombre,
+                direccionTexto,
+                municipioNombre,
+                codigoDane,
+                2.0,
+                s.getFechaProgramada(),
+                nombreCliente != null ? nombreCliente : "Cliente FindU",
+                s.getTelefonoContacto(),
+                clienteCalificacion,
+                s.getPrioridad(),
+                s.getPresupuestoMaximo(),
+                s.getEsPresupuestoEstricto(),
+                tarifaAcordada,
+                s.getDetalles(),
+                s.getFotos(),
+                s.getEstadoSolicitud(),
+                null,
+                null
         );
     }
 }
+
 

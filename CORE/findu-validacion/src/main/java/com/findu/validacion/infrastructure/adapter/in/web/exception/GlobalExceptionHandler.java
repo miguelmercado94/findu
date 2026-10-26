@@ -41,6 +41,32 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
     }
 
+    @ExceptionHandler(com.findu.validacion.domain.exception.BrebKeyNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleBrebKeyNotFound(
+            com.findu.validacion.domain.exception.BrebKeyNotFoundException ex, ServerHttpRequest request) {
+        log.warn("Bre-B key not found: {}", ex.getMessage());
+        ErrorResponse body = ErrorResponse.of(
+                HttpStatus.NOT_FOUND.value(),
+                HttpStatus.NOT_FOUND.getReasonPhrase(),
+                ex.getMessage(),
+                request.getPath().value()
+        );
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
+    }
+
+    @ExceptionHandler(com.findu.validacion.domain.exception.InvalidOtpException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidOtp(
+            com.findu.validacion.domain.exception.InvalidOtpException ex, ServerHttpRequest request) {
+        log.warn("Invalid OTP: {}", ex.getMessage());
+        ErrorResponse body = ErrorResponse.of(
+                HttpStatus.BAD_REQUEST.value(),
+                HttpStatus.BAD_REQUEST.getReasonPhrase(),
+                ex.getMessage(),
+                request.getPath().value()
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+    }
+
     @ExceptionHandler(ActiveValidationFailedException.class)
     public ResponseEntity<ErrorResponse> handleActiveValidationFailed(
             ActiveValidationFailedException ex, ServerHttpRequest request) {

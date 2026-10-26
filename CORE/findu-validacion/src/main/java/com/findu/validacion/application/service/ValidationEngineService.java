@@ -244,7 +244,12 @@ public class ValidationEngineService implements InspectEndpointUseCase,
                                                                     "PROVEEDOR_" + userId,
                                                                     alertUuid
                                                             );
-                                                            return alertPublisher.publishPending(event);
+                                                            return alertPublisher.publishPending(event)
+                                                                    .onErrorResume(e -> {
+                                                                        log.warn("Error publicando evento de alerta pendiente para validationCode={}: {}",
+                                                                                c.validationCode(), e.getMessage());
+                                                                        return Mono.empty();
+                                                                    });
                                                         })
                                                         .thenReturn(c.validationCode())
                                         );

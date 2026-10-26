@@ -1,0 +1,7 @@
+{
+  "task_id": "task-provider-identity",
+  "task_description": "Implementar verificación de identidad del PROVEEDOR en FIND-U: OTP de celular (síncrono, Redis con TTL 300s + fallback in-memory) y verificación de email por enlace mágico (asíncrono), para registro tradicional y federado (Google), en SECURITY/findu-spring-security (WebFlux reactivo, R2DBC, hexagonal) y FRONTEND/proveedor (Vite + JS vanilla). Preservar login/registro actuales.",
+  "status": "completed",
+  "feature_order": ["FEAT-001", "FEAT-002"],
+  "blocked_reason": null
+}

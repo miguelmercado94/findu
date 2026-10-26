@@ -1,0 +1,7 @@
+{
+  "task_id": "task-railway-qa-config",
+  "task_description": "Create/edit a coherent Spring Boot `qa` profile (application-qa.yml) for every FIND-U microservice and lambda so they run on Railway with NO Eureka and NO Config Server: disable Eureka where the eureka-client dependency exists, keep spring.config.import optional, take all connections from environment variables, use server.port ${PORT:<expose-port>}, and for the api-gateway route by Railway internal DNS instead of lb://. Includes exactly ONE mechanical Java change in findu-core to extract a hardcoded notification-processor URL to a @Value property. No other business-logic/Java changes.",
+  "status": "completed",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null
+}

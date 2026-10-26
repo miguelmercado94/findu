@@ -27,7 +27,7 @@ public class SupportTicketWebClientAdapter implements SupportTicketPort {
     private final String ticketsPath;
 
     public SupportTicketWebClientAdapter(
-            @Value("${findu.activation.help.base-url:http://localhost:8080}") String baseUrl,
+            @Value("${findu.activation.help.base-url:http://findu-api-gateway:8080}") String baseUrl,
             @Value("${findu.activation.help.tickets-path:/findu-help-v2/api/v1/help/tickets}") String ticketsPath) {
         this.ticketsPath = ticketsPath;
         this.webClient = WebClient.builder().baseUrl(baseUrl).build();

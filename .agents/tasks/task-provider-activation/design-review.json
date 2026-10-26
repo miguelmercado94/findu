@@ -1,0 +1,32 @@
+{
+  "verdict": "APPROVED",
+  "findings": [
+    {
+      "id": 1,
+      "severity": "NIT",
+      "where": "§3.2.1 — V2__provider_activation.sql INSERT INTO operation",
+      "problem": "Migration guards only ON CONFLICT (id) DO NOTHING, but the operation table also has unique constraints uq_operation_name (name) and uq_operation_module_path_method (module_id, path, http_method) (verified in schema.sql). A name/path collision under a different id would raise a unique violation that ON CONFLICT (id) does not catch.",
+      "fix": "Guard the natural key that can actually fire: ON CONFLICT (module_id, path, http_method) DO NOTHING (plus a name check), or use per-row WHERE NOT EXISTS. Harmless on a clean qa holding only ids 1-17; recommended for robustness."
+    },
+    {
+      "id": 2,
+      "severity": "NIT",
+      "where": "§6.3 / §3.2 — soporte_ticket_code",
+      "problem": "Design says 'store the returned ticketCode' but does not pin the concrete create-response field. HelpTicket exposes both id (String UUID) and ticketCode (TicketCode value object via getValue(), format HT-...). VARCHAR(60) fits either, so cosmetic, but the implementer must bind to the real response attribute.",
+      "fix": "Specify storing HelpTicketResponse.ticketCode (the TicketCode.getValue() string). Confirm the field name on the create-response DTO when wiring SupportTicketPort."
+    },
+    {
+      "id": 3,
+      "severity": "NIT",
+      "where": "§6.3 / §9 — externalRef reconciliation on reject -> re-open",
+      "problem": "On reject, soporte_notified resets to false and a later all-pass re-fires the ticket; help-v2 dedup by externalRef=ACT-{userId} returns the EXISTING ticket. If that ticket is already RESUELTO/CERRADO, support may never see a fresh ABIERTO item for the second attempt. Duplication is correctly prevented, but the re-opened ticket's lifecycle state is unspecified.",
+      "fix": "State one rule: (a) externalRef dedup suppresses duplicates only while non-terminal, and a terminal ticket allows a new one (externalRef=ACT-{userId}-{attempt}); or (b) on re-fire, if the externalRef ticket is terminal, help-v2 reopens it to ABIERTO and appends a system message."
+    }
+  ],
+  "counts": {
+    "HIGH": 0,
+    "MEDIUM": 0,
+    "NIT": 3
+  },
+  "reviewDoc": "c:\\Users\\ADMIN\\Documents\\FIND-U-PROJECT\\findu\\.agents\\tasks\\task-provider-activation\\design-review.md"
+}

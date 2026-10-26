@@ -10,6 +10,8 @@ public interface ServicioRepositoryPort {
 
     List<Servicio> findAll();
 
+    java.util.Optional<Servicio> findById(Long id);
+
     List<Servicio> findByCategoriaId(Long categoriaId);
 
     Page<Servicio> findAll(Pageable pageable);

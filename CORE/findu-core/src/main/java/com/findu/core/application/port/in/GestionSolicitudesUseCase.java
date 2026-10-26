@@ -15,4 +15,10 @@ public interface GestionSolicitudesUseCase {
     SolicitudResponse modificarSolicitud(Long id, ModificarSolicitudRequest request);
 
     SolicitudResponse cancelarSolicitud(Long id);
+
+    SolicitudResponse iniciarServicio(Long id);
+
+    SolicitudResponse finalizarServicio(Long id);
+
+    SolicitudResponse obtenerSolicitudPorId(Long id);
 }

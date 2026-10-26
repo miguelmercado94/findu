@@ -28,7 +28,7 @@ spring:
         dialect: org.hibernate.dialect.H2Dialect
   sql:
     init:
-      mode: always
+      mode: ${SPRING_SQL_INIT_MODE:never}
       schema-locations: classpath:db/h2/schema.sql
       data-locations: classpath:db/h2/data.sql
 

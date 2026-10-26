@@ -1,0 +1,12 @@
+{
+  "verdict": "APPROVED",
+  "findings": [
+    {
+      "label": "Not-authenticated tests don't assert status code",
+      "severity": "non-blocking",
+      "confidence": "confirmed",
+      "detail": "sendOtp_notAuthenticated_errors and verifyOtp_notAuthenticated_errors expect a bare ResponseStatusException and would still pass if the code regressed to a non-401 status. Optionally tighten to assert HttpStatus.UNAUTHORIZED."
+    }
+  ],
+  "reviewDoc": "c:\\Users\\ADMIN\\Documents\\FIND-U-PROJECT\\findu\\SECURITY\\findu-spring-security/.agents/tasks/phone-otp-fix-review.md"
+}

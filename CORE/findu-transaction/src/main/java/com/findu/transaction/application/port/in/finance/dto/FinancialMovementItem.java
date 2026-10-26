@@ -10,13 +10,19 @@ import java.time.Instant;
 @Builder
 public class FinancialMovementItem {
     private final String id;
+    private final Long serviceRequestId;
+    private final String serviceCode;
+    private final String serviceName;
+    private final String specializationName;
     private final String title;
     private final String subtitle;
     private final Instant date;
     private final String dateLabel;
+    private final String timeLabel;
     private final Money amount;
     private final boolean isIncome; // true: positivo / verde, false: egreso / rojo
     private final String type;
     private final String status; // PROGRAMADO, RECIBIDO, COMPLETADO, etc.
     private final String reference;
 }
+
