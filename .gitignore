@@ -38,3 +38,8 @@ Thumbs.db
 
 # Scratch
 scratch/
+
+# Secretos locales (NO versionar). Service account de Firebase y claves privadas.
+secrets/
+**/firebase-service-account*.json
+**/*-firebase-adminsdk-*.json
