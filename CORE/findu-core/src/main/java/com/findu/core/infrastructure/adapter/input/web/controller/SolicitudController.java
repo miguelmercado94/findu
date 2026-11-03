@@ -1,13 +1,14 @@
 package com.findu.core.infrastructure.adapter.input.web.controller;
 
-import com.findu.core.application.port.in.GestionDireccionesUseCase;
-import com.findu.core.application.port.in.GestionOfertasUseCase;
-import com.findu.core.application.port.in.GestionSolicitudesUseCase;
 import com.findu.core.application.dto.request.CrearSolicitudRequest;
+import com.findu.core.application.dto.request.IniciarServicioRequest;
 import com.findu.core.application.dto.request.ModificarSolicitudRequest;
 import com.findu.core.application.dto.response.DireccionResponse;
 import com.findu.core.application.dto.response.OfertaResponse;
 import com.findu.core.application.dto.response.SolicitudResponse;
+import com.findu.core.application.port.in.GestionDireccionesUseCase;
+import com.findu.core.application.port.in.GestionOfertasUseCase;
+import com.findu.core.application.port.in.GestionSolicitudesUseCase;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -24,7 +25,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/solicitudes")
@@ -53,7 +56,7 @@ public class SolicitudController {
     }
 
     @GetMapping("/cliente/{clienteId}")
-    @Operation(summary = "Consultar historial de solicitudes (paginado)", description = "Obtiene las solicitudes de un cliente con paginación, filtrable por estado. Por defecto muestra las ABIERTAS.")
+    @Operation(summary = "Consultar historial de solicitudes (paginado)", description = "Obtiene las solicitudes de un cliente con paginación, filtrable por estado. Por defecto muestra las ABIERTAS. Incluye el PIN de 4 dígitos cuando la solicitud está ACEPTADA/PROGRAMADA.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Historial de solicitudes obtenido exitosamente"),
             @ApiResponse(responseCode = "404", description = "Cliente no encontrado", content = @Content),
@@ -62,7 +65,7 @@ public class SolicitudController {
     public ResponseEntity<Page<SolicitudResponse>> consultarHistorial(
             @Parameter(description = "ID del perfil de cliente", required = true, example = "1")
             @PathVariable Long clienteId,
-            @Parameter(description = "Filtrar por estado (ABIERTA, EN_NEGOCIACION, PROGRAMADA, EN_CURSO, FINALIZADA, CANCELADA_SIN_PENALIDAD, CANCELADA_CON_PENALIDAD). Si no se envía, muestra ABIERTA.", example = "ABIERTA")
+            @Parameter(description = "Filtrar por estado (ABIERTA, EN_NEGOCIACION, PROGRAMADA, ACEPTADA, EN_CURSO, FINALIZADA, CANCELADO). Si no se envía, muestra ABIERTA.", example = "ABIERTA")
             @RequestParam(defaultValue = "ABIERTA") String estado,
             @Parameter(description = "Número de página (0-based)", example = "0")
             @RequestParam(defaultValue = "0") int page,
@@ -90,7 +93,7 @@ public class SolicitudController {
     }
 
     @PatchMapping("/{id}/cancelar")
-    @Operation(summary = "Cancelar solicitud", description = "Cancela una solicitud de servicio que aún no ha sido completada")
+    @Operation(summary = "Cancelar solicitud (Cliente)", description = "Cancela una solicitud de servicio por parte del cliente")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Solicitud cancelada exitosamente",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = SolicitudResponse.class))),
@@ -104,8 +107,18 @@ public class SolicitudController {
         return ResponseEntity.ok(solicitudesUseCase.cancelarSolicitud(id));
     }
 
+    @RequestMapping(value = "/{id}/reabrir", method = {RequestMethod.POST, RequestMethod.PATCH})
+    @Operation(summary = "Reabrir solicitud tras cancelación del proveedor",
+            description = "Permite al cliente decidir reabrir su solicitud después de que un proveedor canceló el servicio, volviendo a estado ABIERTA para recibir ofertas de otros proveedores")
+    public ResponseEntity<SolicitudResponse> reabrirSolicitud(
+            @PathVariable Long id,
+            @RequestParam(required = false) BigDecimal latitud,
+            @RequestParam(required = false) BigDecimal longitud) {
+        return ResponseEntity.ok(solicitudesUseCase.reabrirSolicitudCliente(id, latitud, longitud));
+    }
+
     @GetMapping("/{id}")
-    @Operation(summary = "Obtener detalle de solicitud", description = "Obtiene los detalles completos de una solicitud por su ID")
+    @Operation(summary = "Obtener detalle de solicitud", description = "Obtiene los detalles completos de una solicitud por su ID. Si se envía clienteId del titular, incluye el PIN de 4 dígitos.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Solicitud encontrada exitosamente",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = SolicitudResponse.class))),
@@ -113,26 +126,56 @@ public class SolicitudController {
     })
     public ResponseEntity<SolicitudResponse> obtenerSolicitudPorId(
             @Parameter(description = "ID de la solicitud", required = true, example = "1")
-            @PathVariable Long id) {
+            @PathVariable Long id,
+            @Parameter(description = "ID del cliente titular (opcional; si coincide, expone pinInicio)")
+            @RequestParam(required = false) Long clienteId) {
+        if (clienteId != null) {
+            return ResponseEntity.ok(solicitudesUseCase.obtenerSolicitudParaCliente(id, clienteId));
+        }
         return ResponseEntity.ok(solicitudesUseCase.obtenerSolicitudPorId(id));
     }
 
+    @GetMapping("/{id}/pin-inicio")
+    @Operation(summary = "Consultar PIN de 4 dígitos para iniciar el servicio (Exclusivo Cliente)",
+            description = "Retorna el PIN de 4 dígitos que el cliente debe dictarle al proveedor para pasar de ACEPTADA a EN_CURSO. En perfil dev es '1234'; en QA y PDN se desencripta exclusivamente para el cliente titular.")
+    public ResponseEntity<Map<String, Object>> obtenerPinInicioCliente(
+            @PathVariable Long id,
+            @RequestParam Long clienteId) {
+        String pin = solicitudesUseCase.obtenerPinInicioParaCliente(id, clienteId);
+        return ResponseEntity.ok(Map.of(
+                "solicitudId", id,
+                "pinInicio", pin != null ? pin : ""
+        ));
+    }
+
     @RequestMapping(value = "/{id}/iniciar", method = {RequestMethod.POST, RequestMethod.PATCH})
-    @Operation(summary = "Iniciar servicio", description = "Transiciona el servicio al estado EN_CURSO")
+    @Operation(summary = "Iniciar servicio (ACEPTADA -> EN_CURSO con PIN de 4 dígitos y GPS <= 20m)",
+            description = "Valida el PIN de 4 dígitos brindado por el cliente, verifica que la posición GPS esté a máximo 20 metros de la dirección del servicio, ejecuta el seguro final de no solapamiento horario y guarda auditoría interna de hora y GPS")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Servicio iniciado exitosamente",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = SolicitudResponse.class))),
+            @ApiResponse(responseCode = "400", description = "PIN inválido o coordenadas GPS faltantes", content = @Content),
             @ApiResponse(responseCode = "404", description = "Solicitud no encontrada", content = @Content),
-            @ApiResponse(responseCode = "409", description = "La solicitud no puede iniciarse en su estado actual", content = @Content)
+            @ApiResponse(responseCode = "409", description = "Distancia GPS mayor a 20 metros, solapamiento horario o estado inválido", content = @Content)
     })
     public ResponseEntity<SolicitudResponse> iniciarServicio(
             @Parameter(description = "ID de la solicitud", required = true, example = "1")
-            @PathVariable Long id) {
-        return ResponseEntity.ok(solicitudesUseCase.iniciarServicio(id));
+            @PathVariable Long id,
+            @RequestParam(required = false) String pin,
+            @RequestParam(required = false) BigDecimal latitud,
+            @RequestParam(required = false) BigDecimal longitud,
+            @RequestParam(required = false) Long actorId,
+            @RequestBody(required = false) IniciarServicioRequest body) {
+
+        IniciarServicioRequest effectiveRequest = body;
+        if (effectiveRequest == null && (pin != null || latitud != null || longitud != null || actorId != null)) {
+            effectiveRequest = new IniciarServicioRequest(pin, latitud, longitud, actorId);
+        }
+        return ResponseEntity.ok(solicitudesUseCase.iniciarServicio(id, effectiveRequest));
     }
 
     @RequestMapping(value = "/{id}/finalizar", method = {RequestMethod.POST, RequestMethod.PUT})
-    @Operation(summary = "Finalizar solicitud", description = "Finaliza el servicio y registra la transacción financiera en findu-transaction")
+    @Operation(summary = "Finalizar solicitud", description = "Finaliza el servicio, guarda auditoría interna de hora/GPS y registra la transacción financiera en findu-transaction")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Solicitud finalizada exitosamente",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = SolicitudResponse.class))),
@@ -141,8 +184,10 @@ public class SolicitudController {
     })
     public ResponseEntity<SolicitudResponse> finalizarServicio(
             @Parameter(description = "ID de la solicitud", required = true, example = "1")
-            @PathVariable Long id) {
-        return ResponseEntity.ok(solicitudesUseCase.finalizarServicio(id));
+            @PathVariable Long id,
+            @RequestParam(required = false) BigDecimal latitud,
+            @RequestParam(required = false) BigDecimal longitud) {
+        return ResponseEntity.ok(solicitudesUseCase.finalizarServicio(id, latitud, longitud));
     }
 
     @GetMapping("/{id}/direccion")

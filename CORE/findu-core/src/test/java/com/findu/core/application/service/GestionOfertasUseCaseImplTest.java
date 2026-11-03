@@ -1,11 +1,14 @@
 package com.findu.core.application.service;
 
+import com.findu.core.application.dto.request.AproximacionDuracionRequest;
 import com.findu.core.application.dto.request.CrearOfertaRequest;
+import com.findu.core.application.dto.request.DiaTrabajoOfertaRequest;
 import com.findu.core.application.dto.response.OfertaResponse;
 import com.findu.core.application.port.out.externalapi.NotificationPort;
 import com.findu.core.application.port.out.persistence.CategoriaRepositoryPort;
 import com.findu.core.application.port.out.persistence.MunicipioRepositoryPort;
 import com.findu.core.application.port.out.persistence.ServicioRepositoryPort;
+import com.findu.core.domain.enums.UnidadDuracionOferta;
 import com.findu.core.domain.model.Oferta;
 import com.findu.core.domain.model.PerfilCliente;
 import com.findu.core.domain.model.PerfilProveedor;
@@ -29,6 +32,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -443,6 +447,280 @@ class GestionOfertasUseCaseImplTest {
             assertThat(response.estadoOferta()).isEqualTo("ACEPTADA");
             assertThat(solicitudBase.getEstadoSolicitud()).isEqualTo("ACEPTADA");
             assertThat(solicitudBase.getFechaProgramada().toLocalTime()).isEqualTo(LocalTime.of(11, 15));
+        }
+    }
+
+    @Nested
+    @DisplayName("9. Aproximación de duración (por defecto 1 hr, minutos, horas y días con cronograma)")
+    class AproximacionDuracionTests {
+
+        @Test
+        @DisplayName("9.1 Por defecto asigna 1 HORA cuando no se envía aproximacionDuracion")
+        void debeAsignarUnaHoraPorDefectoCuandoEsNull() {
+            CrearOfertaRequest request = new CrearOfertaRequest(
+                    100L, 10L, new BigDecimal("95000.00"), LocalTime.of(14, 30), null, "Oferta estándar", null
+            );
+
+            OfertaResponse response = useCase.enviarOferta(request);
+
+            assertThat(response.aproximacionDuracion()).isNotNull();
+            assertThat(response.aproximacionDuracion().unidad()).isEqualTo(UnidadDuracionOferta.HORAS);
+            assertThat(response.aproximacionDuracion().cantidad()).isEqualByComparingTo(BigDecimal.ONE);
+            assertThat(response.aproximacionDuracion().totalHorasEstimadas()).isEqualByComparingTo(BigDecimal.ONE);
+            assertThat(response.aproximacionDuracion().cronogramaDias()).isEmpty();
+            assertThat(response.tiempoEstimado()).isEqualTo("1 hora");
+        }
+
+        @Test
+        @DisplayName("9.2 Duración en MINUTOS calcula correctamente el total de horas estimadas")
+        void debePermitirDuracionEnMinutos() {
+            AproximacionDuracionRequest duracionMinutos = new AproximacionDuracionRequest(
+                    UnidadDuracionOferta.MINUTOS, new BigDecimal("45")
+            );
+            CrearOfertaRequest request = new CrearOfertaRequest(
+                    100L, 10L, new BigDecimal("70000.00"), null, null, "Servicio rápido", duracionMinutos
+            );
+
+            OfertaResponse response = useCase.enviarOferta(request);
+
+            assertThat(response.aproximacionDuracion().unidad()).isEqualTo(UnidadDuracionOferta.MINUTOS);
+            assertThat(response.aproximacionDuracion().cantidad()).isEqualByComparingTo(new BigDecimal("45"));
+            assertThat(response.aproximacionDuracion().totalHorasEstimadas()).isEqualByComparingTo(new BigDecimal("0.75"));
+            assertThat(response.tiempoEstimado()).isEqualTo("45 min");
+        }
+
+        @Test
+        @DisplayName("9.3 Duración en DIAS con horario personalizado en cada día (ej. Lunes 2 nov a Miércoles 4 nov)")
+        void debePersistirCronogramaPorDiasConHorariosPersonalizados() {
+            List<DiaTrabajoOfertaRequest> dias = List.of(
+                    new DiaTrabajoOfertaRequest(
+                            LocalDate.of(2026, 11, 2), // Lunes
+                            LocalTime.of(8, 0),
+                            LocalTime.of(12, 0),
+                            null // Se calcula automáticamente: 4.00 horas
+                    ),
+                    new DiaTrabajoOfertaRequest(
+                            LocalDate.of(2026, 11, 3), // Martes
+                            LocalTime.of(9, 0),
+                            LocalTime.of(15, 30),
+                            null // Se calcula automáticamente: 6.50 horas
+                    ),
+                    new DiaTrabajoOfertaRequest(
+                            LocalDate.of(2026, 11, 4), // Miércoles
+                            LocalTime.of(14, 0),
+                            null, // Se calcula horaFin a partir de horasTrabajo (14:00 + 3h = 17:00)
+                            new BigDecimal("3.0")
+                    )
+            );
+
+            AproximacionDuracionRequest duracionDias = new AproximacionDuracionRequest(
+                    UnidadDuracionOferta.DIAS,
+                    new BigDecimal("3"),
+                    false,
+                    dias
+            );
+
+            CrearOfertaRequest request = new CrearOfertaRequest(
+                    100L, 10L, new BigDecimal("140000.00"), LocalTime.of(8, 0), null,
+                    "Trabajo de 3 días (Lunes 2 nov a Miércoles 4 nov)", duracionDias
+            );
+
+            OfertaResponse response = useCase.enviarOferta(request);
+
+            assertThat(response.aproximacionDuracion()).isNotNull();
+            assertThat(response.aproximacionDuracion().unidad()).isEqualTo(UnidadDuracionOferta.DIAS);
+            assertThat(response.aproximacionDuracion().cantidad()).isEqualByComparingTo(new BigDecimal("3"));
+            assertThat(response.aproximacionDuracion().totalHorasEstimadas()).isEqualByComparingTo(new BigDecimal("13.50"));
+            assertThat(response.aproximacionDuracion().cronogramaDias()).hasSize(3);
+
+            assertThat(response.aproximacionDuracion().cronogramaDias().get(0).diaSemana()).isEqualTo("LUNES");
+            assertThat(response.aproximacionDuracion().cronogramaDias().get(0).horasTrabajo()).isEqualByComparingTo(new BigDecimal("4.00"));
+
+            assertThat(response.aproximacionDuracion().cronogramaDias().get(1).diaSemana()).isEqualTo("MARTES");
+            assertThat(response.aproximacionDuracion().cronogramaDias().get(1).horasTrabajo()).isEqualByComparingTo(new BigDecimal("6.50"));
+
+            assertThat(response.aproximacionDuracion().cronogramaDias().get(2).diaSemana()).isEqualTo("MIERCOLES");
+            assertThat(response.aproximacionDuracion().cronogramaDias().get(2).horaFin()).isEqualTo(LocalTime.of(17, 0));
+            assertThat(response.aproximacionDuracion().cronogramaDias().get(2).horasTrabajo()).isEqualByComparingTo(new BigDecimal("3.0"));
+            assertThat(response.tiempoEstimado()).isEqualTo("3 días (13.5h totales)");
+        }
+
+        @Test
+        @DisplayName("9.4 Duración en DIAS con opción rápida 'Mismo horario todos los días' por rango de fechas y días de semana")
+        void debeGenerarCronogramaConMismoHorarioTodosLosDias() {
+            AproximacionDuracionRequest duracionRango = new AproximacionDuracionRequest(
+                    UnidadDuracionOferta.DIAS,
+                    new BigDecimal("3"),
+                    true,
+                    LocalDate.of(2026, 11, 2), // Lunes 2 nov
+                    LocalDate.of(2026, 11, 4), // Miércoles 4 nov
+                    Set.of("LUNES", "MARTES", "MIERCOLES"),
+                    LocalTime.of(8, 0),
+                    LocalTime.of(12, 0),
+                    null,
+                    null
+            );
+
+            CrearOfertaRequest request = new CrearOfertaRequest(
+                    100L, 10L, new BigDecimal("150000.00"), LocalTime.of(8, 0), null,
+                    "Mismo horario los 3 días", duracionRango
+            );
+
+            OfertaResponse response = useCase.enviarOferta(request);
+
+            assertThat(response.aproximacionDuracion().unidad()).isEqualTo(UnidadDuracionOferta.DIAS);
+            assertThat(response.aproximacionDuracion().mismoHorarioTodosLosDias()).isTrue();
+            assertThat(response.aproximacionDuracion().cronogramaDias()).hasSize(3);
+            assertThat(response.aproximacionDuracion().totalHorasEstimadas()).isEqualByComparingTo(new BigDecimal("12.00"));
+        }
+
+        @Test
+        @DisplayName("9.5 Rechaza duración en DIAS si no se especifican los días ni el horario de cada día")
+        void rechazaDuracionEnDiasSinCronograma() {
+            AproximacionDuracionRequest sinDias = new AproximacionDuracionRequest(
+                    UnidadDuracionOferta.DIAS, new BigDecimal("3"), false, List.of()
+            );
+            CrearOfertaRequest request = new CrearOfertaRequest(
+                    100L, 10L, new BigDecimal("120000.00"), null, null, "Sin días", sinDias
+            );
+
+            assertThatThrownBy(() -> useCase.enviarOferta(request))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Cuando la duración es por DIAS, debe indicar cuáles días trabajará");
+        }
+
+        @Test
+        @DisplayName("9.6 Rechaza duración en DIAS si un día no tiene horas de trabajo ni rango horario")
+        void rechazaDiaSinHorasDeTrabajo() {
+            AproximacionDuracionRequest diaIncompleto = new AproximacionDuracionRequest(
+                    UnidadDuracionOferta.DIAS,
+                    new BigDecimal("1"),
+                    false,
+                    List.of(new DiaTrabajoOfertaRequest(LocalDate.of(2026, 11, 2), null, null, null))
+            );
+            CrearOfertaRequest request = new CrearOfertaRequest(
+                    100L, 10L, new BigDecimal("120000.00"), null, null, "Incompleto", diaIncompleto
+            );
+
+            assertThatThrownBy(() -> useCase.enviarOferta(request))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Debe indicar las horas a trabajar");
+        }
+    }
+
+    @Nested
+    @DisplayName("10. Pestaña 'Ofertas' del proveedor: retiro, reenvío, solapamiento y expiración 10 min")
+    class CicloVidaOfertasProveedorTests {
+
+        @Test
+        @DisplayName("10.1 Retirar oferta cambia el estado a RETIRADA y notifica por WebSocket")
+        void debeRetirarOfertaCorrectamente() {
+            Oferta ofertaActiva = Oferta.builder()
+                    .id(70L)
+                    .solicitudServicioId(100L)
+                    .perfilProveedorId(10L)
+                    .valorPropuesto(new BigDecimal("120000.00"))
+                    .estadoOferta("ENVIADA")
+                    .ofertadoAt(LocalDateTime.now().minusMinutes(2))
+                    .build();
+
+            when(ofertaService.findById(70L)).thenReturn(Optional.of(ofertaActiva));
+
+            useCase.retirarOferta(70L, 10L);
+
+            assertThat(ofertaActiva.getEstadoOferta()).isEqualTo("RETIRADA");
+            verify(ofertaService).save(ofertaActiva);
+            verify(eventPublisher).notifyOfertaRetirada(solicitudBase, ofertaActiva, clienteBase, proveedorBase);
+        }
+
+        @Test
+        @DisplayName("10.2 Reenviar oferta en PENDIENTE_REOFERTA limpia banderas de modificación y reinicia temporizador de 10 min")
+        void debeReenviarOfertaLimpiandoBanderasModificacion() {
+            Oferta ofertaPendiente = Oferta.builder()
+                    .id(71L)
+                    .solicitudServicioId(100L)
+                    .perfilProveedorId(10L)
+                    .valorPropuesto(new BigDecimal("110000.00"))
+                    .estadoOferta("PENDIENTE_REOFERTA")
+                    .solicitudModificada(true)
+                    .camposModificados("[\"fechaProgramada\",\"detalles\"]")
+                    .valoresAnteriores("{\"detalles\":\"Anterior\"}")
+                    .solapamientoHorario(true)
+                    .ofertadoAt(LocalDateTime.now().minusMinutes(5))
+                    .build();
+
+            when(ofertaService.findById(71L)).thenReturn(Optional.of(ofertaPendiente));
+
+            CrearOfertaRequest reenvio = new CrearOfertaRequest(
+                    100L, 10L, new BigDecimal("135000.00"), LocalTime.of(15, 0), null, "Nuevo horario revisado", null
+            );
+
+            OfertaResponse response = useCase.actualizarOferta(71L, reenvio);
+
+            assertThat(response.estadoOferta()).isEqualTo("ENVIADA");
+            assertThat(response.solicitudModificada()).isFalse();
+            assertThat(response.camposModificados()).isEmpty();
+            assertThat(response.solapamientoHorario()).isFalse();
+            assertThat(response.remainingSeconds()).isGreaterThan(500L);
+            assertThat(solicitudBase.getEstadoSolicitud()).isEqualTo("EN_NEGOCIACION");
+        }
+
+        @Test
+        @DisplayName("10.3 Rechaza enviar o aceptar oferta si existe solapamiento horario con otro servicio activo del proveedor")
+        void debeRechazarPorSolapamientoHorario() {
+            // Otro trabajo ya ACEPTADO para el mismo proveedor el mismo día de 10:00 a 12:00
+            SolicitudServicio otraSolicitudActiva = SolicitudServicio.builder()
+                    .id(101L)
+                    .perfilClienteId(201L)
+                    .servicioId(1L)
+                    .direccionId(50L)
+                    .fechaProgramada(fechaOriginal) // 10:00 AM
+                    .estadoSolicitud("ACEPTADA")
+                    .build();
+
+            Oferta otraOfertaAceptada = Oferta.builder()
+                    .id(80L)
+                    .solicitudServicioId(101L)
+                    .perfilProveedorId(10L)
+                    .valorPropuesto(new BigDecimal("100000.00"))
+                    .horaInicioPropuesta(LocalTime.of(10, 0))
+                    .duracionUnidad(UnidadDuracionOferta.HORAS)
+                    .duracionCantidad(new BigDecimal("2.0")) // 10:00 a 12:00
+                    .estadoOferta("ACEPTADA")
+                    .build();
+
+            when(ofertaService.findByProveedorId(10L)).thenReturn(List.of(otraOfertaAceptada));
+            when(solicitudService.findById(101L)).thenReturn(Optional.of(otraSolicitudActiva));
+
+            // Intenta ofertar en solicitud 100L para el mismo día a las 11:00 AM (1 hora: 11:00 a 12:00 -> se solapa)
+            CrearOfertaRequest requestSolapado = new CrearOfertaRequest(
+                    100L, 10L, new BigDecimal("120000.00"), LocalTime.of(11, 0), null, "Se solapa", null
+            );
+
+            assertThatThrownBy(() -> useCase.enviarOferta(requestSolapado))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("Conflicto de horario");
+        }
+
+        @Test
+        @DisplayName("10.4 Ofertas con más de 10 minutos sin respuesta expiran automáticamente")
+        void debeExpirarOfertaPasadosDiezMinutos() {
+            Oferta ofertaVencida = Oferta.builder()
+                    .id(90L)
+                    .solicitudServicioId(100L)
+                    .perfilProveedorId(10L)
+                    .valorPropuesto(new BigDecimal("120000.00"))
+                    .estadoOferta("ENVIADA")
+                    .ofertadoAt(LocalDateTime.now().minusMinutes(11))
+                    .build();
+
+            when(ofertaService.findByProveedorId(10L)).thenReturn(List.of(ofertaVencida));
+
+            var misOfertas = useCase.obtenerMisOfertasProveedor(10L);
+
+            assertThat(misOfertas).isEmpty();
+            assertThat(ofertaVencida.getEstadoOferta()).isEqualTo("EXPIRADA");
+            verify(eventPublisher).notifyOfertaExpirada(solicitudBase, ofertaVencida, clienteBase, proveedorBase);
         }
     }
 }

@@ -65,6 +65,13 @@ public class SolicitudServicioEntity {
     @Builder.Default
     private String estadoSolicitud = "ABIERTA";
 
+    @Column(name = "pin_inicio_encrypted")
+    private String pinInicioEncrypted;
+
+    @Column(name = "recordatorio_1h_enviado")
+    @Builder.Default
+    private Boolean recordatorio1hEnviado = false;
+
     @CreatedDate
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

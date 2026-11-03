@@ -70,6 +70,51 @@ public class SolicitudEventPublisher {
         }
     }
 
+    public void notifySolicitudModificadaParaOferentes(
+            SolicitudServicio solicitud,
+            List<Oferta> ofertasPendientesReoferta,
+            List<PerfilProveedor> proveedoresComoNuevaSolicitud,
+            List<PerfilProveedor> proveedoresSinOfertaActualizados,
+            List<PerfilProveedor> proveedoresRemovidos
+    ) {
+        if (observers == null) return;
+        for (SolicitudObserver observer : observers) {
+            try {
+                observer.onSolicitudModificadaParaOferentes(
+                        solicitud,
+                        ofertasPendientesReoferta,
+                        proveedoresComoNuevaSolicitud,
+                        proveedoresSinOfertaActualizados,
+                        proveedoresRemovidos
+                );
+            } catch (Exception e) {
+                // Non-blocking
+            }
+        }
+    }
+
+    public void notifyOfertaRetirada(SolicitudServicio solicitud, Oferta oferta, PerfilCliente cliente, PerfilProveedor proveedor) {
+        if (observers == null) return;
+        for (SolicitudObserver observer : observers) {
+            try {
+                observer.onOfertaRetirada(solicitud, oferta, cliente, proveedor);
+            } catch (Exception e) {
+                // Non-blocking
+            }
+        }
+    }
+
+    public void notifyOfertaExpirada(SolicitudServicio solicitud, Oferta oferta, PerfilCliente cliente, PerfilProveedor proveedor) {
+        if (observers == null) return;
+        for (SolicitudObserver observer : observers) {
+            try {
+                observer.onOfertaExpirada(solicitud, oferta, cliente, proveedor);
+            } catch (Exception e) {
+                // Non-blocking
+            }
+        }
+    }
+
     public void notifyServicioIniciado(SolicitudServicio solicitud, PerfilCliente cliente, PerfilProveedor proveedor) {
         if (observers == null) return;
         for (SolicitudObserver observer : observers) {
@@ -91,5 +136,15 @@ public class SolicitudEventPublisher {
             }
         }
     }
-}
 
+    public void notifyAlarmaServicio1Hora(SolicitudServicio solicitud, Oferta ofertaAceptada, PerfilProveedor proveedor) {
+        if (observers == null) return;
+        for (SolicitudObserver observer : observers) {
+            try {
+                observer.onAlarmaServicio1Hora(solicitud, ofertaAceptada, proveedor);
+            } catch (Exception e) {
+                // Non-blocking
+            }
+        }
+    }
+}

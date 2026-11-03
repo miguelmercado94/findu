@@ -4,12 +4,19 @@ import com.findu.core.infrastructure.adapter.out.persistence.entity.OfertaEntity
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface OfertaRepository extends JpaRepository<OfertaEntity, Long> {
 
     List<OfertaEntity> findAllBySolicitudServicioId(Long solicitudServicioId);
 
+    List<OfertaEntity> findAllByPerfilProveedorIdOrderByUpdatedAtDesc(Long perfilProveedorId);
+
+    Optional<OfertaEntity> findFirstBySolicitudServicioIdAndPerfilProveedorIdOrderByIdDesc(Long solicitudServicioId, Long perfilProveedorId);
+
     boolean existsBySolicitudServicioIdAndPerfilProveedorId(Long solicitudServicioId, Long perfilProveedorId);
 
     List<OfertaEntity> findAllBySolicitudServicioIdAndEstadoOferta(Long solicitudServicioId, String estadoOferta);
+
+    List<OfertaEntity> findAllByEstadoOferta(String estadoOferta);
 }

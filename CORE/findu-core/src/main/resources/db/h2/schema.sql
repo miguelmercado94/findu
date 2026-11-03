@@ -3,9 +3,13 @@
 -- Ejecutado en cada arranque (spring.sql.init.mode=always)
 -- =====================================================================
 
+DROP TABLE IF EXISTS amonestacion_proveedor;
+DROP TABLE IF EXISTS cancelacion_proveedor;
+DROP TABLE IF EXISTS solicitud_estado_auditoria;
 DROP TABLE IF EXISTS calificacion;
 DROP TABLE IF EXISTS factura_detalle;
 DROP TABLE IF EXISTS factura;
+DROP TABLE IF EXISTS oferta_cronograma_dia;
 DROP TABLE IF EXISTS oferta;
 DROP TABLE IF EXISTS solicitud_servicio;
 DROP TABLE IF EXISTS direccion;
@@ -174,7 +178,12 @@ CREATE TABLE solicitud_servicio (
     telefono_contacto VARCHAR(20),
     prioridad INT DEFAULT 3,
     presupuesto_maximo DECIMAL(12,2),
+    es_presupuesto_estricto BOOLEAN DEFAULT FALSE,
     cantidad_estimada INT DEFAULT 1,
+    detalles TEXT,
+    fotos TEXT,
+    pin_inicio_encrypted VARCHAR(255),
+    recordatorio_1h_enviado BOOLEAN DEFAULT FALSE,
     estado_solicitud VARCHAR(30) DEFAULT 'ABIERTA',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -188,13 +197,34 @@ CREATE TABLE oferta (
     solicitud_servicio_id BIGINT NOT NULL,
     perfil_proveedor_id BIGINT NOT NULL,
     valor_propuesto DECIMAL(12,2) NOT NULL,
+    hora_inicio_propuesta TIME,
     tiempo_estimado VARCHAR(50),
     mensaje_presentacion VARCHAR(1000),
+    duracion_unidad VARCHAR(20) NOT NULL DEFAULT 'HORAS',
+    duracion_cantidad DECIMAL(10,2) NOT NULL DEFAULT 1.00,
+    mismo_horario_dias BOOLEAN DEFAULT FALSE,
+    ofertado_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    solicitud_modificada BOOLEAN DEFAULT FALSE,
+    campos_modificados TEXT,
+    valores_anteriores TEXT,
+    solapamiento_horario BOOLEAN DEFAULT FALSE,
     estado_oferta VARCHAR(30) DEFAULT 'ENVIADA',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (solicitud_servicio_id) REFERENCES solicitud_servicio(id),
     FOREIGN KEY (perfil_proveedor_id) REFERENCES perfil_proveedor(id)
+);
+
+CREATE TABLE oferta_cronograma_dia (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    oferta_id BIGINT NOT NULL,
+    fecha DATE NOT NULL,
+    dia_semana VARCHAR(20) NOT NULL,
+    hora_inicio TIME,
+    hora_fin TIME,
+    horas_trabajo DECIMAL(5,2) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (oferta_id) REFERENCES oferta(id) ON DELETE CASCADE
 );
 
 -- ─── Facturación ──────────────────────────────────────────────────────
@@ -232,4 +262,66 @@ CREATE TABLE calificacion (
     comentario VARCHAR(500),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (solicitud_servicio_id) REFERENCES solicitud_servicio(id)
+);
+
+-- ─── Auditoría Interna GPS/Estado, Cancelaciones y Amonestaciones ─────
+
+CREATE TABLE solicitud_estado_auditoria (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    solicitud_servicio_id BIGINT NOT NULL,
+    estado_anterior VARCHAR(40),
+    estado_nuevo VARCHAR(40) NOT NULL,
+    actor_tipo VARCHAR(30),
+    actor_id BIGINT,
+    latitud DECIMAL(10,7),
+    longitud DECIMAL(10,7),
+    distancia_metros DECIMAL(10,2),
+    observacion VARCHAR(500),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (solicitud_servicio_id) REFERENCES solicitud_servicio(id)
+);
+
+CREATE TABLE cancelacion_proveedor (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    solicitud_servicio_id BIGINT NOT NULL,
+    oferta_id BIGINT,
+    perfil_proveedor_id BIGINT NOT NULL,
+    categoria VARCHAR(40) NOT NULL,
+    motivo VARCHAR(200) NOT NULL,
+    descripcion TEXT,
+    evidencias_urls TEXT,
+    ticket_codigo VARCHAR(60),
+    estado_cancelacion VARCHAR(40) NOT NULL,
+    estado_ticket VARCHAR(40) NOT NULL,
+    es_injustificada BOOLEAN,
+    fecha_limite_evidencia TIMESTAMP,
+    decision_soporte VARCHAR(40),
+    justificacion_soporte TEXT,
+    agente_soporte_id BIGINT,
+    fecha_resolucion TIMESTAMP,
+    amonestacion_generada BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (solicitud_servicio_id) REFERENCES solicitud_servicio(id),
+    FOREIGN KEY (oferta_id) REFERENCES oferta(id),
+    FOREIGN KEY (perfil_proveedor_id) REFERENCES perfil_proveedor(id)
+);
+
+CREATE TABLE amonestacion_proveedor (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    perfil_proveedor_id BIGINT NOT NULL,
+    solicitud_servicio_id BIGINT NOT NULL,
+    cancelacion_id BIGINT NOT NULL UNIQUE,
+    ticket_codigo VARCHAR(60),
+    nivel VARCHAR(20) NOT NULL,
+    motivo VARCHAR(300) NOT NULL,
+    conteo_30_dias INT NOT NULL,
+    dias_restriccion INT NOT NULL DEFAULT 0,
+    restriccion_inicio TIMESTAMP,
+    restriccion_fin TIMESTAMP,
+    activa BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (perfil_proveedor_id) REFERENCES perfil_proveedor(id),
+    FOREIGN KEY (solicitud_servicio_id) REFERENCES solicitud_servicio(id),
+    FOREIGN KEY (cancelacion_id) REFERENCES cancelacion_proveedor(id)
 );

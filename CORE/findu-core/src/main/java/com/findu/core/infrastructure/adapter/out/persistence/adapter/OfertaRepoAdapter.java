@@ -2,8 +2,8 @@ package com.findu.core.infrastructure.adapter.out.persistence.adapter;
 
 import com.findu.core.application.port.out.persistence.OfertaRepositoryPort;
 import com.findu.core.domain.model.Oferta;
-import com.findu.core.infrastructure.adapter.out.persistence.repository.OfertaRepository;
 import com.findu.core.infrastructure.adapter.out.persistence.mapper.OfertaMapper;
+import com.findu.core.infrastructure.adapter.out.persistence.repository.OfertaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -36,6 +36,26 @@ public class OfertaRepoAdapter implements OfertaRepositoryPort {
     }
 
     @Override
+    public List<Oferta> findByProveedorId(Long perfilProveedorId) {
+        return repository.findAllByPerfilProveedorIdOrderByUpdatedAtDesc(perfilProveedorId).stream()
+                .map(mapper::toDomain)
+                .toList();
+    }
+
+    @Override
+    public Optional<Oferta> findBySolicitudIdAndProveedorId(Long solicitudServicioId, Long perfilProveedorId) {
+        return repository.findFirstBySolicitudServicioIdAndPerfilProveedorIdOrderByIdDesc(solicitudServicioId, perfilProveedorId)
+                .map(mapper::toDomain);
+    }
+
+    @Override
+    public List<Oferta> findByEstadoOferta(String estadoOferta) {
+        return repository.findAllByEstadoOferta(estadoOferta).stream()
+                .map(mapper::toDomain)
+                .toList();
+    }
+
+    @Override
     public boolean existsBySolicitudIdAndProveedorId(Long solicitudServicioId, Long perfilProveedorId) {
         return repository.existsBySolicitudServicioIdAndPerfilProveedorId(solicitudServicioId, perfilProveedorId);
     }
@@ -44,5 +64,10 @@ public class OfertaRepoAdapter implements OfertaRepositoryPort {
     public List<Oferta> saveAll(List<Oferta> ofertas) {
         var entities = ofertas.stream().map(mapper::toEntity).toList();
         return repository.saveAll(entities).stream().map(mapper::toDomain).toList();
+    }
+
+    @Override
+    public void deleteById(Long id) {
+        repository.deleteById(id);
     }
 }

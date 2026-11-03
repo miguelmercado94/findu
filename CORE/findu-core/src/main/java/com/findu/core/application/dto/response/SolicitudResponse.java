@@ -26,8 +26,22 @@ public record SolicitudResponse(
         @Schema(description = "Fotos adjuntas") String fotos,
         @Schema(description = "Estado de la solicitud") String estadoSolicitud,
         @Schema(description = "Calificación recibida en la finalización") BigDecimal calificacionRecibida,
-        @Schema(description = "Reseña dejada por el cliente") String resenaCliente
+        @Schema(description = "Reseña dejada por el cliente") String resenaCliente,
+        @Schema(description = "PIN de 4 dígitos para iniciar el servicio (exclusivo para el cliente; siempre null para el proveedor)") String pinInicio
 ) {
+    public SolicitudResponse(
+            Long id, String servicioNombre, String categoriaNombre, String direccionTexto,
+            String municipioNombre, String codigoDane, Double distanciaKm, LocalDateTime fechaProgramada,
+            String nombreContacto, String telefonoContacto, BigDecimal clienteCalificacion, Integer prioridad,
+            BigDecimal presupuestoMaximo, Boolean esPresupuestoEstricto, BigDecimal tarifaAcordada,
+            String detalles, String fotos, String estadoSolicitud, BigDecimal calificacionRecibida, String resenaCliente
+    ) {
+        this(id, servicioNombre, categoriaNombre, direccionTexto, municipioNombre, codigoDane, distanciaKm,
+                fechaProgramada, nombreContacto, telefonoContacto, clienteCalificacion, prioridad,
+                presupuestoMaximo, esPresupuestoEstricto, tarifaAcordada, detalles, fotos, estadoSolicitud,
+                calificacionRecibida, resenaCliente, null);
+    }
+
     public SolicitudResponse(
             Long id, String servicioNombre, String direccionTexto, LocalDateTime fechaProgramada,
             String nombreContacto, String telefonoContacto, Integer prioridad, BigDecimal presupuestoMaximo,
@@ -35,7 +49,6 @@ public record SolicitudResponse(
     ) {
         this(id, servicioNombre, null, direccionTexto, null, null, null, fechaProgramada,
                 nombreContacto, telefonoContacto, null, prioridad, presupuestoMaximo, esPresupuestoEstricto,
-                null, detalles, fotos, estadoSolicitud, null, null);
+                null, detalles, fotos, estadoSolicitud, null, null, null);
     }
 }
-

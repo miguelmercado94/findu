@@ -13,7 +13,15 @@ public interface OfertaRepositoryPort {
 
     List<Oferta> findBySolicitudId(Long solicitudServicioId);
 
+    List<Oferta> findByProveedorId(Long perfilProveedorId);
+
+    Optional<Oferta> findBySolicitudIdAndProveedorId(Long solicitudServicioId, Long perfilProveedorId);
+
+    List<Oferta> findByEstadoOferta(String estadoOferta);
+
     boolean existsBySolicitudIdAndProveedorId(Long solicitudServicioId, Long perfilProveedorId);
 
     List<Oferta> saveAll(List<Oferta> ofertas);
+
+    void deleteById(Long id);
 }

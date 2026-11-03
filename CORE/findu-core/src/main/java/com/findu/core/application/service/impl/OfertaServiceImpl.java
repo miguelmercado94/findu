@@ -31,6 +31,21 @@ public class OfertaServiceImpl implements OfertaService {
     }
 
     @Override
+    public List<Oferta> findByProveedorId(Long perfilProveedorId) {
+        return port.findByProveedorId(perfilProveedorId);
+    }
+
+    @Override
+    public Optional<Oferta> findBySolicitudIdAndProveedorId(Long solicitudServicioId, Long perfilProveedorId) {
+        return port.findBySolicitudIdAndProveedorId(solicitudServicioId, perfilProveedorId);
+    }
+
+    @Override
+    public List<Oferta> findByEstadoOferta(String estadoOferta) {
+        return port.findByEstadoOferta(estadoOferta);
+    }
+
+    @Override
     public boolean existsBySolicitudIdAndProveedorId(Long solicitudServicioId, Long perfilProveedorId) {
         return port.existsBySolicitudIdAndProveedorId(solicitudServicioId, perfilProveedorId);
     }
@@ -38,5 +53,10 @@ public class OfertaServiceImpl implements OfertaService {
     @Override
     public List<Oferta> saveAll(List<Oferta> ofertas) {
         return port.saveAll(ofertas);
+    }
+
+    @Override
+    public void deleteById(Long id) {
+        port.deleteById(id);
     }
 }

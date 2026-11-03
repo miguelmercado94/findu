@@ -19,8 +19,23 @@ public interface SolicitudObserver {
 
     void onSolicitudActualizada(SolicitudServicio solicitud, List<PerfilProveedor> nuevosProveedores, List<PerfilProveedor> proveedoresRemovidos);
 
+    default void onSolicitudModificadaParaOferentes(
+            SolicitudServicio solicitud,
+            List<Oferta> ofertasPendientesReoferta,
+            List<PerfilProveedor> proveedoresComoNuevaSolicitud,
+            List<PerfilProveedor> proveedoresSinOfertaActualizados,
+            List<PerfilProveedor> proveedoresRemovidos
+    ) {
+        onSolicitudActualizada(solicitud, proveedoresSinOfertaActualizados, proveedoresRemovidos);
+    }
+
+    default void onOfertaRetirada(SolicitudServicio solicitud, Oferta oferta, PerfilCliente cliente, PerfilProveedor proveedor) {}
+
+    default void onOfertaExpirada(SolicitudServicio solicitud, Oferta oferta, PerfilCliente cliente, PerfilProveedor proveedor) {}
+
     default void onServicioIniciado(SolicitudServicio solicitud, PerfilCliente cliente, PerfilProveedor proveedor) {}
 
     default void onServicioFinalizado(SolicitudServicio solicitud, PerfilCliente cliente, PerfilProveedor proveedor) {}
-}
 
+    default void onAlarmaServicio1Hora(SolicitudServicio solicitud, Oferta ofertaAceptada, PerfilProveedor proveedor) {}
+}

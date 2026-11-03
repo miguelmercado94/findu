@@ -145,6 +145,8 @@ CREATE TABLE IF NOT EXISTS solicitud_servicio (
     cantidad_estimada INT DEFAULT 1,
     detalles TEXT,
     fotos TEXT,
+    pin_inicio_encrypted VARCHAR(255),
+    recordatorio_1h_enviado BOOLEAN DEFAULT FALSE,
     estado_solicitud VARCHAR(30) NOT NULL DEFAULT 'ABIERTA',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -158,9 +160,28 @@ CREATE TABLE IF NOT EXISTS oferta (
     hora_inicio_propuesta TIME,
     tiempo_estimado VARCHAR(50),
     mensaje_presentacion VARCHAR(1000),
+    duracion_unidad VARCHAR(20) NOT NULL DEFAULT 'HORAS',
+    duracion_cantidad DECIMAL(10,2) NOT NULL DEFAULT 1.00,
+    mismo_horario_dias BOOLEAN DEFAULT FALSE,
+    ofertado_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    solicitud_modificada BOOLEAN DEFAULT FALSE,
+    campos_modificados TEXT,
+    valores_anteriores TEXT,
+    solapamiento_horario BOOLEAN DEFAULT FALSE,
     estado_oferta VARCHAR(30) NOT NULL DEFAULT 'ENVIADA',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS oferta_cronograma_dia (
+    id BIGSERIAL PRIMARY KEY,
+    oferta_id BIGINT NOT NULL REFERENCES oferta(id) ON DELETE CASCADE,
+    fecha DATE NOT NULL,
+    dia_semana VARCHAR(20) NOT NULL,
+    hora_inicio TIME,
+    hora_fin TIME,
+    horas_trabajo DECIMAL(5,2) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS factura (
@@ -192,4 +213,59 @@ CREATE TABLE IF NOT EXISTS calificacion (
     puntaje INT NOT NULL CHECK (puntaje BETWEEN 1 AND 5),
     comentario VARCHAR(500),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ─── Auditoría Interna GPS/Estado, Cancelaciones y Amonestaciones ─────
+
+CREATE TABLE IF NOT EXISTS solicitud_estado_auditoria (
+    id BIGSERIAL PRIMARY KEY,
+    solicitud_servicio_id BIGINT NOT NULL REFERENCES solicitud_servicio(id),
+    estado_anterior VARCHAR(40),
+    estado_nuevo VARCHAR(40) NOT NULL,
+    actor_tipo VARCHAR(30),
+    actor_id BIGINT,
+    latitud DECIMAL(10,7),
+    longitud DECIMAL(10,7),
+    distancia_metros DECIMAL(10,2),
+    observacion VARCHAR(500),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS cancelacion_proveedor (
+    id BIGSERIAL PRIMARY KEY,
+    solicitud_servicio_id BIGINT NOT NULL REFERENCES solicitud_servicio(id),
+    oferta_id BIGINT REFERENCES oferta(id),
+    perfil_proveedor_id BIGINT NOT NULL REFERENCES perfil_proveedor(id),
+    categoria VARCHAR(40) NOT NULL,
+    motivo VARCHAR(200) NOT NULL,
+    descripcion TEXT,
+    evidencias_urls TEXT,
+    ticket_codigo VARCHAR(60),
+    estado_cancelacion VARCHAR(40) NOT NULL,
+    estado_ticket VARCHAR(40) NOT NULL,
+    es_injustificada BOOLEAN,
+    fecha_limite_evidencia TIMESTAMP,
+    decision_soporte VARCHAR(40),
+    justificacion_soporte TEXT,
+    agente_soporte_id BIGINT,
+    fecha_resolucion TIMESTAMP,
+    amonestacion_generada BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS amonestacion_proveedor (
+    id BIGSERIAL PRIMARY KEY,
+    perfil_proveedor_id BIGINT NOT NULL REFERENCES perfil_proveedor(id),
+    solicitud_servicio_id BIGINT NOT NULL REFERENCES solicitud_servicio(id),
+    cancelacion_id BIGINT NOT NULL UNIQUE REFERENCES cancelacion_proveedor(id),
+    ticket_codigo VARCHAR(60),
+    nivel VARCHAR(20) NOT NULL,
+    motivo VARCHAR(300) NOT NULL,
+    conteo_30_dias INT NOT NULL,
+    dias_restriccion INT NOT NULL DEFAULT 0,
+    restriccion_inicio TIMESTAMP,
+    restriccion_fin TIMESTAMP,
+    activa BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
