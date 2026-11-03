@@ -32,22 +32,24 @@ public class DispatcherNotificationObserver implements SolicitudObserver {
 
     private void sendToProvider(PerfilProveedor p, String eventType, String template, Map<String, String> params) {
         if (p == null || p.getId() == null) return;
-        notificationPort.send(eventType, "PROVEEDOR_" + p.getId(), template, "es", params);
         if (p.getAuthUserId() != null && !p.getAuthUserId().equals(p.getId())) {
-            notificationPort.send(eventType, "PROVEEDOR_" + p.getAuthUserId(), template, "es", params);
+            params.put("canonicalRecipient", "PROVEEDOR_" + p.getId());
+            params.put("aliasRecipient", "PROVEEDOR_" + p.getAuthUserId());
         }
+        notificationPort.send(eventType, "PROVEEDOR_" + p.getId(), template, "es", params);
     }
 
     private void sendToProviderId(Long proveedorId, String eventType, String template, Map<String, String> params) {
         if (proveedorId == null) return;
-        notificationPort.send(eventType, "PROVEEDOR_" + proveedorId, template, "es", params);
         if (proveedorService != null) {
             proveedorService.findById(proveedorId).ifPresent(p -> {
                 if (p.getAuthUserId() != null && !p.getAuthUserId().equals(proveedorId)) {
-                    notificationPort.send(eventType, "PROVEEDOR_" + p.getAuthUserId(), template, "es", params);
+                    params.put("canonicalRecipient", "PROVEEDOR_" + proveedorId);
+                    params.put("aliasRecipient", "PROVEEDOR_" + p.getAuthUserId());
                 }
             });
         }
+        notificationPort.send(eventType, "PROVEEDOR_" + proveedorId, template, "es", params);
     }
 
     private Map<String, String> buildBaseSolicitudParams(SolicitudServicio solicitud) {

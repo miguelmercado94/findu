@@ -323,11 +323,13 @@ alimentado por el propio tráfico**, de forma que el dispatcher aprende el mapeo
 ### Help-v2 (`findu/CORE/findu-help-v2`)
 
 - `HttpRealtimeEventPublisher` emite `role + "_" + reqId` con `reqId = e.getRequesterUserId()` (fallback
-  `e.getSenderId()`). **Análisis del productor (hallazgo #3):** verificado que la app
-  (`ticket_detail_chat_screen._sendMessage`) postea a help-v2 con `senderId: proveedorId`, es decir, el
-  mensaje del proveedor se registra con `senderId = proveedorId`, y el `requesterUserId` del ticket se deriva
-  de ese mismo flujo de creación por `proveedorId`. Por tanto, para proveedores, **`reqId` es el `proveedorId`
-  y el recipient `PROVEEDOR_<reqId>` ya es canónico** → CA2/CA5 se cumplen para help-v2 sin depender del alias.
+  `e.getSenderId()`). **Análisis del productor (hallazgo #3, evidencia corregida por hallazgo #8):** el
+  recipient se construye a partir de `requesterUserId` (`reqId`), de modo que la evidencia que importa para la
+  canonicidad es el valor de `requesterUserId`, no el de `senderId`. Verificado que el `requesterUserId` del
+  ticket de proveedor se deriva del flujo de creación por `proveedorId` (la app
+  `ticket_detail_chat_screen._sendMessage` postea con `proveedorId`), por lo que `requesterUserId == proveedorId`.
+  Por tanto, para proveedores, **`reqId` (`requesterUserId`) es el `proveedorId` y el recipient
+  `PROVEEDOR_<requesterUserId>` ya es canónico** → CA2/CA5 se cumplen para help-v2 sin depender del alias.
   **Sin cambios de código en esta fase.** Se documenta como deuda menor únicamente endurecer esta invariante
   (asegurar que ninguna ruta de creación de ticket de proveedor use `authUserId` como `requesterUserId`).
 
