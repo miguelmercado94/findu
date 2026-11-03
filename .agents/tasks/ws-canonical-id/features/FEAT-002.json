@@ -1,0 +1,25 @@
+{
+  "id": "FEAT-002",
+  "type": "fix",
+  "description": "Core: emitir el recipient canónico PROVEEDOR_<proveedorId> UNA sola vez por proveedor (eliminando el doble envío) y alimentar el mapa de alias del dispatcher incluyendo canonicalRecipient/aliasRecipient en los params cuando authUserId != proveedorId. Depende de FEAT-001 porque el contrato de los campos de alias (canonicalRecipient/aliasRecipient) y el consumo por learnAliasFromPayload viven en el dispatcher. Atiende CA4 y el hallazgo #8 (documentación: la evidencia de help-v2 debe citar requesterUserId, no senderId; sin cambio de código en help-v2/validacion en esta fase).",
+  "status": "pending",
+  "steps": [
+    "Modificar DispatcherNotificationObserver.sendToProvider(PerfilProveedor p, String eventType, String template, Map<String,String> params) en CORE/findu-core/src/main/java/com/findu/core/domain/observer/DispatcherNotificationObserver.java: emitir UNA sola vez notificationPort.send(eventType, \"PROVEEDOR_\" + p.getId(), template, \"es\", params). Si p.getAuthUserId() != null && !p.getAuthUserId().equals(p.getId()), antes del send añadir a params (que es un HashMap construido por el llamador, aditivo, no rompe negocio) las claves canonicalRecipient = \"PROVEEDOR_\" + p.getId() y aliasRecipient = \"PROVEEDOR_\" + p.getAuthUserId(). ELIMINAR el segundo notificationPort.send con PROVEEDOR_<authUserId>.",
+    "Modificar DispatcherNotificationObserver.sendToProviderId(Long proveedorId, String eventType, String template, Map<String,String> params): emitir UNA sola vez notificationPort.send(eventType, \"PROVEEDOR_\" + proveedorId, ...). Usar proveedorService.findById(proveedorId) SÓLO para poblar canonicalRecipient/aliasRecipient en params cuando el authUserId resuelto difiera del proveedorId; ELIMINAR el segundo notificationPort.send.",
+    "No tocar los recipients de cliente (CLIENTE_* / username) ni ningún payload de negocio existente; los campos canonicalRecipient/aliasRecipient son aditivos.",
+    "Crear test unitario DispatcherNotificationObserverTest.java en CORE/findu-core/src/test/java/com/findu/core/domain/observer/ que, con un PerfilProveedor cuyo getId()!=getAuthUserId(), verifique con Mockito que notificationPort.send se invoca EXACTAMENTE una vez (verify(..., times(1))) y que el Map params capturado contiene canonicalRecipient y aliasRecipient con los valores esperados. Añadir un caso con getId()==getAuthUserId() que confirme que NO se añaden los campos de alias (o son no-op) y sigue habiendo un solo send. Cubre CA4.",
+    "Corregir en .agents/tasks/ws-canonical-id/design.md la sección de Help-v2 para que la evidencia cite requesterUserId (no senderId); la conclusión (recipient PROVEEDOR_<requesterUserId> es canónico) no cambia (hallazgo #8, NIT documental)."
+  ],
+  "acceptance_criteria": [
+    "El build del core compila: .\\gradlew.bat compileJava (desde CORE/findu-core) termina sin errores.",
+    "Ejecutar .\\gradlew.bat test (desde CORE/findu-core) pasa todos los tests, incluyendo DispatcherNotificationObserverTest.",
+    "DispatcherNotificationObserver emite el recipient canónico una sola vez por proveedor (no dos notificationPort.send) y añade canonicalRecipient/aliasRecipient a params sólo cuando authUserId != proveedorId (CA4).",
+    "design.md cita requesterUserId en la justificación de help-v2 (hallazgo #8)."
+  ],
+  "verification": [
+    "cd c:\\Users\\ADMIN\\Documents\\FIND-U-PROJECT\\findu\\CORE\\findu-core; .\\gradlew.bat test",
+    "Confirmar en la salida que DispatcherNotificationObserverTest aparece como PASSED y que el resto de tests del core siguen verdes."
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

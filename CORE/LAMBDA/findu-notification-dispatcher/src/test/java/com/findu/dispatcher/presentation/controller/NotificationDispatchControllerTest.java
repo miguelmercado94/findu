@@ -34,6 +34,9 @@ class NotificationDispatchControllerTest {
     @Mock
     private TransactionalNotificationProducer transactionalNotificationProducer;
 
+    @Mock
+    private com.findu.dispatcher.infrastructure.routing.RecipientResolver recipientResolver;
+
     @InjectMocks
     private NotificationDispatchController controller;
 
@@ -87,6 +90,7 @@ class NotificationDispatchControllerTest {
 
     @Test
     void evento_sin_templateCode_sigue_la_ruta_de_presencia_y_no_el_productor_transaccional() {
+        when(recipientResolver.toCanonical("CLIENTE_42")).thenReturn("CLIENTE_42");
         when(eventDispatcherService.dispatch(anyString(), any(EventEnvelope.class), any(TipoEventoCanal.class)))
                 .thenReturn(Mono.empty());
 

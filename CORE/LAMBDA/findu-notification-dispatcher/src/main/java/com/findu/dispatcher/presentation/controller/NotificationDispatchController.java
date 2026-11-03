@@ -4,6 +4,7 @@ import com.findu.dispatcher.domain.model.EventEnvelope;
 import com.findu.dispatcher.domain.model.EventType;
 import com.findu.dispatcher.domain.model.TipoEventoCanal;
 import com.findu.dispatcher.infrastructure.adapter.rabbitmq.TransactionalNotificationProducer;
+import com.findu.dispatcher.infrastructure.routing.RecipientResolver;
 import com.findu.dispatcher.presentation.controller.dto.NotificationMessagePayload;
 import com.findu.dispatcher.service.EventDispatcherService;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +31,7 @@ public class NotificationDispatchController {
 
     private final EventDispatcherService eventDispatcherService;
     private final TransactionalNotificationProducer transactionalNotificationProducer;
+    private final RecipientResolver recipientResolver;
 
     public record DispatchNotificationRequest(
             String type,
@@ -121,12 +123,18 @@ public class NotificationDispatchController {
             payload.put("tipoEvento", request.templateCode());
         }
 
+        // Aprender el alias que core incluye en params (canonicalRecipient/aliasRecipient) una sola vez.
+        aprenderAliasDesdePayload(payload);
+
+        // Normalizar a canónico en un único borde de entrada (hallazgo #4/#10).
+        String canonicalRecipient = recipientResolver.toCanonical(recipient);
+
         String canalId;
-        if (recipient.startsWith("PROVEEDOR_") || recipient.startsWith("CLIENTE_")
-                || recipient.startsWith("AGENTE_") || recipient.startsWith("SOPORTE_")) {
-            canalId = recipient;
+        if (canonicalRecipient.startsWith("PROVEEDOR_") || canonicalRecipient.startsWith("CLIENTE_")
+                || canonicalRecipient.startsWith("AGENTE_") || canonicalRecipient.startsWith("SOPORTE_")) {
+            canalId = canonicalRecipient;
         } else {
-            canalId = "CLIENTE_" + recipient;
+            canalId = "CLIENTE_" + canonicalRecipient;
         }
 
         EventType eventType = EventType.SERVICE_UPDATE;
@@ -141,7 +149,7 @@ public class NotificationDispatchController {
 
         EventEnvelope<Map<String, Object>> envelope = EventEnvelope.of(
                 eventType,
-                recipient,
+                canonicalRecipient,
                 payload
         );
 
@@ -156,5 +164,18 @@ public class NotificationDispatchController {
 
         return eventDispatcherService.dispatch(canalId, envelope, tipoEvento)
                 .then(Mono.just(ResponseEntity.ok().build()));
+    }
+
+    /**
+     * Aprende el alias {@code aliasRecipient -> canonicalRecipient} que core incluye en los params,
+     * una sola vez, antes de despachar. Defensivo: sólo actúa si ambas claves son String; el
+     * {@link RecipientResolver#learnAlias} es idempotente.
+     */
+    private void aprenderAliasDesdePayload(Map<String, Object> payload) {
+        Object canon = payload.get("canonicalRecipient");
+        Object alias = payload.get("aliasRecipient");
+        if (canon instanceof String c && alias instanceof String a) {
+            recipientResolver.learnAlias(a, c);
+        }
     }
 }

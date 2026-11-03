@@ -1,0 +1,41 @@
+{
+  "verdict": "CHANGES_REQUESTED",
+  "revisionOf": "design-review.json (previous, CHANGES_REQUESTED)",
+  "priorFindingsRecheck": [
+    { "id": 1, "severity": "HIGH", "status": "CLOSED", "note": "Gancho de reconexión añadido a ticket_detail_chat_screen vía SessionManager (ChangeNotifier verificado); _initWebSocket idempotente; removeListener en dispose. Feasible." },
+    { "id": 2, "severity": "MEDIUM", "status": "CLOSED", "note": "canalId = toCanonical(targetUserId) con fallback a eventId en dispatch(EventEnvelope). Verificado que hoy usa eventId y que ChannelController usa PROVEEDOR_<id>; el fix es correcto y necesario para CA7 por Rabbit." },
+    { "id": 3, "severity": "MEDIUM", "status": "CLOSED", "note": "CA2 reformulada al caso canónico; validacion a deuda (userId es Long genérico, verificado). help-v2 confirmado canónico por verificación real (create_ticket usa proveedorId como userId). Ver nuevo hallazgo 8 sobre justificación imprecisa." },
+    { "id": 4, "severity": "MEDIUM", "status": "CLOSED", "note": "learnAliasFromPayload con instanceof Map defensivo en ambos caminos; learnAlias idempotente. Verificado que params de core son Strings compatibles. Ver nuevo hallazgo 9 sobre ownership del método." },
+    { "id": 5, "severity": "MEDIUM", "status": "CLOSED", "note": "Eliminada la doble indexación; registro y baja bajo una sola clave canónica. Verificado que doFinally desregistra con una sola clave; el fix evita sesiones huérfanas." },
+    { "id": 6, "severity": "NIT", "status": "CLOSED", "note": "Documentado como deuda; fix split('=',2) anotado. Observación: environment.dart adjunta &token=, pero userId se prioriza antes del parsing frágil, así que no afecta esta fase." },
+    { "id": 7, "severity": "NIT", "status": "CLOSED", "note": "Paso 6 justificado con revisión de productores (clientes prefijados o no numéricos); deuda para restringir si cambiara." }
+  ],
+  "findings": [
+    {
+      "id": 8,
+      "severity": "NIT",
+      "title": "La justificación de 'help-v2 es canónico' cita la evidencia equivocada (confunde senderId con requesterUserId)",
+      "where": "diseño: sección Help-v2 y respuesta al hallazgo #3; verificado en HttpRealtimeEventPublisher, CreateTicketService, create_ticket_screen.dart",
+      "problem": "El recipient de help-v2 usa reqId = getRequesterUserId() ?? getSenderId(). requesterUserId se fija en la creación del ticket (CreateTicketService desde command.getUserId()), no desde el senderId del mensaje. Que la app ponga senderId: proveedorId al enviar un mensaje no prueba el valor de requesterUserId. La conclusión (canónico) es correcta, pero por otra razón: create_ticket_screen crea el ticket con userId = proveedorId.",
+      "fix": "Reemplazar la justificación por la cadena real: create_ticket_screen -> createTicket(userId: proveedorId) -> TicketRequester.userId = proveedorId -> requesterUserId = proveedorId, luego PROVEEDOR_<requesterUserId> es canónico. Anotar el fallback getSenderId() como invariante a endurecer."
+    },
+    {
+      "id": 9,
+      "severity": "NIT",
+      "title": "Ambiguedad sobre en qué clase vive learnAliasFromPayload",
+      "where": "diseño: bullets de EventDispatcherService y de NotificationDispatchController.despacharEventoPresencia",
+      "problem": "Se describe como método private de EventDispatcherService pero se invoca como recipientResolver.learnAliasFromPayload(...) desde el controller. Un private de otra clase no es invocable; despacharEventoPresencia llama a dispatch(canalId, ...) que el diseño dice que NO debe aprender. Queda ambiguo el owner y la invocación.",
+      "fix": "Mover learnAliasFromPayload a RecipientResolver como método público e invocarlo desde dispatch(EventEnvelope<?>) (Rabbit) y despacharEventoPresencia (HTTP), de modo que 'recipientResolver.learnAliasFromPayload(envelope)' sea literal."
+    },
+    {
+      "id": 10,
+      "severity": "MEDIUM",
+      "title": "No se fija la invariante canalId == toCanonical(targetUserId); el estado ACTIVO/INACTIVO y la entrega pueden evaluarse sobre claves distintas",
+      "where": "diseño: NotificationDispatchController.despacharEventoPresencia, EventDispatcherService.dispatch(String canalId,...)/procesarEntrega, ChannelController",
+      "problem": "procesarEntrega opera sobre toCanonical(envelope.targetUserId()), pero el canal (estado ACTIVO/INACTIVO) se abre con el canalId que pasa el llamador. Hay tres lugares que calculan clave de canal (despacharEventoPresencia, ChannelController, dispatch(EventEnvelope)) y el enrutamiento normaliza aparte. Para un recipient no canónico (app vieja por authUserId) con alias conocido, canalId y el targetUserId canónico pueden diferir, reintroduciendo la desalineación canal<->entrega (mismo defecto de clase que #2, en el camino HTTP de presencia).",
+      "fix": "Declarar la invariante 'canalId siempre es toCanonical(targetUserId) del mismo envelope' y satisfacerla en un solo punto: en despacharEventoPresencia construir el EventEnvelope con toCanonical(recipient) como targetUserId y canalId = ese valor; documentar que dispatch(String,...) asume canalId == toCanonical(envelope.targetUserId()). Añadir test: recipient no canónico con alias conocido -> canal de estado y socket de entrega son la misma clave canónica."
+    }
+  ],
+  "counts": { "high": 0, "medium": 1, "nit": 2 },
+  "reviewDoc": "c:\\Users\\ADMIN\\Documents\\FIND-U-PROJECT\\findu\\.agents\\tasks\\ws-canonical-id\\design-review.md"
+}

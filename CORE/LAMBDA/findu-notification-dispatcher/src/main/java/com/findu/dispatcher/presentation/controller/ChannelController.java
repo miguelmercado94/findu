@@ -3,6 +3,7 @@ package com.findu.dispatcher.presentation.controller;
 import com.findu.dispatcher.domain.model.EstadoCanal;
 import com.findu.dispatcher.domain.model.TipoCanal;
 import com.findu.dispatcher.domain.port.input.GestionCanalUseCase;
+import com.findu.dispatcher.infrastructure.routing.RecipientResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -18,6 +19,7 @@ import java.util.List;
 public class ChannelController {
 
     private final GestionCanalUseCase gestionCanalUseCase;
+    private final RecipientResolver recipientResolver;
 
     public record ReactivarCanalesRequest(
             String username,
@@ -64,7 +66,7 @@ public class ChannelController {
     public Mono<ResponseEntity<Void>> actualizarDisponibilidadProveedor(@RequestBody CambiarEstadoProveedorRequest request) {
         log.info("Petición de disponibilidad de proveedor recibida: proveedorId={}, disponible={}", request.proveedorId(), request.disponible());
         EstadoCanal nuevoEstado = request.disponible() ? EstadoCanal.ACTIVO : EstadoCanal.INACTIVO;
-        String canalId = "PROVEEDOR_" + request.proveedorId();
+        String canalId = recipientResolver.toCanonical("PROVEEDOR_" + request.proveedorId());
 
         return gestionCanalUseCase.cambiarEstadoCanal(canalId, nuevoEstado)
                 .onErrorResume(e -> {

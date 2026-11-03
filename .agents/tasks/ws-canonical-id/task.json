@@ -1,0 +1,7 @@
+{
+  "task_id": "task-ws-canonical-id",
+  "task_description": "Fase 0 de optimización de WebSockets en FIND-U: identificador canónico único de destinatario (PROVEEDOR_<proveedorId>), un solo socket por pantalla en la app, enrutamiento consistente en el dispatcher, eliminando el bug de falso OFFLINE. Sin FCM, sin AppLifecycleState, sin cambiar payloads; heartbeat PING/PONG y reconexión intactos. Atiende los 3 hallazgos abiertos del review de diseño: #10 (invariante canalId==toCanonical(targetUserId) en todos los caminos), #8 (citar requesterUserId en help-v2) y #9 (learnAliasFromPayload vive en EventDispatcherService).",
+  "status": "pending",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null
+}

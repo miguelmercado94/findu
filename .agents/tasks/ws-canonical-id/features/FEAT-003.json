@@ -1,0 +1,26 @@
+{
+  "id": "FEAT-003",
+  "type": "fix",
+  "description": "App Flutter (findu_proveedores): abrir UN SOLO socket WebSocket canónico por pantalla (Home y chat de ticket), usando siempre proveedorId (nunca authUserId), eliminando el socket secundario y asegurando el gancho de reconexión del chat. Es INDEPENDIENTE de FEAT-001/FEAT-002 (toca sólo el repo findu-movil), pero se ordena al final porque el criterio de aceptación global se valida con el backend ya canónico. Atiende RF2, CA3 y el hallazgo #1 (gancho de reconexión del chat).",
+  "steps": [
+    "Modificar apps/findu_proveedores/lib/core/config/environment.dart: renombrar el parámetro de webSocketUrlFor(int proveedorId, {String? token}) a proveedorId (ya lo es semánticamente) y documentar en el doc-comment que el argumento DEBE ser el proveedorId, nunca el authUserId. No cambiar la firma pública ni la construcción de la URL (ya prefija PROVEEDOR_).",
+    "Modificar apps/findu_proveedores/lib/features/market/presentation/screens/market_feed_screen.dart, método _initWebSocket: calcular final canonicalId = session.proveedorId ?? _profile?.id; si es null o <= 0, NO abrir el socket (dejar en espera, con debugPrint); el gancho existente _loadActivationAndProfile() ya reinvoca _initWebSocket() cuando el perfil llega. Eliminar la rama que usaba userId/authUserId como primaryId. Eliminar por completo los campos y su lógica: _wsSecondaryClient, _wsSecondarySubscription, _wsSecondaryStatusSubscription, _secondaryWsTargetId, _secondaryWsConnected y el bloque de conexión del canal secundario. _updateWsConnectionState pasa a depender sólo del canal primario (_primaryWsConnected / _wsClient). Limpiar las referencias al secundario en el teardown/dispose.",
+    "Modificar apps/findu_proveedores/lib/features/support/presentation/screens/ticket_detail_chat_screen.dart, método _initWebSocket: usar proveedorId como ÚNICO id; si es null o <= 0, NO abrir y dejar el socket pendiente (eliminar el fallback literal '1'). Hacer _initWebSocket idempotente: si _wsClient != null o proveedorId no es válido, retornar sin abrir. Eliminar _wsSecondaryClient y _wsSecondarySubscription y su bloque de conexión (y su limpieza en dispose). senderId de sendMessage ya usa proveedorId (sin cambio).",
+    "En ticket_detail_chat_screen.dart añadir el gancho de reconexión (hallazgo #1): en initState llamar SessionManager().addListener(_onSessionChanged) y luego _initWebSocket(); definir void _onSessionChanged() que, si _wsClient == null y SessionManager().proveedorId es válido (>0), invoque _initWebSocket(); en dispose llamar SessionManager().removeListener(_onSessionChanged) antes de la limpieza existente. SessionManager es un ChangeNotifier (confirmado en lib/core/session/session_manager.dart).",
+    "Revisar/ajustar los tests de widget existentes de ambas pantallas para que no referencien _wsSecondaryClient y que verifiquen que sólo se instancia un WebSocketClient por pantalla (CA3). Si no existen tests de estas pantallas, añadir una verificación mínima acorde al patrón de flutter_test del proyecto; no tocar WebSocketClient de packages/network_ws."
+  ],
+  "acceptance_criteria": [
+    "flutter analyze (desde apps/findu_proveedores) no reporta errores nuevos.",
+    "flutter test (desde apps/findu_proveedores) pasa.",
+    "market_feed_screen.dart y ticket_detail_chat_screen.dart ya no declaran ni abren _wsSecondaryClient; existe un único WebSocketClient activo por pantalla (CA3).",
+    "El chat de ticket abre el socket en cuanto proveedorId es válido vía el listener de SessionManager y nunca queda pendiente indefinidamente (hallazgo #1); _initWebSocket es idempotente.",
+    "La URL del socket se construye siempre con proveedorId (nunca authUserId) y conserva el prefijo PROVEEDOR_."
+  ],
+  "verification": [
+    "cd c:\\Users\\ADMIN\\Documents\\FIND-U-PROJECT\\findu-movil\\apps\\findu_proveedores; flutter analyze",
+    "cd c:\\Users\\ADMIN\\Documents\\FIND-U-PROJECT\\findu-movil\\apps\\findu_proveedores; flutter test"
+  ],
+  "status": "pending",
+  "blocked_reason": null,
+  "findings": ""
+}

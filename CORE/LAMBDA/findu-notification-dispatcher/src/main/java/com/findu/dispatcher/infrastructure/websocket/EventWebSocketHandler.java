@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.findu.dispatcher.domain.model.EventEnvelope;
 import com.findu.dispatcher.domain.port.RedisPubSubPort;
 import com.findu.dispatcher.domain.port.SessionRegistryPort;
+import com.findu.dispatcher.infrastructure.routing.RecipientResolver;
 import com.findu.dispatcher.infrastructure.security.JwtValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +28,7 @@ public class EventWebSocketHandler implements WebSocketHandler {
     private final SessionRegistryPort sessionRegistry;
     private final RedisPubSubPort redisPubSubPort;
     private final ObjectMapper objectMapper;
+    private final RecipientResolver recipientResolver;
 
     @Value("${findu.websocket.ping-interval-seconds:30}")
     private long pingIntervalSeconds;
@@ -38,11 +40,13 @@ public class EventWebSocketHandler implements WebSocketHandler {
     public Mono<Void> handle(WebSocketSession session) {
         return jwtValidator.extractAndValidateUserId(session.getHandshakeInfo().getUri())
                 .flatMap(userId -> {
-                    log.info("Conexión WebSocket autenticada. userId={}, sessionId={}", userId, session.getId());
+                    // Normalizar a la clave canónica única: registro, presencia y baja usan ESA misma clave.
+                    String canonicalUserId = recipientResolver.toCanonical(userId);
+                    log.info("Conexión WebSocket autenticada. userId={}, canonicalUserId={}, sessionId={}", userId, canonicalUserId, session.getId());
 
-                    // 1. Registrar sesión local y presencia en el clúster
-                    sessionRegistry.registerSession(userId, session);
-                    Mono<Void> registerPresence = redisPubSubPort.registerPresence(userId, nodeId);
+                    // 1. Registrar sesión local y presencia en el clúster (clave canónica única)
+                    sessionRegistry.registerSession(canonicalUserId, session);
+                    Mono<Void> registerPresence = redisPubSubPort.registerPresence(canonicalUserId, nodeId);
 
                     // 2. Heartbeat Ping-Pong periódico para evitar timeouts
                     Flux<WebSocketMessage> pingFlux = Flux.interval(Duration.ofSeconds(pingIntervalSeconds))
@@ -73,9 +77,9 @@ public class EventWebSocketHandler implements WebSocketHandler {
                     return registerPresence
                             .then(Mono.zip(receiveMono, sendPingMono).then())
                             .doFinally(signalType -> {
-                                log.info("Cerrando sesión WebSocket (userId={}, signal={})", userId, signalType);
-                                sessionRegistry.unregisterSession(userId, session.getId());
-                                redisPubSubPort.removePresence(userId, nodeId).subscribe();
+                                log.info("Cerrando sesión WebSocket (canonicalUserId={}, signal={})", canonicalUserId, signalType);
+                                sessionRegistry.unregisterSession(canonicalUserId, session.getId());
+                                redisPubSubPort.removePresence(canonicalUserId, nodeId).subscribe();
                             });
                 })
                 .onErrorResume(ex -> {

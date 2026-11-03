@@ -6,10 +6,13 @@ import com.findu.dispatcher.domain.port.EventFallbackPort;
 import com.findu.dispatcher.domain.port.RedisPubSubPort;
 import com.findu.dispatcher.domain.port.SessionRegistryPort;
 import com.findu.dispatcher.domain.port.input.GestionCanalUseCase;
+import com.findu.dispatcher.infrastructure.routing.RecipientResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
+
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -21,12 +24,13 @@ public class EventDispatcherService {
     private final EventFallbackPort eventFallbackPort;
     private final GestionCanalUseCase gestionCanalUseCase;
     private final ObjectMapper objectMapper;
+    private final RecipientResolver recipientResolver;
 
     /**
      * Motor de enrutamiento y registro de canales NoSQL.
      */
     public Mono<Void> dispatch(String canalId, EventEnvelope<?> envelope, TipoEventoCanal tipoEvento) {
-        String targetUserId = envelope.targetUserId();
+        String targetUserId = recipientResolver.toCanonical(envelope.targetUserId());
 
         if (targetUserId == null || targetUserId.isBlank()) {
             log.warn("Evento sin targetUserId omitido. EventId: {}", envelope.eventId());
@@ -36,7 +40,7 @@ public class EventDispatcherService {
         // 1. Crear el sub-JSON del evento para el historial del canal
         EventoCanal eventoCanal = EventoCanal.of(
                 tipoEvento != null ? tipoEvento : TipoEventoCanal.MENSAJE,
-                envelope.targetUserId(),
+                targetUserId,
                 envelope.payload()
         );
 
@@ -82,8 +86,27 @@ public class EventDispatcherService {
     }
 
     public Mono<Void> dispatch(EventEnvelope<?> envelope) {
-        String canalId = envelope.eventId(); // fallback ID si no se especifica canalId
+        learnAliasFromPayload(envelope);
+        String canonical = recipientResolver.toCanonical(envelope.targetUserId());
+        // El canalId se deriva del canónico para que ACTIVO/INACTIVO se evalúe sobre el mismo canal
+        // del proveedor (hallazgo #2/#10). El eventId sólo es último recurso.
+        String canalId = (canonical != null && !canonical.isBlank()) ? canonical : envelope.eventId();
         return dispatch(canalId, envelope, TipoEventoCanal.MENSAJE);
+    }
+
+    /**
+     * Aprende el alias {@code aliasRecipient -> canonicalRecipient} que core incluye en el payload.
+     * Defensivo: sólo actúa si el payload es un Map con ambas claves String; en otro caso no aprende
+     * nada (comportamiento base). {@link RecipientResolver#learnAlias} es idempotente.
+     */
+    private void learnAliasFromPayload(EventEnvelope<?> envelope) {
+        if (envelope.payload() instanceof Map<?, ?> p) {
+            Object canon = p.get("canonicalRecipient");
+            Object alias = p.get("aliasRecipient");
+            if (canon instanceof String c && alias instanceof String a) {
+                recipientResolver.learnAlias(a, c);
+            }
+        }
     }
 
     private Mono<String> serializeEnvelope(EventEnvelope<?> envelope) {

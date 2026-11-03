@@ -1,0 +1,31 @@
+{
+  "project_type": "Monorepo multi-repo: backend Java (Spring) en findu/ + app Flutter en findu-movil/apps/findu_proveedores. El dispatcher WebSocket es reactivo (WebFlux), el core es MVC.",
+  "language": "Java 21 (dispatcher y core) + Dart/Flutter (app)",
+  "build_system": "Gradle con wrapper POR MÓDULO (no es un build raíz único). El dispatcher y el core tienen cada uno su propio gradlew/gradlew.bat. Spring Boot 3.4.2, io.spring.dependency-management, toolchain Java 21. La app usa flutter/dart estándar.",
+  "test_framework": "JUnit 5 (useJUnitPlatform) + reactor-test en el dispatcher; JUnit 5 en el core; flutter_test en la app.",
+  "build_command": "Dispatcher: en c:\\Users\\ADMIN\\Documents\\FIND-U-PROJECT\\findu\\CORE\\LAMBDA\\findu-notification-dispatcher ejecutar .\\gradlew.bat compileJava . Core: en c:\\Users\\ADMIN\\Documents\\FIND-U-PROJECT\\findu\\CORE\\findu-core ejecutar .\\gradlew.bat compileJava . App: en c:\\Users\\ADMIN\\Documents\\FIND-U-PROJECT\\findu-movil\\apps\\findu_proveedores ejecutar flutter analyze .",
+  "test_command": "Dispatcher: .\\gradlew.bat test (desde CORE\\LAMBDA\\findu-notification-dispatcher). Core: .\\gradlew.bat test (desde CORE\\findu-core). App: flutter test (desde apps\\findu_proveedores). Para un test puntual: .\\gradlew.bat test --tests \"*NombreTest\".",
+  "verification_instructions": "Por FEAT, ejecutar el build y los tests del módulo tocado antes de dar por completa la feature. FEAT-001 y FEAT-002 son backend Java (gradlew por módulo); FEAT-003 es Flutter (flutter analyze + flutter test). Grep NO es verificación. La invariante del hallazgo #10 (canalId == toCanonical(targetUserId) en los caminos HTTP de presencia, el camino RabbitMQ dispatch(EventEnvelope) y el canal de disponibilidad ACTIVO/INACTIVO) debe probarse con un test de integración del dispatcher, no sólo por inspección.",
+  "snapshot_or_generated_files": null,
+  "environment_constraints": "Windows + PowerShell. Los gradle wrappers son por módulo: SIEMPRE ejecutar gradlew desde el directorio del módulo (findu-notification-dispatcher o findu-core), no desde la raíz del repo. Rutas con 'cd' por comando (no persisten entre llamadas). La app findu_proveedores está en el repo findu-movil (rama develop, SIN remoto); el backend findu está en rama develop con remoto origin. Commit local por FEAT; NUNCA push.",
+  "contribution_requirements": "No hay AGENTS.md ni CONTRIBUTING.md en los repos. Mantener el estilo existente: @Component/@Service/@RequiredArgsConstructor con inyección por constructor (Lombok) en el backend; StatefulWidget + SessionManager (ChangeNotifier) en la app. No añadir dependencias nuevas (ni Java ni Dart). No cambiar payloads de negocio ni EventType. No tocar WebSocketClient de packages/network_ws (heartbeat/reconexión intactos).",
+  "key_patterns": "Backend dispatcher: handlers/servicios reactivos (Mono/Flux), EventEnvelope<T> record con of(EventType, targetUserId, payload), LocalSessionRegistryAdapter indexa sesiones por una clave String (userId). Recipients hoy usan prefijos PROVEEDOR_/CLIENTE_/AGENTE_/SOPORTE_. Core: DispatcherNotificationObserver emite vía notificationPort.send(eventType, recipient, template, lang, Map<String,String> params); PerfilProveedor expone getId() (proveedorId) y getAuthUserId(). App: SessionManager() singleton ChangeNotifier con proveedorId (int?), userId (authUserId), addListener/removeListener; Environment.webSocketUrlFor(int, {token}) ya prefija PROVEEDOR_.",
+  "relevant_files": [
+    "A MODIFICAR (dispatcher): CORE/LAMBDA/findu-notification-dispatcher/src/main/java/com/findu/dispatcher/infrastructure/websocket/EventWebSocketHandler.java",
+    "A MODIFICAR (dispatcher): CORE/LAMBDA/findu-notification-dispatcher/src/main/java/com/findu/dispatcher/service/EventDispatcherService.java",
+    "A MODIFICAR (dispatcher): CORE/LAMBDA/findu-notification-dispatcher/src/main/java/com/findu/dispatcher/presentation/controller/NotificationDispatchController.java",
+    "A MODIFICAR (dispatcher): CORE/LAMBDA/findu-notification-dispatcher/src/main/java/com/findu/dispatcher/presentation/controller/ChannelController.java",
+    "A CREAR (dispatcher): CORE/LAMBDA/findu-notification-dispatcher/src/main/java/com/findu/dispatcher/infrastructure/routing/RecipientResolver.java",
+    "A CREAR (dispatcher, tests): CORE/LAMBDA/findu-notification-dispatcher/src/test/java/com/findu/dispatcher/infrastructure/routing/RecipientResolverTest.java y .../service/EventDispatcherServiceTest.java",
+    "PATRÓN/sin cambios: CORE/LAMBDA/findu-notification-dispatcher/src/main/java/com/findu/dispatcher/domain/model/EventEnvelope.java y .../infrastructure/adapter/memory/LocalSessionRegistryAdapter.java y .../infrastructure/security/JwtValidator.java y .../infrastructure/adapter/rabbitmq/RabbitEventConsumer.java",
+    "TEST EXISTENTE a mantener verde: CORE/LAMBDA/findu-notification-dispatcher/src/test/java/com/findu/dispatcher/presentation/controller/NotificationDispatchControllerTest.java",
+    "A MODIFICAR (core): CORE/findu-core/src/main/java/com/findu/core/domain/observer/DispatcherNotificationObserver.java",
+    "A CREAR (core, test): CORE/findu-core/src/test/java/com/findu/core/domain/observer/DispatcherNotificationObserverTest.java",
+    "A MODIFICAR (app): apps/findu_proveedores/lib/core/config/environment.dart",
+    "A MODIFICAR (app): apps/findu_proveedores/lib/features/market/presentation/screens/market_feed_screen.dart",
+    "A MODIFICAR (app): apps/findu_proveedores/lib/features/support/presentation/screens/ticket_detail_chat_screen.dart",
+    "PATRÓN/sin cambios (app): apps/findu_proveedores/lib/core/session/session_manager.dart",
+    "DISEÑO/REVIEW (documentación): .agents/tasks/ws-canonical-id/design.md y .agents/tasks/ws-canonical-id/design-review.json"
+  ],
+  "directory_structure": "Backend findu/CORE/LAMBDA/findu-notification-dispatcher (dispatcher WebFlux: infrastructure/{websocket,routing,adapter/{memory,rabbitmq},security}, service, presentation/controller, domain/{model,port}). Backend findu/CORE/findu-core (core MVC: domain/observer, application/service, infrastructure/adapter). App findu-movil/apps/findu_proveedores/lib (core/{config,session}, features/{market,support}/presentation/screens, packages/network_ws para WebSocketClient)."
+}
