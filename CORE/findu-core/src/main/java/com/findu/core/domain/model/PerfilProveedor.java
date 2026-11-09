@@ -4,6 +4,7 @@ import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Getter
 @Setter
@@ -26,4 +27,6 @@ public class PerfilProveedor {
     private String estadoVerificacion;
     @Builder.Default
     private boolean disponible = true;
+    /** Espejo de biometria completada; null = sin primera validacion biometrica. */
+    private LocalDateTime biometriaVerificadaAt;
 }

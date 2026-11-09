@@ -62,6 +62,7 @@ public class GestionOfertasUseCaseImpl implements GestionOfertasUseCase {
     private final com.findu.core.application.port.in.GestionCancelacionesProveedorUseCase cancelacionesUseCase;
     private final PinSeguridadHelper pinSeguridadHelper;
     private final SolicitudEstadoAuditoriaService auditoriaService;
+    private final FotoUrlResolver fotoUrlResolver;
 
     @Override
     public OfertaResponse enviarOferta(CrearOfertaRequest request) {
@@ -1114,7 +1115,7 @@ public class GestionOfertasUseCaseImpl implements GestionOfertasUseCase {
     private OfertaResponse toResponse(Oferta o) {
         PerfilProveedor proveedor = proveedorService.findById(o.getPerfilProveedorId()).orElse(null);
         String nombreProveedor = proveedor != null ? proveedor.getNombreCompleto() : "Proveedor FINDU";
-        String fotoProveedor = proveedor != null ? proveedor.getUrlImagenPerfil() : null;
+        String fotoProveedor = proveedor != null ? fotoUrlResolver.resolve(proveedor) : null;
         var calificacion = proveedor != null ? proveedor.getCalificacionPromedio() : null;
 
         UnidadDuracionOferta unidad = o.getDuracionUnidad() != null ? o.getDuracionUnidad() : UnidadDuracionOferta.HORAS;

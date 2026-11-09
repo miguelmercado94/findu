@@ -1,6 +1,7 @@
 package com.findu.core.infrastructure.adapter.input.web.exception;
 
 import com.findu.core.application.util.ApiMessages;
+import com.findu.core.domain.exception.ArchivoProveedorException;
 import com.findu.core.domain.exception.InvalidProviderDocumentException;
 import com.findu.core.domain.exception.ResourceNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -11,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -48,6 +50,31 @@ public class GlobalExceptionHandler {
                 request.getRequestURI()
         );
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(body);
+    }
+
+    // ─── Archivos del proveedor (409/413/415/422); el codigo viaja en el campo "error" ───
+
+    @ExceptionHandler(ArchivoProveedorException.class)
+    public ResponseEntity<ErrorResponse> handleArchivoProveedor(ArchivoProveedorException ex, HttpServletRequest request) {
+        HttpStatus status = switch (ex.getCodigo()) {
+            case BIOMETRIA_REQUERIDA -> HttpStatus.CONFLICT;
+            case ARCHIVO_DEMASIADO_GRANDE -> HttpStatus.PAYLOAD_TOO_LARGE;
+            case FORMATO_NO_SOPORTADO -> HttpStatus.UNSUPPORTED_MEDIA_TYPE;
+            case ROSTRO_BIOMETRICO_NO_ENCONTRADO, FOTO_NO_COINCIDE, IMAGEN_INVALIDA -> HttpStatus.UNPROCESSABLE_ENTITY;
+        };
+        ErrorResponse body = ErrorResponse.of(status.value(), ex.getCodigo().name(), ex.getMessage(), request.getRequestURI());
+        return ResponseEntity.status(status).body(body);
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleMaxUpload(MaxUploadSizeExceededException ex, HttpServletRequest request) {
+        ErrorResponse body = ErrorResponse.of(
+                HttpStatus.PAYLOAD_TOO_LARGE.value(),
+                "ARCHIVO_DEMASIADO_GRANDE",
+                "La imagen supera el tamano maximo permitido",
+                request.getRequestURI()
+        );
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(body);
     }
 
     // ─── 400 Bad Request ──────────────────────────────────────────────────────

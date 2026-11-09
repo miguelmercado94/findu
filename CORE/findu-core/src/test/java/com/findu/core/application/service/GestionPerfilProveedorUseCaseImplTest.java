@@ -31,6 +31,7 @@ class GestionPerfilProveedorUseCaseImplTest {
     @Mock private ProveedorCoberturaService coberturaService;
     @Mock private com.findu.core.application.port.out.persistence.MunicipioRepositoryPort municipioPort;
     @Mock private com.findu.core.application.port.out.persistence.ServicioRepositoryPort servicioPort;
+    @Mock private FotoUrlResolver fotoUrlResolver;
 
     @InjectMocks private GestionPerfilProveedorUseCaseImpl useCase;
 
@@ -113,6 +114,29 @@ class GestionPerfilProveedorUseCaseImplTest {
         PerfilProveedor perfil = perfilConEstado("VERIFICADO", "http://original");
         useCase.actualizarPerfil(10L, new ActualizarPerfilProveedorRequest(null, "http://nueva"));
         assertThat(perfil.getUrlImagenPerfil()).isEqualTo("http://original");
+    }
+
+    @Test
+    void fotoClaveDelPropioProveedorSeAcepta() {
+        PerfilProveedor perfil = perfilConEstado("PENDIENTE", null);
+        perfil.setTipoIdentificacion("CC");
+        perfil.setNumeroIdentificacion("1.234");
+        String key = "proveedores/CC1234/perfil/20260101000000_abcd1234.png";
+        useCase.actualizarPerfil(10L, new ActualizarPerfilProveedorRequest(null, key));
+        assertThat(perfil.getUrlImagenPerfil()).isEqualTo(key);
+    }
+
+    @Test
+    void fotoClaveDeOtroProveedorYRutasLocalesSeIgnoran() {
+        PerfilProveedor perfil = perfilConEstado("PENDIENTE", null);
+        perfil.setTipoIdentificacion("CC");
+        perfil.setNumeroIdentificacion("1234");
+        useCase.actualizarPerfil(10L, new ActualizarPerfilProveedorRequest(null, "proveedores/CC9999/perfil/x.png"));
+        assertThat(perfil.getUrlImagenPerfil()).isNull();
+        useCase.actualizarPerfil(10L, new ActualizarPerfilProveedorRequest(null, "/data/user/0/cache/foto.jpg"));
+        assertThat(perfil.getUrlImagenPerfil()).isNull();
+        useCase.actualizarPerfil(10L, new ActualizarPerfilProveedorRequest(null, "/findu-core/api/v1/perfil-proveedor/10/foto-perfil?v=1"));
+        assertThat(perfil.getUrlImagenPerfil()).isNull();
     }
 
     @Test

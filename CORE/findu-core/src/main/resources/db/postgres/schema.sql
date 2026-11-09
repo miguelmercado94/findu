@@ -67,9 +67,12 @@ CREATE TABLE IF NOT EXISTS perfil_proveedor (
     estado VARCHAR(20) NOT NULL DEFAULT 'ACTIVO',
     estado_verificacion VARCHAR(30) NOT NULL DEFAULT 'PENDIENTE',
     disponible BOOLEAN NOT NULL DEFAULT TRUE,
+    biometria_verificada_at TIMESTAMP NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+-- Espejo de biometria completada (solo lo escribe el endpoint interno de biometria). Idempotente para BDs existentes.
+ALTER TABLE perfil_proveedor ADD COLUMN IF NOT EXISTS biometria_verificada_at TIMESTAMP NULL;
 
 CREATE TABLE IF NOT EXISTS perfil_especialista (
     id BIGSERIAL PRIMARY KEY,

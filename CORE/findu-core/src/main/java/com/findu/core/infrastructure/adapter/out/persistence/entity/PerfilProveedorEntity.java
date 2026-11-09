@@ -65,6 +65,10 @@ public class PerfilProveedorEntity {
     @Builder.Default
     private boolean disponible = true;
 
+    /** Espejo de biometria completada. Solo lo escribe el endpoint interno de biometria. */
+    @Column(name = "biometria_verificada_at")
+    private LocalDateTime biometriaVerificadaAt;
+
     @CreatedDate
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

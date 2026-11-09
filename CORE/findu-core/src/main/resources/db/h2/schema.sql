@@ -92,6 +92,7 @@ CREATE TABLE perfil_proveedor (
     estado VARCHAR(20) DEFAULT 'ACTIVO',
     estado_verificacion VARCHAR(30) DEFAULT 'PENDIENTE',
     disponible BOOLEAN DEFAULT TRUE,
+    biometria_verificada_at TIMESTAMP NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

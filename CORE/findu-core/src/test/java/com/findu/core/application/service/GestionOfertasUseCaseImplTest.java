@@ -56,6 +56,7 @@ class GestionOfertasUseCaseImplTest {
     @Mock private CategoriaRepositoryPort categoriaPort;
     @Mock private MunicipioRepositoryPort municipioPort;
     @Mock private CalificacionService calificacionService;
+    @Mock private FotoUrlResolver fotoUrlResolver;
 
     @InjectMocks private GestionOfertasUseCaseImpl useCase;
 

@@ -9,6 +9,10 @@ server:
     context-path: /findu-core
 
 spring:
+  servlet:
+    multipart:
+      max-file-size: 6MB
+      max-request-size: 8MB
   application:
     name: findu-core
   config:
@@ -41,6 +45,11 @@ logging:
     com.findu.core: ${LOG_LEVEL_FINDU_CORE:INFO}
 
 findu:
+  storage:
+    # Tamano maximo de la foto de perfil (bytes); multipart permite 6MB para que el 413 lo emita el use case
+    foto-perfil-max-bytes: ${FINDU_STORAGE_FOTO_PERFIL_MAX_BYTES:5242880}
+    # Migrar fotos legacy base64/data-URI a perfil/ al leerlas (false = tratarlas como ausentes)
+    migrate-legacy: ${FINDU_STORAGE_MIGRATE_LEGACY:false}
   notification:
     enabled: ${FINDU_NOTIFICATION_ENABLED:false}
     lambda-url: ${FINDU_NOTIFICATION_LAMBDA_URL:http://localhost:9000}

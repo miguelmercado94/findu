@@ -44,6 +44,7 @@ public class GestionPerfilProveedorUseCaseImpl implements GestionPerfilProveedor
     private final ProveedorCoberturaService coberturaService;
     private final MunicipioRepositoryPort municipioPort;
     private final com.findu.core.application.port.out.persistence.ServicioRepositoryPort servicioPort;
+    private final FotoUrlResolver fotoUrlResolver;
 
     @org.springframework.beans.factory.annotation.Value("${findu.notification.processor.base-url:http://findu-notification-processor.railway.internal:8083}")
     private String notificationProcessorBaseUrl;
@@ -103,7 +104,7 @@ public class GestionPerfilProveedorUseCaseImpl implements GestionPerfilProveedor
         return new PerfilProveedorDetalleResponse(
                 perfil.getId(), perfil.getNombreCompleto(), perfil.getNumeroIdentificacion(),
                 perfil.getTipoIdentificacion(), perfil.getFechaNacimiento(), perfil.getSexo(),
-                perfil.getCelular(), perfil.getCodPhoneInternational(), perfil.getUrlImagenPerfil(),
+                perfil.getCelular(), perfil.getCodPhoneInternational(), fotoUrlResolver.resolve(perfil),
                 calcularCalificacionGeneral(especialidades), perfil.getEstado(), perfil.getEstadoVerificacion(),
                 especialidades, direcciones, cobertura, perfil.isDisponible()
         );
@@ -194,7 +195,7 @@ public class GestionPerfilProveedorUseCaseImpl implements GestionPerfilProveedor
         return new PerfilProveedorPublicoResponse(
                 perfil.getNombreCompleto(),
                 perfil.getNombreCompleto(),
-                perfil.getUrlImagenPerfil(),
+                fotoUrlResolver.resolve(perfil),
                 especialidad != null && especialidad.getCalificacionPromedio() != null ? especialidad.getCalificacionPromedio() : perfil.getCalificacionPromedio(),
                 especialidadResponse,
                 portafolioResponse
@@ -215,12 +216,35 @@ public class GestionPerfilProveedorUseCaseImpl implements GestionPerfilProveedor
         if (request.nombreCompleto() != null) {
             perfil.setNombreCompleto(request.nombreCompleto());
         }
-        if (request.urlImagenPerfil() != null && perfil.getUrlImagenPerfil() == null) {
+        if (perfil.getUrlImagenPerfil() == null && esFotoAceptable(perfil, request.urlImagenPerfil())) {
             perfil.setUrlImagenPerfil(request.urlImagenPerfil());
         }
 
         PerfilProveedor updated = perfilProveedorService.save(perfil);
         return toResponse(updated);
+    }
+
+    /**
+     * D10: solo se acepta una clave del propio proveedor (proveedores/{TIPODOC}{NUM}/...) o una URL http(s).
+     * Cualquier otro valor (URL relativa del endpoint, base64, rutas locales) se ignora.
+     */
+    private boolean esFotoAceptable(PerfilProveedor perfil, String valor) {
+        if (valor == null || valor.isBlank()) {
+            return false;
+        }
+        String v = valor.trim().toLowerCase();
+        if (v.startsWith("http://") || v.startsWith("https://")) {
+            return true;
+        }
+        if (FotoUrlResolver.isStorageKey(valor.trim())) {
+            try {
+                return valor.trim().startsWith(ProviderStoragePaths.prefix(
+                        perfil.getTipoIdentificacion(), perfil.getNumeroIdentificacion()));
+            } catch (com.findu.core.domain.exception.InvalidProviderDocumentException e) {
+                return false;
+            }
+        }
+        return false;
     }
 
     @Override
@@ -274,7 +298,7 @@ public class GestionPerfilProveedorUseCaseImpl implements GestionPerfilProveedor
     private PerfilProveedorResponse toResponse(PerfilProveedor p) {
         return new PerfilProveedorResponse(
                 p.getId(), p.getNombreCompleto(), p.getCelular(), p.getCodPhoneInternational(),
-                p.getSexo(), p.getUrlImagenPerfil(), p.getCalificacionPromedio(), p.getEstado(), p.getEstadoVerificacion(),
+                p.getSexo(), fotoUrlResolver.resolve(p), p.getCalificacionPromedio(), p.getEstado(), p.getEstadoVerificacion(),
                 p.isDisponible()
         );
     }
