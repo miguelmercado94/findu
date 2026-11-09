@@ -44,3 +44,12 @@ findu:
   notification:
     enabled: ${FINDU_NOTIFICATION_ENABLED:false}
     lambda-url: ${FINDU_NOTIFICATION_LAMBDA_URL:http://localhost:9000}
+  aws:
+    s3:
+      bucket: ${FINDU_AWS_S3_BUCKET:findu-media-assets-local}
+      region: ${FINDU_AWS_S3_REGION:us-east-1}
+      endpoint: ${FINDU_AWS_S3_ENDPOINT:}
+      access-key: ${FINDU_AWS_S3_ACCESS_KEY:}
+      secret-key: ${FINDU_AWS_S3_SECRET_KEY:}
+      path-style: ${FINDU_AWS_S3_PATH_STYLE:false}
+      create-bucket-if-missing: ${FINDU_AWS_S3_CREATE_BUCKET_IF_MISSING:false}

@@ -64,7 +64,10 @@
 | `findu-notification-processor` | HTTP interno (PUT disponibilidad) | Opcional | hardcode `:8083/api/v1/canales/...` → **parametrizar** | DNS interno Railway |
 | `notification-dispatcher` | HTTP interno (envío notif.) | Opcional | `findu.notification.enabled` + `findu.notification.lambda-url` | Si fase sin notif., `enabled=false` |
 
-> `findu-core` **no** usa RabbitMQ ni AWS SDK directamente. Las notificaciones salen por HTTP.
+| S3 (archivos del proveedor) | Almacenamiento de objetos | **Sí** (foto de perfil / biometría) | `findu.aws.s3.*` (`FINDU_AWS_S3_BUCKET/REGION/ENDPOINT/ACCESS_KEY/SECRET_KEY/PATH_STYLE`, `FINDU_AWS_S3_CREATE_BUCKET_IF_MISSING`) | LocalStack en local (bucket `findu-media-assets-local`); S3 real o MinIO en dev/stage/prod |
+
+> **Versionado del bucket (D7):** los buckets `findu-media-assets-*` deben tener versionado **Enabled** para conservar la biometría previa al sobrescribir `biometrico/*`. En local lo activa `docker/localstack/init-s3.sh` (LocalStack `ready.d`, idempotente). En buckets reales: `aws s3api put-bucket-versioning --bucket <bucket> --versioning-configuration Status=Enabled`. `create-bucket-if-missing` solo es `true` en el perfil local.
+> `findu-core` usa AWS SDK solo para S3 (`ObjectStoragePort`); no usa RabbitMQ. Las notificaciones salen por HTTP.
 > ⚠️ Deuda técnica: la URL a notification-processor está **hardcodeada** (`http://findu-notification-processor:8083`); hay que convertirla en variable de entorno para Railway.
 
 ### `findu-transaction`

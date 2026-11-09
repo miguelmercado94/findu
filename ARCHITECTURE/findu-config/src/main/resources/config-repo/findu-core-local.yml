@@ -18,6 +18,10 @@ findu:
       bucket: findu-media-assets-local
       endpoint: http://localstack:4566
       region: us-east-1
+      access-key: test
+      secret-key: test
+      path-style: true
+      create-bucket-if-missing: true
 
 eureka:
   client:

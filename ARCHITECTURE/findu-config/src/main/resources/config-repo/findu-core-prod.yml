@@ -9,3 +9,8 @@ findu:
     s3:
       bucket: ${AWS_S3_BUCKET:findu-media-assets-prod}
       region: ${AWS_REGION:us-east-1}
+      endpoint: ${AWS_S3_ENDPOINT:}
+      access-key: ${AWS_S3_ACCESS_KEY:}
+      secret-key: ${AWS_S3_SECRET_KEY:}
+      path-style: ${AWS_S3_PATH_STYLE:false}
+      create-bucket-if-missing: false

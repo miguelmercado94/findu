@@ -1,6 +1,7 @@
 package com.findu.core.infrastructure.adapter.input.web.exception;
 
 import com.findu.core.application.util.ApiMessages;
+import com.findu.core.domain.exception.InvalidProviderDocumentException;
 import com.findu.core.domain.exception.ResourceNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
@@ -34,6 +35,19 @@ public class GlobalExceptionHandler {
                 request.getRequestURI()
         );
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
+    }
+
+    // ─── 422 Unprocessable Entity ─────────────────────────────────────────────
+
+    @ExceptionHandler(InvalidProviderDocumentException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidProviderDocument(InvalidProviderDocumentException ex, HttpServletRequest request) {
+        ErrorResponse body = ErrorResponse.of(
+                HttpStatus.UNPROCESSABLE_ENTITY.value(),
+                HttpStatus.UNPROCESSABLE_ENTITY.getReasonPhrase(),
+                ex.getMessage(),
+                request.getRequestURI()
+        );
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(body);
     }
 
     // ─── 400 Bad Request ──────────────────────────────────────────────────────

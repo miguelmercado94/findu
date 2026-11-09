@@ -306,6 +306,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      localstack:
+        condition: service_healthy
     networks:
       - findu-internal
     environment:
@@ -330,6 +332,14 @@ services:
       FINDU_CACHE_ENABLED: "false"
       FINDU_NOTIFICATION_ENABLED: "true"
       FINDU_NOTIFICATION_LAMBDA_URL: http://notification-dispatcher:9000
+      # --- S3 (LocalStack) ---
+      FINDU_AWS_S3_ENDPOINT: http://localstack:4566
+      FINDU_AWS_S3_BUCKET: findu-media-assets-local
+      FINDU_AWS_S3_REGION: us-east-1
+      FINDU_AWS_S3_ACCESS_KEY: test
+      FINDU_AWS_S3_SECRET_KEY: test
+      FINDU_AWS_S3_PATH_STYLE: "true"
+      FINDU_AWS_S3_CREATE_BUCKET_IF_MISSING: "true"
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8082/findu-core/actuator/health || exit 1"]
       interval: 15s
@@ -423,6 +433,8 @@ services:
       - findu-internal
     ports:
       - "4566:4566"
+    volumes:
+      - ./docker/localstack/init-s3.sh:/etc/localstack/init/ready.d/init-s3.sh:ro
     environment:
       SERVICES: dynamodb,ses,sns,s3
       AWS_DEFAULT_REGION: us-east-1
