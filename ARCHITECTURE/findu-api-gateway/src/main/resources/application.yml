@@ -52,6 +52,10 @@ spring:
           uri: ${FINDU_VALIDACION_ROUTE_URI:lb://FINDU-VALIDACION}
           predicates:
             - Path=/findu-validacion/**
+        - id: notification-processor-route
+          uri: lb://FINDU-NOTIFICATION-PROCESSOR
+          predicates:
+            - Path=/findu-notification-processor/**
 
   data:
     redis:

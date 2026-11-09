@@ -48,6 +48,10 @@ spring:
           uri: ${VALIDACION_SERVICE_URI:http://findu-validacion.railway.internal:8088}
           predicates:
             - Path=/findu-validacion/**
+        - id: notification-processor-route
+          uri: ${NOTIFICATION_PROCESSOR_SERVICE_URI:http://findu-notification-processor.railway.internal:8083}
+          predicates:
+            - Path=/findu-notification-processor/**
 
 findu:
   services:
