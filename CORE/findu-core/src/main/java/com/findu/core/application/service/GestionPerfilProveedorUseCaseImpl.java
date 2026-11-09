@@ -224,19 +224,19 @@ public class GestionPerfilProveedorUseCaseImpl implements GestionPerfilProveedor
 
     /**
      * Unico punto de la regla de datos personales. Con biometria completa (o perfil ya VERIFICADO, guarda
-     * previa) un nombre o fecha de nacimiento DISTINTOS al actual se rechazan con 409; valores iguales no son
-     * cambio. Sin biometria se valida que la fecha no sea futura (400).
+     * previa) un nombre o fecha de nacimiento DISTINTOS al actual (o enviados cuando el actual es nulo) se rechazan con
+     * 409; valores iguales no son cambio. Sin biometria se valida que la fecha no sea futura (400).
      */
     private void assertDatosEditables(PerfilProveedor perfil, ActualizarPerfilProveedorRequest request) {
         boolean verificado = GestionArchivosProveedorUseCaseImpl.biometriaCompleta(perfil)
                 || "VERIFICADO".equalsIgnoreCase(perfil.getEstadoVerificacion());
 
+        // Con valor actual nulo/blanco, cualquier valor enviado tambien es un cambio.
         boolean nombreCambia = request.nombreCompleto() != null
-                && perfil.getNombreCompleto() != null && !perfil.getNombreCompleto().isBlank()
-                && !perfil.getNombreCompleto().trim().equals(request.nombreCompleto().trim());
+                && (perfil.getNombreCompleto() == null || perfil.getNombreCompleto().isBlank()
+                || !perfil.getNombreCompleto().trim().equals(request.nombreCompleto().trim()));
         boolean fechaCambia = request.fechaNacimiento() != null
-                && perfil.getFechaNacimiento() != null
-                && !perfil.getFechaNacimiento().equals(request.fechaNacimiento());
+                && !request.fechaNacimiento().equals(perfil.getFechaNacimiento());
 
         if (verificado) {
             if (nombreCambia || fechaCambia) {
@@ -263,8 +263,9 @@ public class GestionPerfilProveedorUseCaseImpl implements GestionPerfilProveedor
         }
         if (FotoUrlResolver.isStorageKey(valor.trim())) {
             try {
+                // Solo bajo perfil/: biometrico/* y especializaciones/* nunca son foto de perfil.
                 return valor.trim().startsWith(ProviderStoragePaths.prefix(
-                        perfil.getTipoIdentificacion(), perfil.getNumeroIdentificacion()));
+                        perfil.getTipoIdentificacion(), perfil.getNumeroIdentificacion()) + "perfil/");
             } catch (com.findu.core.domain.exception.InvalidProviderDocumentException e) {
                 return false;
             }

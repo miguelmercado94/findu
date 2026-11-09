@@ -195,6 +195,36 @@ class GestionPerfilProveedorUseCaseImplTest {
     }
 
     @Test
+    void fotoBajoBiometricoSeIgnora() {
+        PerfilProveedor perfil = perfilConEstado("PENDIENTE", null);
+        perfil.setTipoIdentificacion("CC");
+        perfil.setNumeroIdentificacion("1234");
+        useCase.actualizarPerfil(10L, new ActualizarPerfilProveedorRequest(null, "proveedores/CC1234/biometrico/documento/frente.png", null));
+        assertThat(perfil.getUrlImagenPerfil()).isNull();
+        useCase.actualizarPerfil(10L, new ActualizarPerfilProveedorRequest(null, "proveedores/CC1234/biometrico/rostro/rostro.png", null));
+        assertThat(perfil.getUrlImagenPerfil()).isNull();
+    }
+
+    @Test
+    void biometriaConFechaActualNulaNoPermiteFijarla() {
+        PerfilProveedor perfil = conBiometria();
+        perfil.setFechaNacimiento(null);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                        useCase.actualizarPerfil(10L, new ActualizarPerfilProveedorRequest(null, null, java.time.LocalDate.of(1991, 1, 1))))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(perfil.getFechaNacimiento()).isNull();
+    }
+
+    @Test
+    void biometriaConNombreActualBlancoNoPermiteFijarlo() {
+        PerfilProveedor perfil = conBiometria();
+        perfil.setNombreCompleto(" ");
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                        useCase.actualizarPerfil(10L, new ActualizarPerfilProveedorRequest("Otro", null, null)))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
     void promedioDeDosEspecialidades() {
         stubComun(List.of(especialidad(new BigDecimal("3.5")), especialidad(new BigDecimal("4.5"))));
 
