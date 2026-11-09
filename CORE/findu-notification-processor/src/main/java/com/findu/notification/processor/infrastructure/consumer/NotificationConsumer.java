@@ -76,6 +76,7 @@ public class NotificationConsumer {
                 String senderName = payload.path("senderName").asText("Soporte FindU");
 
                 Map<String, String> params = new HashMap<>();
+                params.put("type", "TICKET_CHAT");
                 params.put("ticketCode", ticketCode);
                 params.put("mensaje", content);
                 params.put("senderName", senderName);
