@@ -19,10 +19,20 @@ public class HelpCategoryDataSeeder implements CommandLineRunner {
 
     private final HelpCategoryRepository helpCategoryRepository;
 
+    static final String PERFIL_CATEGORY_ID = "cat-perfil-documentos";
+    static final String CORRECTION_SUBCATEGORY_ID = "sub-correccion-datos-verificados";
+
+    static HelpSubcategory correctionSubcategory() {
+        return new HelpSubcategory(CORRECTION_SUBCATEGORY_ID, "Corrección de datos verificados",
+                "Solicita corregir tu nombre, fecha de nacimiento o documento ya verificados.",
+                false, PriorityLevel.ALTA, 85, true);
+    }
+
     @Override
     public void run(String... args) {
         if (!helpCategoryRepository.findAllActive().isEmpty()) {
             log.info("Categorías de ayuda ya inicializadas en MongoDB.");
+            ensureCorrectionSubcategory();
             return;
         }
 
@@ -79,6 +89,7 @@ public class HelpCategoryDataSeeder implements CommandLineRunner {
                         new HelpSubcategory("sub-verificacion-identidad", "Verificación de identidad", "Documentos pendientes de validación o rechazados.", false, PriorityLevel.ALTA, 70, true),
                         new HelpSubcategory("sub-actualizacion-datos", "Actualización de datos", "Cambio de teléfono, correo o dirección.", false, PriorityLevel.MEDIA, 40, true),
                         new HelpSubcategory("sub-certificaciones", "Certificaciones y antecedentes", "Carga de nuevos certificados o antecedentes judiciales.", false, PriorityLevel.MEDIA, 50, true),
+                        correctionSubcategory(),
                         new HelpSubcategory("sub-otros-perfil", "Otros", "Otras consultas de perfil.", false, PriorityLevel.BAJA, 30, true)
                 ))
                 .build();
@@ -107,5 +118,34 @@ public class HelpCategoryDataSeeder implements CommandLineRunner {
         helpCategoryRepository.save(tecnico);
 
         log.info("4 categorías base de soporte inicializadas exitosamente con sus subcategorías.");
+    }
+
+    /** Upsert idempotente: agrega la subcategoría de corrección a PERFIL en entornos ya sembrados. */
+    private void ensureCorrectionSubcategory() {
+        HelpCategory perfil = helpCategoryRepository.findById(PERFIL_CATEGORY_ID).orElse(null);
+        if (perfil == null) {
+            log.warn("Categoría {} no existe; no se agrega la subcategoría de corrección.", PERFIL_CATEGORY_ID);
+            return;
+        }
+        boolean exists = perfil.getSubcategories().stream()
+                .anyMatch(s -> CORRECTION_SUBCATEGORY_ID.equals(s.getSubcategoryId()));
+        if (exists) {
+            log.info("Subcategoría {} ya existe.", CORRECTION_SUBCATEGORY_ID);
+            return;
+        }
+        List<HelpSubcategory> subs = new java.util.ArrayList<>(perfil.getSubcategories());
+        subs.add(correctionSubcategory());
+        helpCategoryRepository.save(HelpCategory.builder()
+                .id(perfil.getId())
+                .name(perfil.getName())
+                .code(perfil.getCode())
+                .description(perfil.getDescription())
+                .icon(perfil.getIcon())
+                .targetRole(perfil.getTargetRole())
+                .order(perfil.getOrder())
+                .isActive(perfil.getIsActive())
+                .subcategories(subs)
+                .build());
+        log.info("Subcategoría {} agregada a {}.", CORRECTION_SUBCATEGORY_ID, PERFIL_CATEGORY_ID);
     }
 }
