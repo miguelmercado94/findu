@@ -188,8 +188,9 @@ class SubmitBiometricUseCaseImplTest {
     }
 
     @Test
-    void submit_withEvidence_pushesBytesToCore_notProfilePhoto() {
+    void submit_withEvidence_pushesBytesToCore_andNameWithoutPhoto() {
         stubSuccessFlow();
+        when(corePerfilPort.pushProfilePhoto(eq(7L), eq("Carlos Mendoza"), eq(null))).thenReturn(Mono.empty());
         when(corePerfilPort.pushBiometricEvidence(eq(7L), eq("cm9zdHJv"), eq("ZnJlbnRl"), eq("cmV2ZXJzbw=="), any()))
                 .thenReturn(Mono.empty());
 
@@ -199,12 +200,14 @@ class SubmitBiometricUseCaseImplTest {
 
         verify(corePerfilPort).pushBiometricEvidence(eq(7L), eq("cm9zdHJv"), eq("ZnJlbnRl"), eq("cmV2ZXJzbw=="),
                 eq(new BigDecimal("0.97")));
-        verify(corePerfilPort, never()).pushProfilePhoto(anyLong(), any(), any());
+        verify(corePerfilPort).pushProfilePhoto(7L, "Carlos Mendoza", null);
+        verify(corePerfilPort, never()).pushProfilePhoto(anyLong(), any(), org.mockito.ArgumentMatchers.notNull());
     }
 
     @Test
     void submit_withEvidence_coreFails_biometriaOkPreserved() {
         stubSuccessFlow();
+        when(corePerfilPort.pushProfilePhoto(eq(7L), any(), eq(null))).thenReturn(Mono.empty());
         when(corePerfilPort.pushBiometricEvidence(eq(7L), any(), any(), any(), any()))
                 .thenReturn(Mono.error(new IllegalStateException("core caido")));
 
