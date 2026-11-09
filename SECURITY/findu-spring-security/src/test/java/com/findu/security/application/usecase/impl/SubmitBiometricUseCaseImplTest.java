@@ -175,7 +175,7 @@ class SubmitBiometricUseCaseImplTest {
         when(authenticatedUserResolver.resolve()).thenReturn(Mono.just(user()));
         when(corePerfilPort.fetchByAuthUserId(42L)).thenReturn(Mono.just(
                 new CorePerfilPort.PerfilProveedor(7L, "Carlos Mendoza", LocalDate.of(1994, 11, 1), null)));
-        when(activationRepository.insertBiometricCapture(eq(42L), any(), any(), any(), any(), any()))
+        org.mockito.Mockito.lenient().when(activationRepository.insertBiometricCapture(eq(42L), any(), any(), any(), any(), any()))
                 .thenReturn(Mono.just("https://cdn.findu.example/frontal.jpg"));
         when(activationRepository.upsertValidation(eq(42L), any(), any(), eq(null)))
                 .thenReturn(Mono.just(new ProviderActivation()));
@@ -202,6 +202,23 @@ class SubmitBiometricUseCaseImplTest {
                 eq(new BigDecimal("0.97")));
         verify(corePerfilPort).pushProfilePhoto(7L, "Carlos Mendoza", null);
         verify(corePerfilPort, never()).pushProfilePhoto(anyLong(), any(), org.mockito.ArgumentMatchers.notNull());
+    }
+
+    @Test
+    void submit_repeatWithPreviousOk_stillResendsEvidenceToCore() {
+        stubSuccessFlow();
+        // validacion previa OK: la foto frontal historica (write-once) es otra distinta a la nueva
+        when(activationRepository.insertBiometricCapture(eq(42L), any(), any(), any(), any(), any()))
+                .thenReturn(Mono.just("https://cdn.findu.example/foto-historica.jpg"));
+        when(corePerfilPort.pushProfilePhoto(eq(7L), any(), eq(null))).thenReturn(Mono.empty());
+        when(corePerfilPort.pushBiometricEvidence(eq(7L), eq("cm9zdHJv"), eq("ZnJlbnRl"), eq("cmV2ZXJzbw=="), any()))
+                .thenReturn(Mono.empty());
+
+        StepVerifier.create(useCase.submit(requestWithEvidence()))
+                .expectNextMatches(r -> r.biometriaOk())
+                .verifyComplete();
+
+        verify(corePerfilPort).pushBiometricEvidence(eq(7L), eq("cm9zdHJv"), eq("ZnJlbnRl"), eq("cmV2ZXJzbw=="), any());
     }
 
     @Test
