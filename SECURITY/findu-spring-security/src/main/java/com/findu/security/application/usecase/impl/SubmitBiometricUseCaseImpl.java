@@ -110,7 +110,7 @@ public class SubmitBiometricUseCaseImpl implements SubmitBiometricUseCase {
                         request.faceMatchScore(), request.fotoFrontalUrl(), ValidationState.OK)
                 .flatMap(fotoVigente -> activationRepository
                         .upsertValidation(userId, ValidationType.BIOMETRIA, ValidationState.OK, null)
-                        .then(corePerfilPort.pushProfilePhoto(perfil.id(), nombreFinal, fotoVigente)
+                        .then(propagateToCore(userId, perfil, nombreFinal, fotoVigente, request)
                                 .onErrorResume(e -> {
                                     log.warn("Propagación de foto a core falló (userId={}, best-effort): {}",
                                             userId, e.getMessage());
@@ -125,6 +125,25 @@ public class SubmitBiometricUseCaseImpl implements SubmitBiometricUseCase {
                         })
                         .thenReturn(activation))
                 .map(ActivationStatusResponse::from);
+    }
+
+    /**
+     * Best-effort: con evidencia (bytes) envia rostro/cedula a core (que escribe en S3 y fija la foto de
+     * perfil); sin evidencia mantiene el comportamiento previo (pushProfilePhoto). Un fallo nunca
+     * invalida biometriaOk.
+     */
+    private Mono<Void> propagateToCore(Long userId, CorePerfilPort.PerfilProveedor perfil, String nombreFinal,
+                                       String fotoVigente, BiometricSubmitRequest request) {
+        if (request.hasEvidence()) {
+            return corePerfilPort.pushBiometricEvidence(perfil.id(), request.fotoRostroBase64(),
+                            request.cedulaFrenteBase64(), request.cedulaReversoBase64(), request.faceMatchScore())
+                    .onErrorResume(e -> {
+                        log.warn("Envio de evidencia biometrica a core fallo (userId={}, best-effort; se reconcilia "
+                                + "reenviando la biometria): {}", userId, e.getMessage());
+                        return Mono.empty();
+                    });
+        }
+        return corePerfilPort.pushProfilePhoto(perfil.id(), nombreFinal, fotoVigente);
     }
 
     private Mono<ActivationStatusResponse> businessRejection(Long userId, String motivo) {

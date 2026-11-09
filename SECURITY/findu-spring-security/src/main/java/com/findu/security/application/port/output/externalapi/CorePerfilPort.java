@@ -2,6 +2,7 @@ package com.findu.security.application.port.output.externalapi;
 
 import reactor.core.publisher.Mono;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 /**
@@ -31,4 +32,12 @@ public interface CorePerfilPort {
      * No es fatal: los errores se tragan (reconciliados por el scheduler).
      */
     Mono<Void> pushProfilePhoto(Long perfilId, String nombreCompleto, String urlImagenPerfil);
+
+    /**
+     * Envía la evidencia biométrica (rostro y, opcional, cédula frente/reverso en base64) al endpoint
+     * interno de core POST /internal/perfiles/{id}/biometria. Idempotente en core. Los errores se
+     * propagan: el caller decide (best-effort, no invalida biometriaOk).
+     */
+    Mono<Void> pushBiometricEvidence(Long perfilId, String rostroBase64, String documentoFrenteBase64,
+                                     String documentoReversoBase64, BigDecimal faceMatchScore);
 }

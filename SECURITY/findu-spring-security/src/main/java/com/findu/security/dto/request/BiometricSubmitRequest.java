@@ -34,5 +34,22 @@ public record BiometricSubmitRequest(
 
         @Schema(example = "https://cdn.findu.example/frontal.jpg")
         @NotBlank(message = "fotoFrontalUrl es obligatorio")
-        String fotoFrontalUrl
-) {}
+        String fotoFrontalUrl,
+        @Schema(description = "Opcional: rostro (base64 o data-URI) para guardarlo en core/S3")
+        String fotoRostroBase64,
+        @Schema(description = "Opcional: frente de la cedula (base64 o data-URI)")
+        String cedulaFrenteBase64,
+        @Schema(description = "Opcional: reverso de la cedula (base64 o data-URI)")
+        String cedulaReversoBase64
+) {
+    /** Constructor sin evidencia (compatibilidad hacia atras). */
+    public BiometricSubmitRequest(String cedulaNombre, String cedulaFechaNacimiento, BigDecimal faceMatchScore,
+                                  Boolean faceMatched, String fotoFrontalUrl) {
+        this(cedulaNombre, cedulaFechaNacimiento, faceMatchScore, faceMatched, fotoFrontalUrl, null, null, null);
+    }
+
+    /** true si llegó al menos el rostro (core exige rostro; documentos son opcionales). */
+    public boolean hasEvidence() {
+        return fotoRostroBase64 != null && !fotoRostroBase64.isBlank();
+    }
+}

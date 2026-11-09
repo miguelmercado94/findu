@@ -6,6 +6,8 @@ spring:
     name: findu-spring-security
   webflux:
     base-path: /security-auth
+  codec:
+    max-in-memory-size: ${SPRING_CODEC_MAX_IN_MEMORY_SIZE:12MB}
   r2dbc:
     pool:
       initial-size: 2
@@ -24,6 +26,7 @@ findu:
     core:
       base-url: ${FINDU_ACTIVATION_CORE_BASE_URL:http://findu-api-gateway:8080}
       perfil-path: /findu-core/api/v1/perfil-proveedor
+      internal-perfiles-path: /findu-core/internal/perfiles
     help:
       base-url: ${FINDU_ACTIVATION_HELP_BASE_URL:http://findu-api-gateway:8080}
       tickets-path: /findu-help-v2/api/v1/help/tickets

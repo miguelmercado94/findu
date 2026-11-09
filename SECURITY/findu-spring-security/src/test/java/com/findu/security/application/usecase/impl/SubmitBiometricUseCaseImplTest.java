@@ -165,4 +165,67 @@ class SubmitBiometricUseCaseImplTest {
         verify(activationProgressService).recompute(42L);
         verify(validacionResolvePort).markPassed(42L, "BIOMETRIC_FACIAL", "auto:biometric-passed");
     }
+
+    private BiometricSubmitRequest requestWithEvidence() {
+        return new BiometricSubmitRequest("Carlos Mendoza", "1994-11-01", new BigDecimal("0.97"), true,
+                "https://cdn.findu.example/frontal.jpg", "cm9zdHJv", "ZnJlbnRl", "cmV2ZXJzbw==");
+    }
+
+    private void stubSuccessFlow() {
+        when(authenticatedUserResolver.resolve()).thenReturn(Mono.just(user()));
+        when(corePerfilPort.fetchByAuthUserId(42L)).thenReturn(Mono.just(
+                new CorePerfilPort.PerfilProveedor(7L, "Carlos Mendoza", LocalDate.of(1994, 11, 1), null)));
+        when(activationRepository.insertBiometricCapture(eq(42L), any(), any(), any(), any(), any()))
+                .thenReturn(Mono.just("https://cdn.findu.example/frontal.jpg"));
+        when(activationRepository.upsertValidation(eq(42L), any(), any(), eq(null)))
+                .thenReturn(Mono.just(new ProviderActivation()));
+        ProviderActivation result = new ProviderActivation();
+        result.setEstado(ProviderActivationState.EN_REVISION_SOPORTE);
+        result.setBiometriaOk(true);
+        when(activationProgressService.recompute(42L)).thenReturn(Mono.just(result));
+        when(validacionResolvePort.markPassed(42L, "BIOMETRIC_FACIAL", "auto:biometric-passed"))
+                .thenReturn(Mono.empty());
+    }
+
+    @Test
+    void submit_withEvidence_pushesBytesToCore_notProfilePhoto() {
+        stubSuccessFlow();
+        when(corePerfilPort.pushBiometricEvidence(eq(7L), eq("cm9zdHJv"), eq("ZnJlbnRl"), eq("cmV2ZXJzbw=="), any()))
+                .thenReturn(Mono.empty());
+
+        StepVerifier.create(useCase.submit(requestWithEvidence()))
+                .expectNextMatches(r -> r.biometriaOk() && r.motivo() == null)
+                .verifyComplete();
+
+        verify(corePerfilPort).pushBiometricEvidence(eq(7L), eq("cm9zdHJv"), eq("ZnJlbnRl"), eq("cmV2ZXJzbw=="),
+                eq(new BigDecimal("0.97")));
+        verify(corePerfilPort, never()).pushProfilePhoto(anyLong(), any(), any());
+    }
+
+    @Test
+    void submit_withEvidence_coreFails_biometriaOkPreserved() {
+        stubSuccessFlow();
+        when(corePerfilPort.pushBiometricEvidence(eq(7L), any(), any(), any(), any()))
+                .thenReturn(Mono.error(new IllegalStateException("core caido")));
+
+        StepVerifier.create(useCase.submit(requestWithEvidence()))
+                .expectNextMatches(r -> r.biometriaOk() && r.motivo() == null)
+                .verifyComplete();
+
+        verify(activationProgressService).recompute(42L);
+        verify(validacionResolvePort).markPassed(42L, "BIOMETRIC_FACIAL", "auto:biometric-passed");
+    }
+
+    @Test
+    void submit_withoutEvidence_keepsPushProfilePhoto_noEvidenceCall() {
+        stubSuccessFlow();
+        when(corePerfilPort.pushProfilePhoto(eq(7L), any(), any())).thenReturn(Mono.empty());
+
+        StepVerifier.create(useCase.submit(request("Carlos Mendoza", "1994-11-01", true)))
+                .expectNextMatches(r -> r.biometriaOk())
+                .verifyComplete();
+
+        verify(corePerfilPort).pushProfilePhoto(eq(7L), any(), eq("https://cdn.findu.example/frontal.jpg"));
+        verify(corePerfilPort, never()).pushBiometricEvidence(any(), any(), any(), any(), any());
+    }
 }

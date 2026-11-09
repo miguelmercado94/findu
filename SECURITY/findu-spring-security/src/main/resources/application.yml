@@ -19,6 +19,9 @@ spring:
 
   webflux:
     base-path: /security-auth
+  codec:
+    # Evidencia biometrica (3 imagenes base64) en el cuerpo del POST /activation/biometric.
+    max-in-memory-size: ${SPRING_CODEC_MAX_IN_MEMORY_SIZE:12MB}
 
   r2dbc:
     pool:
@@ -85,6 +88,7 @@ findu:
     core:
       base-url: ${FINDU_ACTIVATION_CORE_BASE_URL:http://localhost:8080}
       perfil-path: ${FINDU_ACTIVATION_CORE_PERFIL_PATH:/findu-core/api/v1/perfil-proveedor}
+      internal-perfiles-path: ${FINDU_ACTIVATION_CORE_INTERNAL_PERFILES_PATH:/findu-core/internal/perfiles}
     help:
       base-url: ${FINDU_ACTIVATION_HELP_BASE_URL:http://localhost:8080}
       tickets-path: ${FINDU_ACTIVATION_HELP_TICKETS_PATH:/findu-help-v2/api/v1/help/tickets}
