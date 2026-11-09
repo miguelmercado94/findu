@@ -26,6 +26,10 @@ findu:
       table: ${DYNAMODB_TEMPLATES_TABLE:notification_templates}
     dynamodb:
       device-tokens-table: ${DYNAMODB_DEVICE_TOKENS_TABLE:findu_device_tokens}
+    firebase:
+      # Railway: credencial Firebase por secret inline (JSON) o secret file (ruta). Proyecto achambear-5fae3.
+      credentials-json: ${FIREBASE_CREDENTIALS_JSON:}
+      credentials-path: ${FIREBASE_CREDENTIALS_PATH:}
     aws:
       region: ${AWS_REGION:us-east-1}
       ses:

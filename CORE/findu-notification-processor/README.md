@@ -55,3 +55,63 @@ docker compose up -d findu-notification-processor
 # Health Check
 curl http://localhost:8083/actuator/health
 ```
+
+---
+
+## 🔔 Push FCM (Firebase Cloud Messaging)
+
+El canal `PUSH` envía notificaciones reales vía **Firebase Admin SDK** (proyecto `achambear-5fae3`).
+El flujo de fallback de chat de soporte (usuario offline) arma un push con `type=TICKET_CHAT` +
+`ticketCode` en el `data`, que la app usa para navegar al chat del ticket.
+
+### Resolución de la credencial (flexible y degradable)
+
+`FirebaseConfig` resuelve la credencial del service account en este orden y degrada a **no-op** si
+ninguna fuente aplica (no rompe el arranque, el push simplemente no se envía):
+
+1. **JSON inline** — `findu.notification.firebase.credentials-json` (env `FIREBASE_CREDENTIALS_JSON`).
+2. **Ruta a archivo** — `findu.notification.firebase.credentials-path` (env `FIREBASE_CREDENTIALS_PATH`).
+3. **Default local** — `secrets/firebase-service-account.json` (relativo a la raíz del repo).
+4. Si nada aplica → `log.warn` y Firebase queda deshabilitado (push no-op).
+
+> La carpeta `secrets/` está en `.gitignore`. **Nunca** se commitea `secrets/firebase-service-account.json`
+> ni se loguea el contenido de la credencial o el device token completo (se trunca).
+
+### Railway (QA / PDN)
+
+Usar una de las dos variables:
+
+| Variable | Valor | Descripción |
+| :--- | :--- | :--- |
+| `FIREBASE_CREDENTIALS_JSON` | JSON inline (secret) | Contenido del service account como variable secreta |
+| `FIREBASE_CREDENTIALS_PATH` | ruta (secret file) | Ruta al secret file montado con el service account |
+
+### Tabla de device tokens (DynamoDB)
+
+Tabla `findu_device_tokens` (propiedad `findu.notification.dynamodb.device-tokens-table`,
+env `DYNAMODB_DEVICE_TOKENS_TABLE`):
+
+- **PK**: `device_token` (S).
+- Atributos: `username`, `platform`, `canonical_recipient`, `created_at`, `updated_at`.
+- **GSIs**: `GSI_username` (PK `username`) y `GSI_canonical_recipient` (PK `canonical_recipient`).
+
+El fallback resuelve los tokens por `canonical_recipient` = `PROVEEDOR_<proveedorId>`. Un token
+`UNREGISTERED`/`INVALID_ARGUMENT` se elimina del store automáticamente. El DDL de referencia está en
+`src/main/resources/db/dynamodb/create-device-tokens-table.sh`.
+
+### Gateway y lookup a security
+
+- **Gateway**: route `Path=/findu-notification-processor/**` → `lb://FINDU-NOTIFICATION-PROCESSOR`
+  (sin `StripPrefix`); el processor expone `spring.webflux.base-path=/findu-notification-processor`.
+- **Lookup username → proveedorId** (en el registro del token) vía security:
+
+| Variable | Valor local | Descripción |
+| :--- | :--- | :--- |
+| `FINDU_SECURITY_URL` | `http://localhost:8081/security-auth` | Base URL de `findu-spring-security` |
+| `FINDU_INTERNAL_SERVICE_KEY` | `findu-internal-saga-secret-key-2026` | Header `X-Internal-Service-Key` del endpoint interno |
+
+### Verificación e2e (manual, no bloquea CI)
+
+El envío FCM real contra `achambear-5fae3` y el route del gateway requieren el stack docker-compose
+arriba y un device token real: es **manual**. Los tests unitarios mockean `FirebaseMessaging` y el
+repositorio de tokens (no requieren infraestructura real).
