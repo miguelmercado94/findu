@@ -1,5 +1,6 @@
 package com.findu.core.application.service;
 
+import com.findu.core.application.dto.request.ActualizarPerfilProveedorRequest;
 import com.findu.core.application.dto.response.PerfilProveedorDetalleResponse;
 import com.findu.core.domain.model.PerfilEspecialista;
 import com.findu.core.domain.model.PerfilProveedor;
@@ -58,6 +59,60 @@ class GestionPerfilProveedorUseCaseImplTest {
         when(servicioPort.findAll()).thenReturn(List.of());
         when(direccionService.findByProveedorId(10L)).thenReturn(List.of());
         when(coberturaService.findByProveedorId(10L)).thenReturn(List.of());
+    }
+
+    private PerfilProveedor perfilConEstado(String estado, String foto) {
+        PerfilProveedor perfil = PerfilProveedor.builder()
+                .id(10L)
+                .nombreCompleto("Proveedor Test")
+                .urlImagenPerfil(foto)
+                .estado("ACTIVO")
+                .estadoVerificacion(estado)
+                .build();
+        when(perfilProveedorService.findById(10L)).thenReturn(Optional.of(perfil));
+        when(perfilProveedorService.save(org.mockito.ArgumentMatchers.any(PerfilProveedor.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+        return perfil;
+    }
+
+    @Test
+    void verificadoConNombreDistintoLanza409() {
+        perfilConEstado("VERIFICADO", null);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                        useCase.actualizarPerfil(10L, new ActualizarPerfilProveedorRequest("Otro Nombre", null)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Los datos verificados no se pueden modificar; abre un ticket de soporte");
+        org.mockito.Mockito.verify(perfilProveedorService, org.mockito.Mockito.never())
+                .save(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void verificadoConMismoNombreYFotoNuevaPermite() {
+        PerfilProveedor perfil = perfilConEstado("VERIFICADO", null);
+        useCase.actualizarPerfil(10L, new ActualizarPerfilProveedorRequest("  Proveedor Test ", "http://foto"));
+        assertThat(perfil.getUrlImagenPerfil()).isEqualTo("http://foto");
+        org.mockito.Mockito.verify(perfilProveedorService).save(perfil);
+    }
+
+    @Test
+    void pendienteConNombreDistintoActualiza() {
+        PerfilProveedor perfil = perfilConEstado("PENDIENTE", null);
+        useCase.actualizarPerfil(10L, new ActualizarPerfilProveedorRequest("Otro Nombre", null));
+        assertThat(perfil.getNombreCompleto()).isEqualTo("Otro Nombre");
+    }
+
+    @Test
+    void verificadoSinNombreYConFotoPermite() {
+        PerfilProveedor perfil = perfilConEstado("VERIFICADO", null);
+        useCase.actualizarPerfil(10L, new ActualizarPerfilProveedorRequest(null, "http://foto"));
+        assertThat(perfil.getUrlImagenPerfil()).isEqualTo("http://foto");
+    }
+
+    @Test
+    void verificadoNoSobrescribeFotoExistente() {
+        PerfilProveedor perfil = perfilConEstado("VERIFICADO", "http://original");
+        useCase.actualizarPerfil(10L, new ActualizarPerfilProveedorRequest(null, "http://nueva"));
+        assertThat(perfil.getUrlImagenPerfil()).isEqualTo("http://original");
     }
 
     @Test

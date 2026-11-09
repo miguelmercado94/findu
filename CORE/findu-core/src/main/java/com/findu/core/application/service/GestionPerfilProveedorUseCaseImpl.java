@@ -206,6 +206,12 @@ public class GestionPerfilProveedorUseCaseImpl implements GestionPerfilProveedor
         PerfilProveedor perfil = perfilProveedorService.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Perfil de proveedor no encontrado con id: " + id));
 
+        if (request.nombreCompleto() != null
+                && "VERIFICADO".equalsIgnoreCase(perfil.getEstadoVerificacion())
+                && perfil.getNombreCompleto() != null && !perfil.getNombreCompleto().isBlank()
+                && !perfil.getNombreCompleto().trim().equals(request.nombreCompleto().trim())) {
+            throw new IllegalStateException("Los datos verificados no se pueden modificar; abre un ticket de soporte");
+        }
         if (request.nombreCompleto() != null) {
             perfil.setNombreCompleto(request.nombreCompleto());
         }
