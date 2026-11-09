@@ -45,6 +45,7 @@ public class GestionPerfilProveedorUseCaseImpl implements GestionPerfilProveedor
     private final MunicipioRepositoryPort municipioPort;
     private final com.findu.core.application.port.out.persistence.ServicioRepositoryPort servicioPort;
     private final FotoUrlResolver fotoUrlResolver;
+    private final com.findu.core.application.port.out.storage.ObjectStoragePort storage;
 
     @org.springframework.beans.factory.annotation.Value("${findu.notification.processor.base-url:http://findu-notification-processor.railway.internal:8083}")
     private String notificationProcessorBaseUrl;
@@ -106,8 +107,22 @@ public class GestionPerfilProveedorUseCaseImpl implements GestionPerfilProveedor
                 perfil.getTipoIdentificacion(), perfil.getFechaNacimiento(), perfil.getSexo(),
                 perfil.getCelular(), perfil.getCodPhoneInternational(), fotoUrlResolver.resolve(perfil),
                 calcularCalificacionGeneral(especialidades), perfil.getEstado(), perfil.getEstadoVerificacion(),
-                especialidades, direcciones, cobertura, perfil.isDisponible()
+                especialidades, direcciones, cobertura, perfil.isDisponible(),
+                evidenciaBiometricaOk(perfil)
         );
+    }
+
+    /** true solo si el espejo esta marcado Y rostro.png existe; un fallo de S3 cuenta como false (la app ofrece repetir la biometria). */
+    private boolean evidenciaBiometricaOk(PerfilProveedor perfil) {
+        if (perfil.getBiometriaVerificadaAt() == null) {
+            return false;
+        }
+        try {
+            return storage.exists(ProviderStoragePaths.rostroKey(perfil.getTipoIdentificacion(), perfil.getNumeroIdentificacion()));
+        } catch (RuntimeException e) {
+            log.warn("No se pudo verificar la evidencia biometrica perfilId={}: {}", perfil.getId(), e.toString());
+            return false;
+        }
     }
 
     /**

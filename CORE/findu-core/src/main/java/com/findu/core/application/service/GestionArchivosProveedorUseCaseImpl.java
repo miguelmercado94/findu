@@ -156,9 +156,8 @@ public class GestionArchivosProveedorUseCaseImpl implements GestionArchivosProve
         // 2) perfil/ y BD. Si el copy falla no se invalida la biometria: la auto-reparacion del GET lo corrige.
         boolean fotoActualizada = copiarRostroAPerfil(perfil, rostroKey, rostro);
 
-        if (perfil.getBiometriaVerificadaAt() == null) {
-            perfil.setBiometriaVerificadaAt(LocalDateTime.now());
-        }
+        // Una nueva validacion biometrica renueva el espejo (spec 6.4/6.5).
+        perfil.setBiometriaVerificadaAt(LocalDateTime.now());
         perfil.setEstadoVerificacion("VERIFICADO");
         perfilService.save(perfil);
         log.info("Biometria registrada perfilId={} faceMatchScore={} fotoPerfilActualizada={}",

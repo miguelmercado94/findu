@@ -23,5 +23,6 @@ public record PerfilProveedorDetalleResponse(
         @Schema(description = "Especialidades") List<PerfilEspecialistaResponse> especialidades,
         @Schema(description = "Direcciones") List<DireccionResponse> direcciones,
         @Schema(description = "Cobertura geográfica (municipios)") List<MunicipioResponse> cobertura,
-        @Schema(description = "Disponibilidad en línea") boolean disponible
+        @Schema(description = "Disponibilidad en línea") boolean disponible,
+        @Schema(description = "true si biometria_verificada_at != null y existe biometrico/rostro/rostro.png") boolean biometriaEvidenciaOk
 ) {}

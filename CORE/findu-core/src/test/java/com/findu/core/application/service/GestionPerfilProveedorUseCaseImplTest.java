@@ -33,7 +33,28 @@ class GestionPerfilProveedorUseCaseImplTest {
     @Mock private com.findu.core.application.port.out.persistence.ServicioRepositoryPort servicioPort;
     @Mock private FotoUrlResolver fotoUrlResolver;
 
+    @Mock private com.findu.core.application.port.out.storage.ObjectStoragePort storage;
+
     @InjectMocks private GestionPerfilProveedorUseCaseImpl useCase;
+
+    @Test
+    void evidenciaOkSoloConEspejoYRostroEnS3() {
+        stubComun(List.of());
+        PerfilProveedor perfil = perfilProveedorService.findById(10L).get();
+        perfil.setTipoIdentificacion("CC");
+        perfil.setNumeroIdentificacion("1234");
+        assertThat(useCase.consultarPerfil(10L).biometriaEvidenciaOk()).isFalse();
+
+        perfil.setBiometriaVerificadaAt(java.time.LocalDateTime.now());
+        when(storage.exists("proveedores/CC1234/biometrico/rostro/rostro.png")).thenReturn(false);
+        assertThat(useCase.consultarPerfil(10L).biometriaEvidenciaOk()).isFalse();
+
+        when(storage.exists("proveedores/CC1234/biometrico/rostro/rostro.png")).thenReturn(true);
+        assertThat(useCase.consultarPerfil(10L).biometriaEvidenciaOk()).isTrue();
+
+        when(storage.exists(org.mockito.ArgumentMatchers.anyString())).thenThrow(new RuntimeException("s3 caido"));
+        assertThat(useCase.consultarPerfil(10L).biometriaEvidenciaOk()).isFalse();
+    }
 
     private PerfilEspecialista especialidad(BigDecimal calificacion) {
         return PerfilEspecialista.builder()

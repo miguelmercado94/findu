@@ -194,7 +194,25 @@ class GestionArchivosProveedorUseCaseImplTest {
 
         assertThat(storage.listKeys("proveedores/")).hasSize(objetos);
         assertThat(perfil.getUrlImagenPerfil()).isEqualTo(fotoPrimera);
-        assertThat(perfil.getBiometriaVerificadaAt()).isEqualTo(primera);
+        // la nueva validacion renueva el espejo, nunca lo retrocede
+        assertThat(perfil.getBiometriaVerificadaAt()).isAfterOrEqualTo(primera);
+    }
+
+    @Test
+    void repetirBiometriaConEspejoPrevioReescribeTodoYRenuevaEspejo() throws Exception {
+        // proveedor con espejo previo pero sin evidencia en S3 (caso ya verificado antes del despliegue)
+        perfil.setBiometriaVerificadaAt(LocalDateTime.now().minusDays(30));
+        LocalDateTime previo = perfil.getBiometriaVerificadaAt();
+        assertThat(storage.exists(rostroKey)).isFalse();
+
+        useCase.registrarBiometria(10L, comando());
+
+        assertThat(storage.exists(rostroKey)).isTrue();
+        assertThat(storage.exists(ProviderStoragePaths.documentoFrenteKey("CC", "1234"))).isTrue();
+        assertThat(storage.exists(ProviderStoragePaths.documentoReversoKey("CC", "1234"))).isTrue();
+        assertThat(perfil.getUrlImagenPerfil()).startsWith("proveedores/CC1234/perfil/");
+        assertThat(storage.get(perfil.getUrlImagenPerfil())).isEqualTo(storage.get(rostroKey));
+        assertThat(perfil.getBiometriaVerificadaAt()).isAfter(previo);
     }
 
     @Test
