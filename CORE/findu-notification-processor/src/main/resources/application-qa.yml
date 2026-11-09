@@ -5,6 +5,8 @@ server:
   port: ${PORT:8083}
 
 spring:
+  webflux:
+    base-path: /findu-notification-processor
   rabbitmq:
     host: ${RABBITMQ_HOST}
     port: ${RABBITMQ_PORT:5672}
@@ -17,9 +19,13 @@ spring:
       password: ${SPRING_DATA_REDIS_PASSWORD:}
 
 findu:
+  services:
+    security-url: ${FINDU_SECURITY_URL:http://findu-spring-security.railway.internal:8081/security-auth}
   notification:
     templates:
       table: ${DYNAMODB_TEMPLATES_TABLE:notification_templates}
+    dynamodb:
+      device-tokens-table: ${DYNAMODB_DEVICE_TOKENS_TABLE:findu_device_tokens}
     aws:
       region: ${AWS_REGION:us-east-1}
       ses:

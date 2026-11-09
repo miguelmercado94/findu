@@ -8,6 +8,8 @@ spring:
     import: "optional:configserver:${SPRING_CLOUD_CONFIG_URI:http://localhost:8888}"
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:local}
+  webflux:
+    base-path: /findu-notification-processor
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
     port: ${RABBITMQ_PORT:5672}
@@ -26,6 +28,10 @@ eureka:
       defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://localhost:8761/eureka/}
 
 findu:
+  internal:
+    service-key: ${FINDU_INTERNAL_SERVICE_KEY:findu-internal-saga-secret-key-2026}
+  services:
+    security-url: ${FINDU_SECURITY_URL:http://localhost:8081/security-auth}
   notification:
     exchange: findu.notifications
     queue:
@@ -36,6 +42,8 @@ findu:
       alerts: findu.notifications.alerts
     templates:
       table: ${DYNAMODB_TEMPLATES_TABLE:notification_templates}
+    dynamodb:
+      device-tokens-table: ${DYNAMODB_DEVICE_TOKENS_TABLE:findu_device_tokens}
     firebase:
       credentials-path: ${FIREBASE_CREDENTIALS_PATH:}
     aws:

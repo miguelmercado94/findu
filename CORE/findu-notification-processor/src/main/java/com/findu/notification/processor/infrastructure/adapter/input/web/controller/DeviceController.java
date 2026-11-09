@@ -1,6 +1,7 @@
 package com.findu.notification.processor.infrastructure.adapter.input.web.controller;
 
 import com.findu.notification.processor.application.dto.request.DeviceTokenRegistration;
+import com.findu.notification.processor.application.service.DeviceTokenService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -21,13 +22,20 @@ public class DeviceController {
 
     private static final Logger log = LoggerFactory.getLogger(DeviceController.class);
 
+    private final DeviceTokenService deviceTokenService;
+
+    public DeviceController(DeviceTokenService deviceTokenService) {
+        this.deviceTokenService = deviceTokenService;
+    }
+
     @PostMapping("/register")
     @Operation(summary = "Registrar device token", description = "El frontend móvil registra su token de Firebase para recibir push notifications")
     public Mono<ResponseEntity<Void>> registerDevice(@Valid @RequestBody DeviceTokenRegistration registration) {
-        // TODO: Persistir en BD (tabla device_tokens) para lookup cuando se envíe push
+        // Best-effort: el servicio persiste y resuelve el recipient canónico sin lanzar.
         log.info("Device token registered: username={} platform={} token={}...",
                 registration.getUsername(), registration.getPlatform(),
                 registration.getDeviceToken().substring(0, Math.min(20, registration.getDeviceToken().length())));
+        deviceTokenService.registerToken(registration.getUsername(), registration.getDeviceToken(), registration.getPlatform());
         return Mono.just(ResponseEntity.ok().build());
     }
 
@@ -35,6 +43,7 @@ public class DeviceController {
     @Operation(summary = "Desregistrar device token", description = "Elimina el token del dispositivo (logout o desinstalación)")
     public Mono<ResponseEntity<Void>> unregisterDevice(@RequestParam String username, @RequestParam String deviceToken) {
         log.info("Device token unregistered: username={}", username);
+        deviceTokenService.unregister(username, deviceToken);
         return Mono.just(ResponseEntity.noContent().build());
     }
 }
