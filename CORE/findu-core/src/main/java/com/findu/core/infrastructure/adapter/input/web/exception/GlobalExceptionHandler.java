@@ -66,6 +66,23 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(status).body(body);
     }
 
+    // ─── 502/503 almacenamiento de objetos (S3) no disponible ───
+
+    @ExceptionHandler(com.findu.core.domain.exception.StorageException.class)
+    public ResponseEntity<ErrorResponse> handleStorage(com.findu.core.domain.exception.StorageException ex, HttpServletRequest request) {
+        ErrorResponse body = ErrorResponse.of(HttpStatus.BAD_GATEWAY.value(), "STORAGE_ERROR",
+                "El almacenamiento de archivos no respondio correctamente. Intenta de nuevo mas tarde.", request.getRequestURI());
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(body);
+    }
+
+    @ExceptionHandler(software.amazon.awssdk.core.exception.SdkClientException.class)
+    public ResponseEntity<ErrorResponse> handleStorageUnreachable(software.amazon.awssdk.core.exception.SdkClientException ex, HttpServletRequest request) {
+        log.error("Almacenamiento no alcanzable path={} : {}", request.getRequestURI(), ex.getMessage());
+        ErrorResponse body = ErrorResponse.of(HttpStatus.SERVICE_UNAVAILABLE.value(), "STORAGE_UNAVAILABLE",
+                "El almacenamiento de archivos no esta disponible. Intenta de nuevo mas tarde.", request.getRequestURI());
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(body);
+    }
+
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ErrorResponse> handleMaxUpload(MaxUploadSizeExceededException ex, HttpServletRequest request) {
         ErrorResponse body = ErrorResponse.of(
