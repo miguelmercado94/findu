@@ -5,6 +5,7 @@ import com.findu.security.dto.internal.InternalActivationInitRequest;
 import com.findu.security.dto.internal.InternalActivationInitResponse;
 import com.findu.security.dto.internal.InternalCreateUserRequest;
 import com.findu.security.dto.internal.InternalTokensResponse;
+import com.findu.security.dto.internal.InternalUserLookupResponse;
 import com.findu.security.dto.internal.InternalUserResponse;
 import com.findu.security.util.SecurityConstants;
 import io.swagger.v3.oas.annotations.Hidden;
@@ -14,6 +15,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -75,6 +77,15 @@ public class InternalUserController {
             @PathVariable Long userId) {
         validateInternalAccess(serviceKey);
         return internalUserManager.issueTokens(userId, algorithm)
+                .map(ResponseEntity::ok);
+    }
+
+    @GetMapping("/users/by-username/{username}")
+    public Mono<ResponseEntity<InternalUserLookupResponse>> lookupByUsername(
+            @RequestHeader(name = HEADER_INTERNAL_KEY, required = false) String serviceKey,
+            @PathVariable String username) {
+        validateInternalAccess(serviceKey);
+        return internalUserManager.lookupByUsername(username)
                 .map(ResponseEntity::ok);
     }
 

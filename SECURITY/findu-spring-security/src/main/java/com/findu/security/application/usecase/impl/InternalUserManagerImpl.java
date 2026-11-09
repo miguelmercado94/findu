@@ -1,5 +1,6 @@
 package com.findu.security.application.usecase.impl;
 
+import com.findu.security.application.port.output.externalapi.CorePerfilPort;
 import com.findu.security.application.port.output.persistence.ProviderActivationRepositoryPort;
 import com.findu.security.application.port.output.persistence.RolOperationRepositoryPort;
 import com.findu.security.application.port.output.persistence.RolRepositoryPort;
@@ -15,6 +16,7 @@ import com.findu.security.dto.internal.InternalActivationInitRequest;
 import com.findu.security.dto.internal.InternalActivationInitResponse;
 import com.findu.security.dto.internal.InternalCreateUserRequest;
 import com.findu.security.dto.internal.InternalTokensResponse;
+import com.findu.security.dto.internal.InternalUserLookupResponse;
 import com.findu.security.dto.internal.InternalUserResponse;
 import com.findu.security.exception.ResourceNotFoundException;
 import com.findu.security.util.ReactiveUserAuthoritiesLoader;
@@ -48,6 +50,7 @@ public class InternalUserManagerImpl implements InternalUserManager {
     private final PasswordEncoder passwordEncoder;
     private final JwtManager jwtManager;
     private final SendEmailVerificationUseCase sendEmailVerificationUseCase;
+    private final CorePerfilPort corePerfilPort;
     private final DatabaseClient databaseClient;
 
     @Value("${findu.auth.auto-verify-email:false}")
@@ -63,6 +66,7 @@ public class InternalUserManagerImpl implements InternalUserManager {
                                    PasswordEncoder passwordEncoder,
                                    JwtManager jwtManager,
                                    SendEmailVerificationUseCase sendEmailVerificationUseCase,
+                                   CorePerfilPort corePerfilPort,
                                    ConnectionFactory connectionFactory) {
         this.usuarioService = usuarioService;
         this.rolRepositoryPort = rolRepositoryPort;
@@ -72,6 +76,7 @@ public class InternalUserManagerImpl implements InternalUserManager {
         this.passwordEncoder = passwordEncoder;
         this.jwtManager = jwtManager;
         this.sendEmailVerificationUseCase = sendEmailVerificationUseCase;
+        this.corePerfilPort = corePerfilPort;
         this.databaseClient = DatabaseClient.create(connectionFactory);
     }
 
@@ -262,5 +267,14 @@ public class InternalUserManagerImpl implements InternalUserManager {
                             .then(activationRepository.updateUserActivationState(user.getId(), "PENDIENTE_VALIDACIONES", false, null))
                             .thenReturn(new InternalActivationInitResponse("PENDIENTE_VALIDACIONES", true, user.isEmailVerified(), bioOk));
                 });
+    }
+
+    @Override
+    public Mono<InternalUserLookupResponse> lookupByUsername(String username) {
+        return usuarioService.getUserByUsername(username)
+                .switchIfEmpty(Mono.error(new ResourceNotFoundException("Usuario no encontrado: " + username)))
+                .flatMap(user -> corePerfilPort.fetchByAuthUserId(user.getId())
+                        .map(perfil -> new InternalUserLookupResponse(user.getId(), user.getUsername(), perfil.id()))
+                        .defaultIfEmpty(new InternalUserLookupResponse(user.getId(), user.getUsername(), null)));
     }
 }

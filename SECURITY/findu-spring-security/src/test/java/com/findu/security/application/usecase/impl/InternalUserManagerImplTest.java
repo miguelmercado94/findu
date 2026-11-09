@@ -54,6 +54,8 @@ class InternalUserManagerImplTest {
     @Mock
     private SendEmailVerificationUseCase sendEmailVerificationUseCase;
     @Mock
+    private com.findu.security.application.port.output.externalapi.CorePerfilPort corePerfilPort;
+    @Mock
     private ConnectionFactory connectionFactory;
 
     private InternalUserManagerImpl internalUserManager;
@@ -73,6 +75,7 @@ class InternalUserManagerImplTest {
                 passwordEncoder,
                 jwtManager,
                 sendEmailVerificationUseCase,
+                corePerfilPort,
                 connectionFactory
         );
     }
