@@ -45,6 +45,7 @@ findu:
     dynamodb:
       device-tokens-table: ${DYNAMODB_DEVICE_TOKENS_TABLE:findu_device_tokens}
     firebase:
+      credentials-json: ${FIREBASE_CREDENTIALS_JSON:}
       credentials-path: ${FIREBASE_CREDENTIALS_PATH:}
     aws:
       region: ${AWS_REGION:us-east-1}
