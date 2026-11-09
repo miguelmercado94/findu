@@ -2,8 +2,7 @@ package com.findu.core.infrastructure.adapter.input.web.controller;
 
 import com.findu.core.application.port.in.GestionArchivosProveedorUseCase;
 import com.findu.core.application.port.in.GestionArchivosProveedorUseCase.FotoPerfil;
-import com.findu.core.domain.exception.ArchivoProveedorException;
-import com.findu.core.domain.exception.ArchivoProveedorException.Codigo;
+import com.findu.core.application.util.Base64Images;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -20,7 +19,6 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.util.Base64;
 import java.util.concurrent.TimeUnit;
 
 @RestController
@@ -51,7 +49,7 @@ public class ProveedorArchivosController {
     @Operation(summary = "Cambiar foto de perfil (JSON base64)")
     public ResponseEntity<FotoPerfilResponse> cambiarJson(@PathVariable Long id,
                                                           @RequestBody FotoPerfilJsonRequest request) {
-        byte[] bytes = decodeBase64(request != null ? request.imagenBase64() : null);
+        byte[] bytes = Base64Images.decode(request != null ? request.imagenBase64() : null);
         return ResponseEntity.ok(new FotoPerfilResponse(archivosUseCase.cambiarFotoPerfil(id, bytes)));
     }
 
@@ -60,22 +58,5 @@ public class ProveedorArchivosController {
     public ResponseEntity<FotoPerfilResponse> cambiarMultipart(@PathVariable Long id,
                                                                @RequestPart("file") MultipartFile file) throws IOException {
         return ResponseEntity.ok(new FotoPerfilResponse(archivosUseCase.cambiarFotoPerfil(id, file.getBytes())));
-    }
-
-    /** Acepta base64 puro o data-URI. */
-    static byte[] decodeBase64(String value) {
-        if (value == null || value.isBlank()) {
-            throw new ArchivoProveedorException(Codigo.IMAGEN_INVALIDA, "La imagen es requerida");
-        }
-        String payload = value.trim();
-        int comma = payload.indexOf(',');
-        if (payload.regionMatches(true, 0, "data:", 0, 5) && comma >= 0) {
-            payload = payload.substring(comma + 1);
-        }
-        try {
-            return Base64.getMimeDecoder().decode(payload);
-        } catch (IllegalArgumentException e) {
-            throw new ArchivoProveedorException(Codigo.IMAGEN_INVALIDA, "La imagen no es un base64 valido");
-        }
     }
 }

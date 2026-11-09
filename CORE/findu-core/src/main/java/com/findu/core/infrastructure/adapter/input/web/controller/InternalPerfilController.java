@@ -1,5 +1,8 @@
 package com.findu.core.infrastructure.adapter.input.web.controller;
 
+import com.findu.core.application.dto.request.internal.InternalBiometriaRequest;
+import com.findu.core.application.dto.response.internal.InternalBiometriaResponse;
+import com.findu.core.application.port.in.GestionArchivosProveedorUseCase;
 import com.findu.core.application.dto.request.internal.InternalCoberturaRequest;
 import com.findu.core.application.dto.request.internal.InternalCrearPerfilRequest;
 import com.findu.core.application.dto.request.internal.InternalEspecialidadItem;
@@ -56,6 +59,7 @@ public class InternalPerfilController {
     private final PerfilEspecialistaRepository especialistaRepository;
     private final PortafolioItemRepository portafolioRepository;
     private final EspecialistaCredencialRepository credencialRepository;
+    private final GestionArchivosProveedorUseCase archivosUseCase;
 
     private final Map<String, Long> idempotencyCache = new ConcurrentHashMap<>();
 
@@ -293,6 +297,23 @@ public class InternalPerfilController {
             }
         }
         return ResponseEntity.ok().build();
+    }
+
+    /**
+     * Registra la evidencia biometrica del proveedor (idempotente): biometrico/rostro/rostro.png,
+     * biometrico/documento/frente.png y reverso.png, copia del rostro en perfil/ y espejo biometria_verificada_at.
+     */
+    @PostMapping("/{id}/biometria")
+    public ResponseEntity<InternalBiometriaResponse> registrarBiometria(
+            @RequestHeader(name = HEADER_INTERNAL_KEY, required = false) String serviceKey,
+            @PathVariable Long id,
+            @RequestBody InternalBiometriaRequest request) {
+        validateInternalAccess(serviceKey);
+        GestionArchivosProveedorUseCase.BiometriaResultado r = archivosUseCase.registrarBiometria(id,
+                new GestionArchivosProveedorUseCase.BiometriaCommand(
+                        request.rostroBase64(), request.documentoFrenteBase64(),
+                        request.documentoReversoBase64(), request.faceMatchScore()));
+        return ResponseEntity.ok(new InternalBiometriaResponse(r.perfilId(), r.fotoPerfilActualizada()));
     }
 
     private static LocalDate parseDate(String dateStr) {

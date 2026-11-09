@@ -1,6 +1,9 @@
 package com.findu.core.infrastructure.adapter.input.web.controller;
 
+import com.findu.core.application.dto.request.internal.InternalBiometriaRequest;
 import com.findu.core.application.dto.request.internal.InternalCrearPerfilRequest;
+import com.findu.core.application.dto.response.internal.InternalBiometriaResponse;
+import com.findu.core.application.port.in.GestionArchivosProveedorUseCase;
 import com.findu.core.application.dto.request.internal.InternalPersonaRequest;
 import com.findu.core.application.dto.response.internal.InternalPerfilResponse;
 import com.findu.core.infrastructure.adapter.out.persistence.entity.PerfilProveedorEntity;
@@ -29,6 +32,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -41,6 +45,7 @@ class InternalPerfilControllerTest {
     @Mock private PerfilEspecialistaRepository especialistaRepository;
     @Mock private PortafolioItemRepository portafolioRepository;
     @Mock private EspecialistaCredencialRepository credencialRepository;
+    @Mock private com.findu.core.application.port.in.GestionArchivosProveedorUseCase archivosUseCase;
 
     @InjectMocks
     private InternalPerfilController controller;
@@ -111,5 +116,29 @@ class InternalPerfilControllerTest {
         // Second call with same idempotency key should hit cache
         ResponseEntity<InternalPerfilResponse> res2 = controller.crearPerfil(SERVICE_KEY, "idem-same", req);
         assertThat(res2.getBody().perfilId()).isEqualTo(99L);
+    }
+
+    @Test
+    void registrarBiometria_llaveInvalidaEs403SinTocarElUseCase() {
+        InternalBiometriaRequest req = new InternalBiometriaRequest("r", "f", "v", 0.9);
+        assertThatThrownBy(() -> controller.registrarBiometria("mala", 5L, req))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN));
+        assertThatThrownBy(() -> controller.registrarBiometria(null, 5L, req)).isInstanceOf(ResponseStatusException.class);
+        verifyNoInteractions(archivosUseCase);
+    }
+
+    @Test
+    void registrarBiometria_llaveValidaDelegaAlUseCase() {
+        when(archivosUseCase.registrarBiometria(org.mockito.ArgumentMatchers.eq(5L), any()))
+                .thenReturn(new GestionArchivosProveedorUseCase.BiometriaResultado(5L, true));
+
+        ResponseEntity<InternalBiometriaResponse> res = controller.registrarBiometria(
+                SERVICE_KEY, 5L, new InternalBiometriaRequest("r", "f", "v", 0.9));
+
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(res.getBody().perfilId()).isEqualTo(5L);
+        assertThat(res.getBody().fotoPerfilActualizada()).isTrue();
+        verify(archivosUseCase).registrarBiometria(5L, new GestionArchivosProveedorUseCase.BiometriaCommand("r", "f", "v", 0.9));
     }
 }

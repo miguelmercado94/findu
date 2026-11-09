@@ -1,5 +1,6 @@
 package com.findu.core.application.service;
 
+import com.findu.core.application.port.in.GestionArchivosProveedorUseCase;
 import com.findu.core.application.port.in.GestionArchivosProveedorUseCase.FotoPerfil;
 import com.findu.core.application.port.out.biometric.FaceComparisonPort;
 import com.findu.core.domain.exception.ArchivoProveedorException;
@@ -149,5 +150,104 @@ class GestionArchivosProveedorUseCaseImplTest {
         assertThatThrownBy(() -> useCase.cambiarFotoPerfil(10L, JPG))
                 .isInstanceOfSatisfying(ArchivoProveedorException.class,
                         e -> assertThat(e.getCodigo()).isEqualTo(Codigo.FOTO_NO_COINCIDE));
+    }
+
+    // ---- registrarBiometria ----
+
+    private static String imagenBase64(String formato) throws Exception {
+        java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(4, 4, java.awt.image.BufferedImage.TYPE_INT_RGB);
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        javax.imageio.ImageIO.write(img, formato, out);
+        return java.util.Base64.getEncoder().encodeToString(out.toByteArray());
+    }
+
+    private GestionArchivosProveedorUseCase.BiometriaCommand comando() throws Exception {
+        return new GestionArchivosProveedorUseCase.BiometriaCommand(
+                imagenBase64("jpg"), imagenBase64("png"), "data:image/png;base64," + imagenBase64("png"), 0.93);
+    }
+
+    @Test
+    void biometriaEscribeTresPngMasPerfilYMarcaEspejo() throws Exception {
+        var res = useCase.registrarBiometria(10L, comando());
+
+        assertThat(res.fotoPerfilActualizada()).isTrue();
+        assertThat(storage.exists(rostroKey)).isTrue();
+        assertThat(storage.exists(ProviderStoragePaths.documentoFrenteKey("CC", "1234"))).isTrue();
+        assertThat(storage.exists(ProviderStoragePaths.documentoReversoKey("CC", "1234"))).isTrue();
+        // el jpg de entrada se normalizo a PNG (magic bytes)
+        assertThat(GestionArchivosProveedorUseCaseImpl.detectFormat(storage.get(rostroKey))).isEqualTo("png");
+        assertThat(perfil.getUrlImagenPerfil()).startsWith("proveedores/CC1234/perfil/").endsWith(".png");
+        assertThat(storage.get(perfil.getUrlImagenPerfil())).isEqualTo(storage.get(rostroKey));
+        assertThat(perfil.getBiometriaVerificadaAt()).isNotNull();
+        assertThat(perfil.getEstadoVerificacion()).isEqualTo("VERIFICADO");
+    }
+
+    @Test
+    void biometriaEsIdempotente() throws Exception {
+        var cmd = new GestionArchivosProveedorUseCase.BiometriaCommand(imagenBase64("png"), imagenBase64("png"), imagenBase64("png"), null);
+        useCase.registrarBiometria(10L, cmd);
+        LocalDateTime primera = perfil.getBiometriaVerificadaAt();
+        String fotoPrimera = perfil.getUrlImagenPerfil();
+        int objetos = storage.listKeys("proveedores/").size();
+
+        useCase.registrarBiometria(10L, cmd);
+
+        assertThat(storage.listKeys("proveedores/")).hasSize(objetos);
+        assertThat(perfil.getUrlImagenPerfil()).isEqualTo(fotoPrimera);
+        assertThat(perfil.getBiometriaVerificadaAt()).isEqualTo(primera);
+    }
+
+    @Test
+    void biometriaNuevaValidacionRefrescaFotoDePerfil() throws Exception {
+        useCase.registrarBiometria(10L, new GestionArchivosProveedorUseCase.BiometriaCommand(imagenBase64("png"), null, null, null));
+        String primera = perfil.getUrlImagenPerfil();
+        // el usuario cambia la foto de perfil por una foto distinta
+        storage.put("proveedores/CC1234/perfil/otra.jpg", JPG, "image/jpeg");
+        perfil.setUrlImagenPerfil("proveedores/CC1234/perfil/otra.jpg");
+
+        useCase.registrarBiometria(10L, new GestionArchivosProveedorUseCase.BiometriaCommand(imagenBase64("png"), null, null, null));
+
+        assertThat(perfil.getUrlImagenPerfil()).isNotEqualTo("proveedores/CC1234/perfil/otra.jpg").isNotEqualTo(primera);
+        assertThat(storage.get(perfil.getUrlImagenPerfil())).isEqualTo(storage.get(rostroKey));
+    }
+
+    @Test
+    void biometriaFalloDeCopyNoInvalidaLaBiometria() throws Exception {
+        InMemoryObjectStorageAdapter fallaCopy = new InMemoryObjectStorageAdapter() {
+            @Override
+            public synchronized void copy(String sourceKey, String destinationKey) {
+                throw new com.findu.core.domain.exception.StorageException("copy fallo", null);
+            }
+        };
+        useCase = new GestionArchivosProveedorUseCaseImpl(perfilService, fallaCopy, face, resolver, 1024);
+
+        var res = useCase.registrarBiometria(10L, comando());
+
+        assertThat(res.fotoPerfilActualizada()).isFalse();
+        assertThat(fallaCopy.exists(rostroKey)).isTrue();
+        assertThat(perfil.getBiometriaVerificadaAt()).isNotNull();
+        assertThat(perfil.getEstadoVerificacion()).isEqualTo("VERIFICADO");
+        assertThat(perfil.getUrlImagenPerfil()).isNull();
+    }
+
+    @Test
+    void biometriaBase64InvalidoEs422SinEscrituras() throws Exception {
+        var cmd = new GestionArchivosProveedorUseCase.BiometriaCommand(imagenBase64("png"), "###no-es-base64###", null, null);
+        assertThatThrownBy(() -> useCase.registrarBiometria(10L, cmd))
+                .isInstanceOfSatisfying(ArchivoProveedorException.class,
+                        e -> assertThat(e.getCodigo()).isEqualTo(Codigo.IMAGEN_INVALIDA));
+        assertThat(storage.listKeys("")).isEmpty();
+        assertThat(perfil.getBiometriaVerificadaAt()).isNull();
+
+        var noImagen = new GestionArchivosProveedorUseCase.BiometriaCommand(
+                java.util.Base64.getEncoder().encodeToString("hola".getBytes()), null, null, null);
+        assertThatThrownBy(() -> useCase.registrarBiometria(10L, noImagen)).isInstanceOf(ArchivoProveedorException.class);
+    }
+
+    @Test
+    void biometriaHabilitaElPutDeFotoDePerfil() throws Exception {
+        useCase.registrarBiometria(10L, comando());
+        useCase.cambiarFotoPerfil(10L, JPG);
+        assertThat(perfil.getUrlImagenPerfil()).endsWith(".jpg");
     }
 }
