@@ -80,7 +80,7 @@ class GestionPerfilProveedorUseCaseImplTest {
     void verificadoConNombreDistintoLanza409() {
         perfilConEstado("VERIFICADO", null);
         org.assertj.core.api.Assertions.assertThatThrownBy(() ->
-                        useCase.actualizarPerfil(10L, new ActualizarPerfilProveedorRequest("Otro Nombre", null)))
+                        useCase.actualizarPerfil(10L, new ActualizarPerfilProveedorRequest("Otro Nombre", null, null)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("Los datos verificados no se pueden modificar; abre un ticket de soporte");
         org.mockito.Mockito.verify(perfilProveedorService, org.mockito.Mockito.never())
@@ -90,7 +90,7 @@ class GestionPerfilProveedorUseCaseImplTest {
     @Test
     void verificadoConMismoNombreYFotoNuevaPermite() {
         PerfilProveedor perfil = perfilConEstado("VERIFICADO", null);
-        useCase.actualizarPerfil(10L, new ActualizarPerfilProveedorRequest("  Proveedor Test ", "http://foto"));
+        useCase.actualizarPerfil(10L, new ActualizarPerfilProveedorRequest("  Proveedor Test ", "http://foto", null));
         assertThat(perfil.getUrlImagenPerfil()).isEqualTo("http://foto");
         org.mockito.Mockito.verify(perfilProveedorService).save(perfil);
     }
@@ -98,22 +98,77 @@ class GestionPerfilProveedorUseCaseImplTest {
     @Test
     void pendienteConNombreDistintoActualiza() {
         PerfilProveedor perfil = perfilConEstado("PENDIENTE", null);
-        useCase.actualizarPerfil(10L, new ActualizarPerfilProveedorRequest("Otro Nombre", null));
+        useCase.actualizarPerfil(10L, new ActualizarPerfilProveedorRequest("Otro Nombre", null, null));
         assertThat(perfil.getNombreCompleto()).isEqualTo("Otro Nombre");
     }
 
     @Test
     void verificadoSinNombreYConFotoPermite() {
         PerfilProveedor perfil = perfilConEstado("VERIFICADO", null);
-        useCase.actualizarPerfil(10L, new ActualizarPerfilProveedorRequest(null, "http://foto"));
+        useCase.actualizarPerfil(10L, new ActualizarPerfilProveedorRequest(null, "http://foto", null));
         assertThat(perfil.getUrlImagenPerfil()).isEqualTo("http://foto");
     }
 
     @Test
     void verificadoNoSobrescribeFotoExistente() {
         PerfilProveedor perfil = perfilConEstado("VERIFICADO", "http://original");
-        useCase.actualizarPerfil(10L, new ActualizarPerfilProveedorRequest(null, "http://nueva"));
+        useCase.actualizarPerfil(10L, new ActualizarPerfilProveedorRequest(null, "http://nueva", null));
         assertThat(perfil.getUrlImagenPerfil()).isEqualTo("http://original");
+    }
+
+    private PerfilProveedor conBiometria() {
+        PerfilProveedor perfil = perfilConEstado("PENDIENTE", null);
+        perfil.setFechaNacimiento(java.time.LocalDate.of(1990, 5, 20));
+        perfil.setBiometriaVerificadaAt(java.time.LocalDateTime.now());
+        return perfil;
+    }
+
+    @Test
+    void biometriaConMismoNombreYMismaFechaPasa() {
+        PerfilProveedor perfil = conBiometria();
+        useCase.actualizarPerfil(10L, new ActualizarPerfilProveedorRequest(" Proveedor Test", null, java.time.LocalDate.of(1990, 5, 20)));
+        assertThat(perfil.getFechaNacimiento()).isEqualTo(java.time.LocalDate.of(1990, 5, 20));
+        org.mockito.Mockito.verify(perfilProveedorService).save(perfil);
+    }
+
+    @Test
+    void biometriaConNombreDistintoLanza409() {
+        conBiometria();
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                        useCase.actualizarPerfil(10L, new ActualizarPerfilProveedorRequest("Otro Nombre", null, null)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Los datos verificados no se pueden modificar; abre un ticket de soporte");
+    }
+
+    @Test
+    void biometriaConFechaDistintaLanza409() {
+        PerfilProveedor perfil = conBiometria();
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                        useCase.actualizarPerfil(10L, new ActualizarPerfilProveedorRequest(null, null, java.time.LocalDate.of(1991, 1, 1))))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Los datos verificados no se pueden modificar; abre un ticket de soporte");
+        assertThat(perfil.getFechaNacimiento()).isEqualTo(java.time.LocalDate.of(1990, 5, 20));
+        org.mockito.Mockito.verify(perfilProveedorService, org.mockito.Mockito.never())
+                .save(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void sinBiometriaFechaFuturaSeRechaza() {
+        perfilConEstado("PENDIENTE", null);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                        useCase.actualizarPerfil(10L, new ActualizarPerfilProveedorRequest(null, null, java.time.LocalDate.now().plusDays(1))))
+                .isInstanceOf(IllegalArgumentException.class);
+        org.mockito.Mockito.verify(perfilProveedorService, org.mockito.Mockito.never())
+                .save(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void sinBiometriaFechaYNombrePersisten() {
+        PerfilProveedor perfil = perfilConEstado("PENDIENTE", null);
+        perfil.setFechaNacimiento(java.time.LocalDate.of(1990, 5, 20));
+        useCase.actualizarPerfil(10L, new ActualizarPerfilProveedorRequest("Nuevo Nombre", null, java.time.LocalDate.of(1992, 2, 2)));
+        assertThat(perfil.getFechaNacimiento()).isEqualTo(java.time.LocalDate.of(1992, 2, 2));
+        assertThat(perfil.getNombreCompleto()).isEqualTo("Nuevo Nombre");
     }
 
     @Test
@@ -122,7 +177,7 @@ class GestionPerfilProveedorUseCaseImplTest {
         perfil.setTipoIdentificacion("CC");
         perfil.setNumeroIdentificacion("1.234");
         String key = "proveedores/CC1234/perfil/20260101000000_abcd1234.png";
-        useCase.actualizarPerfil(10L, new ActualizarPerfilProveedorRequest(null, key));
+        useCase.actualizarPerfil(10L, new ActualizarPerfilProveedorRequest(null, key, null));
         assertThat(perfil.getUrlImagenPerfil()).isEqualTo(key);
     }
 
@@ -131,11 +186,11 @@ class GestionPerfilProveedorUseCaseImplTest {
         PerfilProveedor perfil = perfilConEstado("PENDIENTE", null);
         perfil.setTipoIdentificacion("CC");
         perfil.setNumeroIdentificacion("1234");
-        useCase.actualizarPerfil(10L, new ActualizarPerfilProveedorRequest(null, "proveedores/CC9999/perfil/x.png"));
+        useCase.actualizarPerfil(10L, new ActualizarPerfilProveedorRequest(null, "proveedores/CC9999/perfil/x.png", null));
         assertThat(perfil.getUrlImagenPerfil()).isNull();
-        useCase.actualizarPerfil(10L, new ActualizarPerfilProveedorRequest(null, "/data/user/0/cache/foto.jpg"));
+        useCase.actualizarPerfil(10L, new ActualizarPerfilProveedorRequest(null, "/data/user/0/cache/foto.jpg", null));
         assertThat(perfil.getUrlImagenPerfil()).isNull();
-        useCase.actualizarPerfil(10L, new ActualizarPerfilProveedorRequest(null, "/findu-core/api/v1/perfil-proveedor/10/foto-perfil?v=1"));
+        useCase.actualizarPerfil(10L, new ActualizarPerfilProveedorRequest(null, "/findu-core/api/v1/perfil-proveedor/10/foto-perfil?v=1", null));
         assertThat(perfil.getUrlImagenPerfil()).isNull();
     }
 

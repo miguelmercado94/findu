@@ -207,14 +207,12 @@ public class GestionPerfilProveedorUseCaseImpl implements GestionPerfilProveedor
         PerfilProveedor perfil = perfilProveedorService.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Perfil de proveedor no encontrado con id: " + id));
 
-        if (request.nombreCompleto() != null
-                && "VERIFICADO".equalsIgnoreCase(perfil.getEstadoVerificacion())
-                && perfil.getNombreCompleto() != null && !perfil.getNombreCompleto().isBlank()
-                && !perfil.getNombreCompleto().trim().equals(request.nombreCompleto().trim())) {
-            throw new IllegalStateException("Los datos verificados no se pueden modificar; abre un ticket de soporte");
-        }
+        assertDatosEditables(perfil, request);
         if (request.nombreCompleto() != null) {
             perfil.setNombreCompleto(request.nombreCompleto());
+        }
+        if (request.fechaNacimiento() != null) {
+            perfil.setFechaNacimiento(request.fechaNacimiento());
         }
         if (perfil.getUrlImagenPerfil() == null && esFotoAceptable(perfil, request.urlImagenPerfil())) {
             perfil.setUrlImagenPerfil(request.urlImagenPerfil());
@@ -222,6 +220,33 @@ public class GestionPerfilProveedorUseCaseImpl implements GestionPerfilProveedor
 
         PerfilProveedor updated = perfilProveedorService.save(perfil);
         return toResponse(updated);
+    }
+
+    /**
+     * Unico punto de la regla de datos personales. Con biometria completa (o perfil ya VERIFICADO, guarda
+     * previa) un nombre o fecha de nacimiento DISTINTOS al actual se rechazan con 409; valores iguales no son
+     * cambio. Sin biometria se valida que la fecha no sea futura (400).
+     */
+    private void assertDatosEditables(PerfilProveedor perfil, ActualizarPerfilProveedorRequest request) {
+        boolean verificado = GestionArchivosProveedorUseCaseImpl.biometriaCompleta(perfil)
+                || "VERIFICADO".equalsIgnoreCase(perfil.getEstadoVerificacion());
+
+        boolean nombreCambia = request.nombreCompleto() != null
+                && perfil.getNombreCompleto() != null && !perfil.getNombreCompleto().isBlank()
+                && !perfil.getNombreCompleto().trim().equals(request.nombreCompleto().trim());
+        boolean fechaCambia = request.fechaNacimiento() != null
+                && perfil.getFechaNacimiento() != null
+                && !perfil.getFechaNacimiento().equals(request.fechaNacimiento());
+
+        if (verificado) {
+            if (nombreCambia || fechaCambia) {
+                throw new IllegalStateException("Los datos verificados no se pueden modificar; abre un ticket de soporte");
+            }
+            return;
+        }
+        if (request.fechaNacimiento() != null && request.fechaNacimiento().isAfter(java.time.LocalDate.now())) {
+            throw new IllegalArgumentException("La fecha de nacimiento no puede ser futura");
+        }
     }
 
     /**
