@@ -34,3 +34,12 @@ logging:
   level:
     root: ${LOG_LEVEL_ROOT:INFO}
     com.findu.transaction: ${LOG_LEVEL_FINDU_TRANSACTION:DEBUG}
+
+findu:
+  settlement:
+    mock:
+      enabled: false
+    cron: "${FINDU_SETTLEMENT_CRON:0 0 6 * * TUE}"
+    zone: America/Bogota
+  internal:
+    service-key: ${FINDU_INTERNAL_SERVICE_KEY:}

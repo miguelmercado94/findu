@@ -28,3 +28,11 @@ logging:
     com.findu.transaction: DEBUG
     org.hibernate.SQL: DEBUG
     org.hibernate.orm.jdbc.bind: TRACE
+
+# Liquidacion simulada (solo local/dev): job martes 06:00 Bogota + pasarela mock
+findu:
+  settlement:
+    mock:
+      enabled: true
+  internal:
+    service-key: ${FINDU_INTERNAL_SERVICE_KEY:findu-internal-saga-secret-key-2026}

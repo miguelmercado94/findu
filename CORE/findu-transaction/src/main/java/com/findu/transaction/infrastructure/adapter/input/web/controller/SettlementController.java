@@ -11,6 +11,8 @@ import com.findu.transaction.infrastructure.adapter.input.web.dto.request.Create
 import com.findu.transaction.infrastructure.adapter.input.web.dto.response.SettlementExecutionResultResponse;
 import com.findu.transaction.infrastructure.adapter.input.web.dto.response.SettlementResponse;
 import com.findu.transaction.infrastructure.adapter.input.web.mapper.TransactionWebMapper;
+import com.findu.transaction.infrastructure.adapter.input.web.security.InternalServiceKeyGuard;
+import lombok.extern.slf4j.Slf4j;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -20,6 +22,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 
+@Slf4j
 @RestController
 @RequiredArgsConstructor
 public class SettlementController {
@@ -28,20 +31,49 @@ public class SettlementController {
     private final GetSettlementUseCase getSettlementUseCase;
     private final ManageSettlementService manageSettlementService;
     private final TransactionWebMapper webMapper;
+    private final InternalServiceKeyGuard internalServiceKeyGuard;
+
+    /**
+     * Disparo manual de la liquidacion (simulada). Sin providerId liquida a todos.
+     * Protegido por X-Internal-Service-Key (403 si falta o es incorrecta).
+     */
+    @PostMapping("/internal/settlements/execute")
+    public ResponseEntity<SettlementExecutionResultResponse> executeSettlement(
+            @RequestHeader(value = InternalServiceKeyGuard.HEADER, required = false) String serviceKey,
+            @RequestParam(required = false) Long providerId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate cutoffDate) {
+        if (!internalServiceKeyGuard.isAuthorized(serviceKey)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        try {
+            return ResponseEntity.ok(manageSettlementService.executeManual(providerId, cutoffDate));
+        } catch (IllegalStateException e) {
+            log.error("Liquidacion manual no disponible: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+        }
+    }
 
     @PostMapping("/internal/settlements/run")
     public ResponseEntity<SettlementExecutionResultResponse> runBatchSettlements(
+            @RequestHeader(value = InternalServiceKeyGuard.HEADER, required = false) String serviceKey,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestParam(required = false) String type) {
+        if (!internalServiceKeyGuard.isAuthorized(serviceKey)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         SettlementExecutionResultResponse result = manageSettlementService.runBatchSettlements(date, type);
         return ResponseEntity.ok(result);
     }
 
     @PostMapping("/internal/settlements/provider/{providerId}")
     public ResponseEntity<SettlementResponse> runProviderSettlement(
+            @RequestHeader(value = InternalServiceKeyGuard.HEADER, required = false) String serviceKey,
             @PathVariable Long providerId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestParam(required = false) SettlementType type) {
+        if (!internalServiceKeyGuard.isAuthorized(serviceKey)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
 
         CreateSettlementCommand command = CreateSettlementCommand.builder()
                 .providerId(providerId)
