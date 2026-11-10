@@ -12,4 +12,6 @@ public interface PayoutRepository {
     Optional<Payout> findByPayoutCode(String payoutCode);
     List<Payout> findByStatus(PayoutStatus status);
     List<Payout> findByProviderId(Long providerId);
+
+    Optional<Payout> findBySettlementId(String settlementId);
 }

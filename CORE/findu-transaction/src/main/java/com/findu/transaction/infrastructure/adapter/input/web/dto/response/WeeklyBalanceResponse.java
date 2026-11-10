@@ -62,6 +62,8 @@ public class WeeklyBalanceResponse {
     private NextSettlementDto nextSettlement;
     private WeeklyActivityDto weeklyActivity;
     private DebtStatusResponse debtSummary;
+    private PendingBalanceResponse pendingBalance;
+    private PendingBalanceResponse.LastSettlementDto lastSettlement;
 
     @Data
     @Builder
@@ -73,6 +75,7 @@ public class WeeklyBalanceResponse {
         private String status;
         private BigDecimal estimatedAmount;
         private String note;
+        private LocalDate cutoffDate;
     }
 
     @Data

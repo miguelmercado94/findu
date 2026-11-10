@@ -31,7 +31,13 @@ public class JpaSettlementAdapter implements SettlementRepository {
         SettlementEntity saved = jpaRepository.save(entity);
 
         if (settlement.getDailyBalanceIds() != null && !settlement.getDailyBalanceIds().isEmpty()) {
+            // Los links son inmutables: solo se insertan los que aun no existen (re-guardar no duplica).
+            java.util.Set<String> existingLinks = dailyBalanceLinkRepository.findBySettlementId(saved.getId())
+                    .stream().map(SettlementDailyBalanceEntity::getDailyBalanceId).collect(Collectors.toSet());
             for (String dbId : settlement.getDailyBalanceIds()) {
+                if (existingLinks.contains(dbId)) {
+                    continue;
+                }
                 SettlementDailyBalanceEntity link = SettlementDailyBalanceEntity.builder()
                         .id(UUID.randomUUID().toString())
                         .settlementId(saved.getId())
@@ -83,6 +89,16 @@ public class JpaSettlementAdapter implements SettlementRepository {
 
         String typeStr = settlementType != null ? settlementType.name() : "DAILY";
         return jpaRepository.findByProviderIdAndPeriodStartAndPeriodEndAndSettlementType(providerId, periodStart, periodEnd, typeStr)
+                .map(entity -> {
+                    List<String> linked = dailyBalanceLinkRepository.findBySettlementId(entity.getId())
+                            .stream().map(SettlementDailyBalanceEntity::getDailyBalanceId).collect(Collectors.toList());
+                    return mapper.toDomain(entity, linked);
+                });
+    }
+
+    @Override
+    public Optional<Settlement> findLatestCompletedByProviderId(Long providerId) {
+        return jpaRepository.findFirstByProviderIdAndStatusOrderByPeriodEndDesc(providerId, "COMPLETED")
                 .map(entity -> {
                     List<String> linked = dailyBalanceLinkRepository.findBySettlementId(entity.getId())
                             .stream().map(SettlementDailyBalanceEntity::getDailyBalanceId).collect(Collectors.toList());

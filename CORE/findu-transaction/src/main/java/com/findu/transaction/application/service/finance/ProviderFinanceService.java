@@ -14,7 +14,9 @@ import com.findu.transaction.domain.model.balance.DailyBalance;
 import com.findu.transaction.domain.model.debt.ProviderDebtPayment;
 import com.findu.transaction.domain.model.finance.BankConsignmentReport;
 import com.findu.transaction.domain.model.finance.BreBPaymentOrder;
+import com.findu.transaction.domain.model.payout.Payout;
 import com.findu.transaction.domain.model.settlement.ProviderSettlementProfile;
+import com.findu.transaction.domain.model.settlement.Settlement;
 import com.findu.transaction.domain.model.transaction.ServiceTransaction;
 import com.findu.transaction.domain.valueobject.Money;
 import lombok.RequiredArgsConstructor;
@@ -55,6 +57,9 @@ public class ProviderFinanceService implements
     private final BreBPaymentGatewayPort breBGatewayPort;
     private final com.findu.transaction.infrastructure.adapter.out.client.ValidationBrebClient validationBrebClient;
     private final com.findu.transaction.infrastructure.adapter.out.client.CoreServiceClient coreServiceClient;
+    private final PendingBalanceService pendingBalanceService;
+    private final PayoutRepository payoutRepository;
+    private final SettlementRepository settlementRepository;
 
     @Value("${findu.finance.bank.name:Bancolombia}")
     private String companyBankName;
@@ -93,12 +98,10 @@ public class ProviderFinanceService implements
         String periodLabel = formatWeeklyPeriodLabel(startDate, endDate);
 
         // Próxima liquidación: Martes siguiente al domingo de corte
-        LocalDate nextSettlementDate = endDate.plusDays(2);
+        // Saldo pendiente NETO: fuente unica (PendingBalanceService), compartida con el historial.
+        PendingBalanceView pending = pendingBalanceService.getPendingBalance(providerId, LocalDate.now(zoneId));
+        LocalDate nextSettlementDate = pending.getNextSettlementDate();
         String nextSettlementDateLabel = formatSettlementDateLabel(nextSettlementDate);
-
-        // Obtener la cuenta del proveedor
-        ProviderAccount account = providerAccountRepository.findByProviderId(providerId)
-                .orElseGet(() -> ProviderAccount.create(providerId, ProviderType.PERSONA_NATURAL));
 
         // Obtener balances diarios de la semana
         List<DailyBalance> weekBalances = dailyBalanceRepository.findByProviderIdAndBalanceDateBetween(
@@ -119,6 +122,7 @@ public class ProviderFinanceService implements
         BigDecimal totalCash = BigDecimal.ZERO;
         int completedCount = 0;
         int cashCount = 0;
+        final int pendingServicesCount = pending.getPendingServicesCount();
 
         for (ServiceTransaction tx : weekTx) {
             if (tx.getTransactionStatus() != TransactionStatus.CANCELLED) {
@@ -165,9 +169,9 @@ public class ProviderFinanceService implements
             nextSettlementEstimated = Money.ZERO;
         } else {
             // Saldo positivo / a favor
-            provisionalBalance = netWeekBalance.isPositive() ? netWeekBalance : account.getPayableBalance();
+            provisionalBalance = pending.getNetAmount();
             balanceType = "PROVISIONAL";
-            nextSettlementEstimated = provisionalBalance;
+            nextSettlementEstimated = pending.getNextSettlementNet();
         }
 
         java.time.LocalDateTime fechaInicio = startDate.atStartOfDay();
@@ -182,7 +186,7 @@ public class ProviderFinanceService implements
                 .provisionalBalance(provisionalBalance)
                 .balanceType(balanceType)
                 .completedServicesCount(completedCount)
-                .pendingSettlementCount(completedCount > 0 ? Math.max(1, completedCount / 2) : 0)
+                .pendingSettlementCount(pendingServicesCount)
                 .pagosEnEfectivoCount(cashCount)
                 .cutoffNote("El corte se realiza el domingo")
                 .nextSettlementDate(nextSettlementDate)
@@ -199,6 +203,8 @@ public class ProviderFinanceService implements
                 .totalExpenses(totalExpenses)
                 .netWeekBalance(netWeekBalance)
                 .debtSummary(debtSummary)
+                .pendingBalance(pending)
+                .nextSettlementCutoff(pending.getNextSettlementCutoff())
                 .build();
     }
 
@@ -332,6 +338,10 @@ public class ProviderFinanceService implements
             String serviceName = null;
             String specializationName = null;
             String timeLabel = formatMovementTime(e.getCreatedAt());
+            String movementType = e.getType().name();
+            String description = null;
+            String settlementCode = null;
+            String reference = e.getReferenceId();
 
             switch (e.getType()) {
                 case SERVICE_EARNING:
@@ -346,8 +356,11 @@ public class ProviderFinanceService implements
                     expenses = expenses.add(e.getAmount().getAmount());
                     break;
                 case CASH_PAYMENT_DEBT:
-                    title = "Pago en efectivo recibido";
-                    subtitle = "De clientes";
+                    // La comision que FindU cobra por un servicio pagado en efectivo (NO el servicio en si).
+                    movementType = "CASH_COMMISSION_DEBT";
+                    title = "Comisión por servicio en efectivo";
+                    subtitle = "Comisión de FindU por un servicio que el cliente pagó en efectivo";
+                    description = subtitle;
                     isIncome = false;
                     expenses = expenses.add(e.getAmount().getAmount());
                     break;
@@ -359,14 +372,28 @@ public class ProviderFinanceService implements
                     income = income.add(e.getAmount().getAmount());
                     break;
                 case PAYOUT:
-                    title = "Liquidación semanal";
-                    subtitle = "Transferencia a cuenta";
+                    // Liquidacion transferida (no entra en ingresos/egresos del periodo).
+                    movementType = "SETTLEMENT_PAYOUT";
+                    title = "Liquidación transferida";
                     isIncome = true;
-                    status = "PROGRAMADO";
+                    Optional<Payout> payoutOpt = e.getReferenceId() != null && !e.getReferenceId().isBlank()
+                            ? payoutRepository.findByPayoutCode(e.getReferenceId()) : Optional.empty();
+                    if (payoutOpt.isPresent()) {
+                        Payout payout = payoutOpt.get();
+                        reference = payout.getExternalReference() != null ? payout.getExternalReference() : e.getReferenceId();
+                        if (payout.getSettlementId() != null && !payout.getSettlementId().isBlank()) {
+                            settlementCode = settlementRepository.findById(payout.getSettlementId())
+                                    .map(Settlement::getSettlementCode).orElse(null);
+                        }
+                    }
+                    subtitle = "Referencia " + reference;
+                    description = "Transferencia del saldo neto de tu liquidación semanal";
                     break;
                 case COMPENSATION_ADJUSTMENT:
-                    title = "Ajuste de servicio";
-                    subtitle = "Compensación de balance";
+                    movementType = "DEBT_COMPENSATION";
+                    title = "Compensación de comisiones en efectivo";
+                    subtitle = "Descontada de tu liquidación";
+                    description = "Se descontó de tu liquidación la comisión pendiente de servicios pagados en efectivo";
                     isIncome = isCredit;
                     break;
                 default:
@@ -385,8 +412,13 @@ public class ProviderFinanceService implements
                             var coreOpt = coreServiceClient.getSolicitud(serviceRequestId);
                             serviceName = coreOpt.map(com.findu.transaction.infrastructure.adapter.out.client.CoreServiceClient.SolicitudCoreDto::getServicioNombre).orElse("Enfermería a domicilio");
                             specializationName = coreOpt.map(com.findu.transaction.infrastructure.adapter.out.client.CoreServiceClient.SolicitudCoreDto::getCategoriaNombre).orElse("Cuidado de adulto mayor");
-                            title = serviceName;
-                            subtitle = "Especialización: " + specializationName;
+                            if (e.getType() == LedgerEntryType.SERVICE_EARNING) {
+                                title = serviceName;
+                                subtitle = "Especialización: " + specializationName;
+                            } else {
+                                // Comision en efectivo: el titulo queda claro, el servicio va en el subtitulo.
+                                subtitle = "Servicio: " + serviceName;
+                            }
                         }
                     } catch (Exception ex) {
                         log.debug("No se pudo obtener detalles de servicio para ref {}: {}", e.getReferenceId(), ex.getMessage());
@@ -409,7 +441,10 @@ public class ProviderFinanceService implements
                     .isIncome(isIncome)
                     .type(e.getType().name())
                     .status(status)
-                    .reference(e.getReferenceId())
+                    .reference(reference)
+                    .movementType(movementType)
+                    .description(description != null ? description : subtitle)
+                    .settlementCode(settlementCode)
                     .build());
         }
 
@@ -426,6 +461,7 @@ public class ProviderFinanceService implements
                 .completedServicesCount(completedServicesCount)
                 .activeDaysCount(activeDaysCount)
                 .movements(items)
+                .pendingBalance(pendingBalanceService.getPendingBalance(providerId, today))
                 .build();
     }
 

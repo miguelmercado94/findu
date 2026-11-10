@@ -31,6 +31,7 @@ public class FinanceWebMapper {
                     .status(r.getNextSettlementStatus())
                     .estimatedAmount(r.getNextSettlementEstimatedAmount() != null ? r.getNextSettlementEstimatedAmount().getAmount() : null)
                     .note(r.getNextSettlementNote())
+                    .cutoffDate(r.getNextSettlementCutoff())
                     .build();
         }
 
@@ -117,6 +118,38 @@ public class FinanceWebMapper {
                 .nextSettlement(nextDto)
                 .weeklyActivity(activityDto)
                 .debtSummary(toResponse(r.getDebtSummary()))
+                .pendingBalance(toPendingBalanceDto(r.getPendingBalance()))
+                .lastSettlement(toLastSettlementDto(r.getPendingBalance()))
+                .build();
+    }
+
+    /** UNICO mapeo del saldo pendiente: lo usan weekly-balance y movements. */
+    public PendingBalanceResponse toPendingBalanceDto(PendingBalanceView p) {
+        if (p == null) return null;
+        return PendingBalanceResponse.builder()
+                .grossAmount(p.getGrossAmount().getAmount())
+                .debtCompensationAmount(p.getDebtCompensationAmount().getAmount())
+                .netAmount(p.getNetAmount().getAmount())
+                .remainingDebt(p.getRemainingDebt().getAmount())
+                .thisWeekGrossAmount(p.getThisWeekGrossAmount().getAmount())
+                .carriedOverGrossAmount(p.getCarriedOverGrossAmount().getAmount())
+                .carriedOver(p.isCarriedOver())
+                .pendingServicesCount(p.getPendingServicesCount())
+                .currency("COP")
+                .build();
+    }
+
+    private PendingBalanceResponse.LastSettlementDto toLastSettlementDto(PendingBalanceView p) {
+        if (p == null || p.getLastSettlement() == null) return null;
+        PendingBalanceView.LastSettlementView l = p.getLastSettlement();
+        return PendingBalanceResponse.LastSettlementDto.builder()
+                .settlementCode(l.getSettlementCode())
+                .status(l.getStatus())
+                .grossAmount(l.getGrossAmount().getAmount())
+                .debtCompensationAmount(l.getDebtCompensationAmount().getAmount())
+                .netAmount(l.getNetAmount().getAmount())
+                .executedAt(l.getExecutedAt())
+                .reference(l.getReference())
                 .build();
     }
 
@@ -147,6 +180,7 @@ public class FinanceWebMapper {
                 .completedServicesCount(r.getCompletedServicesCount())
                 .activeDaysCount(r.getActiveDaysCount())
                 .movements(r.getMovements() != null ? r.getMovements().stream().map(this::toItemDto).collect(Collectors.toList()) : Collections.emptyList())
+                .pendingBalance(toPendingBalanceDto(r.getPendingBalance()))
                 .build();
     }
 
@@ -169,6 +203,9 @@ public class FinanceWebMapper {
                 .type(item.getType())
                 .status(item.getStatus())
                 .reference(item.getReference())
+                .movementType(item.getMovementType())
+                .description(item.getDescription())
+                .settlementCode(item.getSettlementCode())
                 .build();
     }
 

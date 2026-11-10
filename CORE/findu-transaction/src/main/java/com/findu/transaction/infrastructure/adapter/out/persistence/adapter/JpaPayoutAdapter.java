@@ -46,6 +46,11 @@ public class JpaPayoutAdapter implements PayoutRepository {
     }
 
     @Override
+    public Optional<Payout> findBySettlementId(String settlementId) {
+        return jpaRepository.findFirstBySettlementId(settlementId).map(mapper::toDomain);
+    }
+
+    @Override
     public List<Payout> findByProviderId(Long providerId) {
         return jpaRepository.findByProviderId(providerId).stream()
                 .map(mapper::toDomain)

@@ -41,4 +41,7 @@ public class WeeklyBalanceResult {
 
     // Deuda / Restricciones
     private final DebtStatusResult debtSummary;
+    // Saldo pendiente neto con desglose (fuente unica: PendingBalanceService)
+    private final PendingBalanceView pendingBalance;
+    private final LocalDate nextSettlementCutoff;
 }

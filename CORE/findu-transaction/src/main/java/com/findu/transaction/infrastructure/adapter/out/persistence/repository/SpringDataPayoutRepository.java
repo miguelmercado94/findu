@@ -10,4 +10,6 @@ public interface SpringDataPayoutRepository extends JpaRepository<PayoutEntity, 
     Optional<PayoutEntity> findByPayoutCode(String payoutCode);
     List<PayoutEntity> findByStatus(String status);
     List<PayoutEntity> findByProviderId(Long providerId);
+
+    Optional<PayoutEntity> findFirstBySettlementId(String settlementId);
 }

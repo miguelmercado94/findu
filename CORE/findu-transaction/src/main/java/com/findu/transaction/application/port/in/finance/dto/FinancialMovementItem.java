@@ -24,5 +24,9 @@ public class FinancialMovementItem {
     private final String type;
     private final String status; // PROGRAMADO, RECIBIDO, COMPLETADO, etc.
     private final String reference;
+    /** SERVICE_EARNING | CASH_COMMISSION_DEBT | SETTLEMENT_PAYOUT | DEBT_COMPENSATION | ... */
+    private final String movementType;
+    private final String description;
+    private final String settlementCode;
 }
 

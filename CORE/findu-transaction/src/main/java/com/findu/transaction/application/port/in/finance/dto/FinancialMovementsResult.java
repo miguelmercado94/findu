@@ -17,4 +17,5 @@ public class FinancialMovementsResult {
     private final Integer completedServicesCount;
     private final Integer activeDaysCount;
     private final List<FinancialMovementItem> movements;
+    private final PendingBalanceView pendingBalance;
 }

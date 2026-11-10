@@ -10,6 +10,8 @@ import java.util.Optional;
 public interface SpringDataSettlementRepository extends JpaRepository<SettlementEntity, String> {
     Optional<SettlementEntity> findBySettlementCode(String settlementCode);
     List<SettlementEntity> findByProviderId(Long providerId);
+
+    Optional<SettlementEntity> findFirstByProviderIdAndStatusOrderByPeriodEndDesc(Long providerId, String status);
     Optional<SettlementEntity> findByProviderIdAndPeriodStartAndPeriodEndAndSettlementType(
             Long providerId, Instant periodStart, Instant periodEnd, String settlementType);
 }

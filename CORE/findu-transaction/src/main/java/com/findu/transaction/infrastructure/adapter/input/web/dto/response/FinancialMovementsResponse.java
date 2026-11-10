@@ -23,6 +23,7 @@ public class FinancialMovementsResponse {
     private Integer completedServicesCount;
     private Integer activeDaysCount;
     private List<MovementItemDto> movements;
+    private PendingBalanceResponse pendingBalance;
 
     @Data
     @Builder
@@ -45,5 +46,8 @@ public class FinancialMovementsResponse {
         private String type;
         private String status;
         private String reference;
+        private String movementType;
+        private String description;
+        private String settlementCode;
     }
 }

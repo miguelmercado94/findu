@@ -15,4 +15,7 @@ public interface SettlementRepository {
     Optional<Settlement> findByProviderIdAndPeriodStartAndPeriodEndAndSettlementType(
             Long providerId, Instant periodStart, Instant periodEnd, SettlementType settlementType);
     List<String> findSettledDailyBalanceIdsByProviderId(Long providerId);
+
+    /** Ultima liquidacion COMPLETED del proveedor (mayor periodEnd). */
+    Optional<Settlement> findLatestCompletedByProviderId(Long providerId);
 }
