@@ -53,7 +53,7 @@ function Test-WsConnect([string]$Query) {
     $ws = New-Object System.Net.WebSockets.ClientWebSocket
     $cts = New-Object System.Threading.CancellationTokenSource (8000)
     try {
-        $ws.ConnectAsync([Uri]"${WsBase}?$Query", $cts.Token).GetAwaiter().GetResult()
+        $ws.ConnectAsync([Uri]"${WsBase}?$Query", $cts.Token).GetAwaiter().GetResult() | Out-Null
         if ($ws.State -eq 'Open') {
             # Si el servidor acepta el upgrade pero cierra de inmediato (BAD_DATA), se considera rechazo.
             Start-Sleep -Milliseconds 400
@@ -62,7 +62,10 @@ function Test-WsConnect([string]$Query) {
         }
         return "STATE:$($ws.State)"
     } catch {
-        $m = "$($_.Exception.Message) $($_.Exception.InnerException.Message)"
+        $m = ''
+        for ($ex = $_.Exception; $null -ne $ex; $ex = $ex.InnerException) { $m += " $($ex.Message)" }
+        # "The server returned status code "401" when status code "101" was expected."
+        if ($m -match 'status code "(\d{3})"') { return $Matches[1] }
         if ($m -match "(\d{3})") { return $Matches[1] }
         return "ERR:$($_.Exception.GetType().Name)"
     } finally {
@@ -121,6 +124,7 @@ try {
     Add-Case 'a2' 'token del duenio sin userId (identidad desde el token)' (Test-WsConnect "token=$owner") $(if ($enforce) { @('OPEN') } else { @('OPEN', 'CLOSED', '400') })
     Add-Case 'b1' 'token de otro usuario + canal ajeno' (Test-WsConnect "userId=$own&token=$other") $denied
     Add-Case 'b2' 'token del duenio + canal de otro proveedor' (Test-WsConnect "userId=$foreign&token=$owner") $denied
+    Add-Case 'b3' 'token del duenio + canal no verificable (CLIENTE_9)' (Test-WsConnect "userId=CLIENTE_9&token=$owner") $denied
     Add-Case 'c1' 'sin token + userId (cliente viejo)' (Test-WsConnect "userId=$own") $denied
     Add-Case 'd1' 'refresh token (typ=JWTRefresh)' (Test-WsConnect "userId=$own&token=$refresh") $denied
     Add-Case 'e1' 'token vencido' (Test-WsConnect "userId=$own&token=$expired") $denied

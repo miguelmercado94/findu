@@ -94,7 +94,23 @@ App (`findu_proveedores`, develop, solo local, sin remoto):
 ## 9. Token del WebSocket: E2E y paso a ENFORCE
 
 ### Resultados E2E
-NO ejecutado contra el stack: los contenedores `findu-notification-dispatcher` y `findu-core` siguen con la imagen anterior (sin env `FINDU_WS_AUTH_MODE`), y la tarea indica que los reconstruye el orquestador. Lo cubierto: tests unitarios del dispatcher (valido, vencido, refresh, firma mala, secreto Base64 y UTF-8, canal ajeno y propio, core caido en LOG/ENFORCE, handshake con y sin token por modo; 68 tests OK) y test del controller de core. Script listo: `findu/scripts/ws-auth-e2e.ps1` (`-Mode LOG|ENFORCE`, `-Apply` recrea solo el dispatcher con override temporal y vuelve a LOG, `-Build` reconstruye imagen; detecta imagen vieja con exit 2/3). Esperado: ENFORCE rechaza 401/403 los casos b1 (otro usuario + canal ajeno), b2 (canal de otro proveedor), c1 (sin token), d1 (refresh), e1 (vencido), f1 (basura); LOG acepta todo y registra `WS_AUTH_VIOLATION`.
+Ejecutado contra el stack docker (2026-11-10): se reconstruyeron solo `findu-core` y `notification-dispatcher` (`gradlew bootJar` + `docker compose up -d --no-deps --build findu-core notification-dispatcher`; localstack y demas contenedores intactos). Script: `findu/scripts/ws-auth-e2e.ps1`. Compose final en LOG (verificado: `FINDU_WS_AUTH_MODE=LOG` en el contenedor).
+
+| Caso | Descripcion | LOG | ENFORCE |
+|---|---|---|---|
+| a1 | token del duenio + canal propio | OPEN | OPEN |
+| a2 | token del duenio sin userId | OPEN | OPEN |
+| b1 | otro usuario + canal ajeno | OPEN + log | 403 |
+| b2 | duenio + canal de otro proveedor | OPEN + log | 403 |
+| b3 | duenio + canal no verificable CLIENTE_9 | OPEN + log | 403 |
+| c1 | sin token + userId | OPEN + log | 401 |
+| d1 | refresh token | OPEN + log | 401 |
+| e1 | token vencido | OPEN + log | 401 |
+| f1 | token basura | OPEN + log | 401 |
+| g1 | tokens ausentes de los logs | PASS | PASS |
+| g2 | violaciones registradas | PASS | PASS |
+
+LOG 11/11 PASS, ENFORCE 11/11 PASS. Tambien se cubren con tests unitarios del dispatcher (valido, vencido, refresh, firma mala, secreto Base64 y UTF-8, canal ajeno y propio, core caido en LOG/ENFORCE, handshake por modo) y test del controller de core. El script se corrigio durante la ejecucion (fuga de pipeline de ConnectAsync y extraccion del codigo HTTP desde excepciones anidadas) y se agrego b3. Nota: el contenedor del dispatcher se llamaba `e768bb976d18_findu-notification-dispatcher` (resto de un recreate previo); el primer `-Apply` lo recreo con el nombre correcto.
 
 Para ejecutarlo:
 ```
@@ -109,7 +125,7 @@ docker compose up -d --build --no-deps findu-core notification-dispatcher
 3. Poner `FINDU_WS_AUTH_MODE=ENFORCE` (env o compose) y `docker compose up -d --no-deps notification-dispatcher`.
 4. Rollback: volver a `LOG` u `OFF` y recrear el dispatcher.
 
-Decisiones del modo: canales solicitados que no son `PROVEEDOR_` solo exigen token valido en LOG/ENFORCE; en ENFORCE sin `userId` la identidad sale del token; en LOG sin token ni `userId` se rechaza (como antes); usuario sin perfil de proveedor = CHANNEL_MISMATCH; core caido: acepta+log en LOG, rechaza en ENFORCE.
+Decisiones del modo: en ENFORCE los canales solicitados que no son `PROVEEDOR_` (CLIENTE_, usernames) se rechazan 403 CHANNEL_MISMATCH porque no se pueden verificar contra el token (en LOG se aceptan y se registra la violacion); en ENFORCE sin `userId` la identidad sale del token; en LOG sin token ni `userId` se rechaza (como antes); usuario sin perfil de proveedor = CHANNEL_MISMATCH; core caido: acepta+log en LOG, rechaza en ENFORCE. Consecuencia: en ENFORCE solo la app de proveedores (canales PROVEEDOR_) puede conectar; antes de activarlo, confirmar en LOG (`WS_AUTH_VIOLATION reason=CHANNEL_MISMATCH`) que ningun otro cliente legitimo usa canales no PROVEEDOR_.
 
 ## 10. Estado de hallazgos de la revision de diseno
 

@@ -22,7 +22,7 @@ import java.util.Optional;
  * </ul>
  * El canal canonico PROVEEDOR_&lt;id&gt; debe pertenecer al claim userId; core resuelve authUserId -&gt; proveedorId.
  * Canales que no son de proveedor (CLIENTE_, usernames...) no se pueden verificar contra ese endpoint:
- * en LOG/ENFORCE solo se exige token valido.
+ * ENFORCE los rechaza (403 CHANNEL_MISMATCH); LOG los acepta y registra la violacion.
  */
 @Slf4j
 @Component
@@ -98,9 +98,10 @@ public class WebSocketAuthService {
         }
         String userId = authUserId.get();
 
-        // Canal solicitado que no es de proveedor: no hay forma de verificarlo contra core; basta el token valido.
+        // Canal solicitado que no es de proveedor: no es verificable contra core, asi que no se puede probar que
+        // pertenece al token. ENFORCE lo rechaza (403); LOG lo acepta y registra la violacion.
         if (requestedCanonical != null && !requestedCanonical.startsWith(PREFIJO_PROVEEDOR)) {
-            return Mono.just(Decision.accept(requestedCanonical));
+            return Mono.just(violationNow("CHANNEL_MISMATCH", userId, requested, 403, requestedCanonical));
         }
 
         return coreClient.resolveProveedorId(userId)

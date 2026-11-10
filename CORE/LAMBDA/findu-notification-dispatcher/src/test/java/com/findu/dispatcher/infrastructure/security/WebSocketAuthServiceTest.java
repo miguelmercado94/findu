@@ -128,8 +128,17 @@ class WebSocketAuthServiceTest {
     }
 
     @Test
-    void enforce_canalNoProveedorConTokenValidoNoConsultaCore() {
+    void enforce_canalNoProveedorRechazado403SinConsultarCore() {
         Decision d = svc("ENFORCE").authorize(uri("userId=CLIENTE_9&token=owner")).block();
+        assertThat(d.accepted()).isFalse();
+        assertThat(d.httpStatus()).isEqualTo(403);
+        assertThat(d.reason()).isEqualTo("CHANNEL_MISMATCH");
+        verifyNoInteractions(core);
+    }
+
+    @Test
+    void log_canalNoProveedorSeAceptaYSeRegistra() {
+        Decision d = svc("LOG").authorize(uri("userId=CLIENTE_9&token=owner")).block();
         assertThat(d.accepted()).isTrue();
         assertThat(d.channel()).isEqualTo("CLIENTE_9");
         verifyNoInteractions(core);
