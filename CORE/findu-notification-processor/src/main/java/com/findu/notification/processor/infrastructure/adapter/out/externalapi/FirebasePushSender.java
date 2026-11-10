@@ -4,6 +4,7 @@ import com.findu.notification.processor.application.port.out.externalapi.Notific
 import com.findu.notification.processor.application.port.out.persistence.DeviceTokenRepositoryPort;
 import com.findu.notification.processor.domain.enums.NotificationChannel;
 import com.findu.notification.processor.domain.model.NotificationResult;
+import com.google.firebase.messaging.AndroidConfig;
 import com.google.firebase.messaging.FirebaseMessaging;
 import com.google.firebase.messaging.FirebaseMessagingException;
 import com.google.firebase.messaging.Message;
@@ -32,6 +33,9 @@ import java.util.Map;
 public class FirebasePushSender implements NotificationSenderPort {
 
     private static final Logger log = LoggerFactory.getLogger(FirebasePushSender.class);
+
+    /** TTL de 10 min: un push de evento caduco ya no es util. */
+    private static final long TTL_MILLIS = 10 * 60 * 1000L;
 
     private final FirebaseMessaging messaging;
     private final DeviceTokenRepositoryPort deviceTokenRepository;
@@ -110,11 +114,27 @@ public class FirebasePushSender implements NotificationSenderPort {
         putIfPresent(builder, "ticketCode", meta.get("ticketCode"));
         putIfPresent(builder, "senderName", meta.get("senderName"));
         putIfPresent(builder, "mensaje", meta.get("mensaje"));
+        // Lista blanca fija (no se copia metadata completo: limite 4 KB de FCM y datos de cliente).
+        putIfNotBlank(builder, "tipoEvento", meta.get("tipoEvento"));
+        putIfNotBlank(builder, "solicitudId", meta.get("solicitudId"));
+        putIfNotBlank(builder, "ofertaId", meta.get("ofertaId"));
+        putIfNotBlank(builder, "servicioNombre", meta.get("servicioNombre"));
+        putIfNotBlank(builder, "eventId", meta.get("eventId"));
+        builder.setAndroidConfig(AndroidConfig.builder()
+                .setPriority(AndroidConfig.Priority.HIGH)
+                .setTtl(TTL_MILLIS)
+                .build());
         return builder.build();
     }
 
     private void putIfPresent(Message.Builder builder, String key, String value) {
         if (value != null) {
+            builder.putData(key, value);
+        }
+    }
+
+    private void putIfNotBlank(Message.Builder builder, String key, String value) {
+        if (value != null && !value.isBlank()) {
             builder.putData(key, value);
         }
     }

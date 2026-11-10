@@ -30,6 +30,10 @@ eureka:
 findu:
   internal:
     service-key: ${FINDU_INTERNAL_SERVICE_KEY:findu-internal-saga-secret-key-2026}
+  push:
+    # Push FCM generalizado desde la cola fallback (FallbackPushMapper).
+    alerts-enabled: ${FINDU_PUSH_ALERTS_ENABLED:false}
+    service-update-types: ${FINDU_PUSH_SERVICE_UPDATE_TYPES:NUEVA_SOLICITUD,SOLICITUD_ACTUALIZADA,OFERTA_ACEPTADA,ALARMA_SERVICIO_1H,AMONESTACION_GENERADA,RESTRICCION_ACTIVADA,RESOLUCION_CANCELACION,EVIDENCIA_APROBADA,EVIDENCIA_RECHAZADA}
   services:
     security-url: ${FINDU_SECURITY_URL:http://localhost:8081/security-auth}
   notification:

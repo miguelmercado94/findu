@@ -11,11 +11,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 
-import java.time.Instant;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
-
 /**
  * Consumer unificado. Escucha todas las queues y delega al service
  * que usa Factory + Template Method para procesar.
@@ -24,16 +19,20 @@ import java.util.UUID;
 public class NotificationConsumer {
 
     private static final Logger log = LoggerFactory.getLogger(NotificationConsumer.class);
+
     private final NotificationProcessorService processorService;
     private final NotificationStatusRepositoryPort statusRepository;
     private final ObjectMapper objectMapper;
+    private final FallbackPushMapper fallbackPushMapper;
 
     public NotificationConsumer(NotificationProcessorService processorService,
                                 NotificationStatusRepositoryPort statusRepository,
-                                ObjectMapper objectMapper) {
+                                ObjectMapper objectMapper,
+                                FallbackPushMapper fallbackPushMapper) {
         this.processorService = processorService;
         this.statusRepository = statusRepository;
         this.objectMapper = objectMapper;
+        this.fallbackPushMapper = fallbackPushMapper;
     }
 
     @RabbitListener(queues = "${findu.notification.queue.push}")
@@ -58,44 +57,22 @@ public class NotificationConsumer {
 
     /**
      * Listener de la cola Fallback (RabbitMQ).
-     * Disparado por findu-notification-dispatcher cuando un usuario está OFFLINE y recibe un evento.
-     * Convierte el evento (p.ej. CHAT_MESSAGE de soporte) en una notificación PUSH (FCM) con el ticket y mensaje.
+     * Disparado por findu-notification-dispatcher cuando un usuario esta OFFLINE y recibe un evento.
+     * {@link FallbackPushMapper} decide si el evento (chat de soporte, SERVICE_UPDATE de la lista blanca,
+     * OFFER_RECEIVED, SYSTEM_ALERT con flag) se convierte en un PUSH (FCM). Un mensaje ilegible o no
+     * soportado se descarta sin relanzar para que no se reencole en bucle.
      */
     @RabbitListener(queues = "${findu.rabbitmq.queues.fallback:findu.notifications.fallback.queue}")
     public void handleFallback(String rawJson) {
-        log.info("Evento offline recibido desde cola fallback: {}", rawJson);
+        log.info("Evento offline recibido desde cola fallback (length={})", rawJson == null ? 0 : rawJson.length());
         try {
             JsonNode root = objectMapper.readTree(rawJson);
-            String eventType = root.path("eventType").asText("");
-            String targetUserId = root.path("targetUserId").asText("");
-            JsonNode payload = root.path("payload");
-
-            if ("CHAT_MESSAGE".equalsIgnoreCase(eventType) || payload.has("content")) {
-                String ticketCode = payload.path("ticketCode").asText("N/A");
-                String content = payload.path("content").asText("");
-                String senderName = payload.path("senderName").asText("Soporte FindU");
-
-                Map<String, String> params = new HashMap<>();
-                params.put("type", "TICKET_CHAT");
-                params.put("ticketCode", ticketCode);
-                params.put("mensaje", content);
-                params.put("senderName", senderName);
-
-                NotificationMessage pushMsg = NotificationMessage.builder()
-                        .notificationId(UUID.randomUUID().toString())
-                        .type("PUSH")
-                        .recipient(targetUserId)
-                        .templateCode("TICKET_MESSAGE_RECEIVED")
-                        .language("es")
-                        .params(params)
-                        .requiresConnection(false)
-                        .createdAt(Instant.now().toString())
-                        .build();
-
-                log.info("Despachando Push FCM de fallback para usuario offline {}. Ticket: {}, Mensaje: {}",
-                        targetUserId, ticketCode, content);
+            fallbackPushMapper.map(root).ifPresent(pushMsg -> {
+                log.info("Despachando Push FCM de fallback para usuario offline {}. templateCode={} type={}",
+                        pushMsg.getRecipient(), pushMsg.getTemplateCode(),
+                        pushMsg.getParams() == null ? null : pushMsg.getParams().get("type"));
                 process(pushMsg, "PUSH");
-            }
+            });
         } catch (Exception e) {
             log.error("Error al procesar mensaje fallback offline: {}", e.getMessage(), e);
         }
@@ -115,7 +92,6 @@ public class NotificationConsumer {
                 statusRepository.saveFailure(message, "SEND_FAILURE", errorMsg, retries);
                 throw new RuntimeException("Failed to process notification: " + errorMsg);
             }
-            
             statusRepository.saveSuccess(message.getNotificationId());
         } catch (Exception e) {
             if (!(e instanceof RuntimeException && e.getMessage().startsWith("Failed to process notification"))) {

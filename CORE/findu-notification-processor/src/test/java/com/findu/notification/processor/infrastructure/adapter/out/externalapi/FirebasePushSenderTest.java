@@ -120,6 +120,69 @@ class FirebasePushSenderTest {
         verifyNoInteractions(deviceTokenRepository);
     }
 
+    @Test
+    @DisplayName("(f) evento OFFER_RECEIVED -> data con lista blanca, sin claves ajenas, prioridad HIGH y ttl 10 min")
+    void send_eventPush_whitelistedDataHighPriority() throws Exception {
+        FirebasePushSender sender = new FirebasePushSender(messaging, deviceTokenRepository);
+        when(deviceTokenRepository.findTokensByCanonicalRecipient(RECIPIENT))
+                .thenReturn(List.of("tok-aaaaaaaaaaaa-1111"));
+        Map<String, String> meta = new HashMap<>();
+        meta.put("type", "OFFER_RECEIVED");
+        meta.put("tipoEvento", "NUEVA_OFERTA");
+        meta.put("solicitudId", "77");
+        meta.put("ofertaId", "5");
+        meta.put("servicioNombre", "Plomeria");
+        meta.put("eventId", "evt-1");
+        meta.put("pushTitle", "no debe viajar");
+        meta.put("pushBody", "no debe viajar");
+        meta.put("clienteTelefono", "3000000000");
+        meta.put("vacio", " ");
+
+        NotificationResult result = sender.send(RECIPIENT, "Recibiste una nueva oferta", "Revisa", meta);
+
+        assertThat(result.isSuccess()).isTrue();
+        ArgumentCaptor<Message> captor = ArgumentCaptor.forClass(Message.class);
+        verify(messaging).send(captor.capture());
+        Map<String, String> data = dataOf(captor.getValue());
+        assertThat(data).containsEntry("type", "OFFER_RECEIVED")
+                .containsEntry("tipoEvento", "NUEVA_OFERTA")
+                .containsEntry("solicitudId", "77")
+                .containsEntry("ofertaId", "5")
+                .containsEntry("servicioNombre", "Plomeria")
+                .containsEntry("eventId", "evt-1");
+        assertThat(data.keySet()).allMatch(k -> List.of("type", "ticketCode", "senderName", "mensaje",
+                "tipoEvento", "solicitudId", "ofertaId", "servicioNombre", "eventId").contains(k));
+
+        var androidField = Message.class.getDeclaredField("androidConfig");
+        androidField.setAccessible(true);
+        Object android = androidField.get(captor.getValue());
+        assertThat(android).isNotNull();
+        var priority = android.getClass().getDeclaredField("priority");
+        priority.setAccessible(true);
+        assertThat(String.valueOf(priority.get(android))).isEqualToIgnoringCase("high");
+        var ttl = android.getClass().getDeclaredField("ttl");
+        ttl.setAccessible(true);
+        assertThat(String.valueOf(ttl.get(android))).isEqualTo("600s");
+    }
+
+    @Test
+    @DisplayName("(g) chat sin type explicito conserva default TICKET_CHAT y sin claves de evento")
+    void send_chatDefault_keepsTicketChatAndNoEventKeys() throws Exception {
+        FirebasePushSender sender = new FirebasePushSender(messaging, deviceTokenRepository);
+        when(deviceTokenRepository.findTokensByCanonicalRecipient(RECIPIENT))
+                .thenReturn(List.of("tok-aaaaaaaaaaaa-1111"));
+        Map<String, String> meta = new HashMap<>();
+        meta.put("ticketCode", "HT-1");
+
+        sender.send(RECIPIENT, "t", "b", meta);
+
+        ArgumentCaptor<Message> captor = ArgumentCaptor.forClass(Message.class);
+        verify(messaging).send(captor.capture());
+        Map<String, String> data = dataOf(captor.getValue());
+        assertThat(data).containsEntry("type", "TICKET_CHAT").containsEntry("ticketCode", "HT-1");
+        assertThat(data).doesNotContainKeys("tipoEvento", "solicitudId", "ofertaId", "servicioNombre", "eventId");
+    }
+
     @SuppressWarnings("unchecked")
     private Map<String, String> dataOf(Message message) throws Exception {
         var field = Message.class.getDeclaredField("data");
