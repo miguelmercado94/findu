@@ -54,6 +54,9 @@ findu:
       # Mismo valor que JWT_SECRET de findu-spring-security (Base64 o UTF-8)
       jwt-secret: ${JWT_SECRET:}
       internal-service-key: ${FINDU_INTERNAL_SERVICE_KEY:findu-internal-saga-secret-key-2026}
+  dev-seed:
+    # Siembra de vinculos Mis clientes (POST /internal/dev/mis-clientes/vinculo). SOLO desarrollo.
+    enabled: ${FINDU_DEV_SEED_ENABLED:false}
   storage:
     # Tamano maximo de la foto de perfil (bytes); multipart permite 6MB para que el 413 lo emita el use case
     foto-perfil-max-bytes: ${FINDU_STORAGE_FOTO_PERFIL_MAX_BYTES:5242880}

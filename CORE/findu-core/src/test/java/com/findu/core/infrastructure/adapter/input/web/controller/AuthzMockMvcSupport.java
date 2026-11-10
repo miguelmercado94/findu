@@ -41,6 +41,12 @@ final class AuthzMockMvcSupport {
         return props;
     }
 
+    static AuthzProperties propsFor(AuthzMode mode) {
+        AuthzProperties props = enforceProps();
+        props.setMode(mode);
+        return props;
+    }
+
     static ProviderOwnershipGuard guard(AuthzProperties props) {
         PerfilProveedorRepository repo = mock(PerfilProveedorRepository.class);
         PerfilProveedorEntity perfil = new PerfilProveedorEntity();

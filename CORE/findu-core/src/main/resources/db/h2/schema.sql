@@ -326,3 +326,31 @@ CREATE TABLE amonestacion_proveedor (
     FOREIGN KEY (solicitud_servicio_id) REFERENCES solicitud_servicio(id),
     FOREIGN KEY (cancelacion_id) REFERENCES cancelacion_proveedor(id)
 );
+
+-- Mis clientes: vinculo cliente -> proveedor favorito y marca privada del proveedor.
+CREATE TABLE cliente_proveedor_favorito (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    perfil_cliente_id BIGINT NOT NULL,
+    perfil_proveedor_id BIGINT NOT NULL,
+    cliente_ref UUID NOT NULL UNIQUE,
+    activo BOOLEAN NOT NULL DEFAULT TRUE,
+    favorito_desde TIMESTAMP,
+    removido_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_cliente_proveedor_favorito UNIQUE (perfil_cliente_id, perfil_proveedor_id),
+    FOREIGN KEY (perfil_cliente_id) REFERENCES perfil_cliente(id),
+    FOREIGN KEY (perfil_proveedor_id) REFERENCES perfil_proveedor(id)
+);
+CREATE INDEX idx_cpf_proveedor_activo ON cliente_proveedor_favorito (perfil_proveedor_id, activo);
+
+CREATE TABLE proveedor_cliente_clasificacion (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    perfil_proveedor_id BIGINT NOT NULL,
+    perfil_cliente_id BIGINT NOT NULL,
+    favorito_interno BOOLEAN NOT NULL DEFAULT FALSE,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_proveedor_cliente_clasificacion UNIQUE (perfil_proveedor_id, perfil_cliente_id),
+    FOREIGN KEY (perfil_proveedor_id) REFERENCES perfil_proveedor(id),
+    FOREIGN KEY (perfil_cliente_id) REFERENCES perfil_cliente(id)
+);
