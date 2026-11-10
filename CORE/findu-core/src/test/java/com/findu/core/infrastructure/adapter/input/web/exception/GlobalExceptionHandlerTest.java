@@ -31,6 +31,17 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void responseStatusExceptionConservaSu401Y403() {
+        ResponseEntity<ErrorResponse> r401 = handler.handleResponseStatus(
+                new org.springframework.web.server.ResponseStatusException(HttpStatus.UNAUTHORIZED, "Autenticacion requerida"), request);
+        assertThat(r401.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(r401.getBody().message()).isEqualTo("Autenticacion requerida");
+        assertThat(handler.handleResponseStatus(
+                new org.springframework.web.server.ResponseStatusException(HttpStatus.FORBIDDEN), request).getStatusCode())
+                .isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
     void multipartExcedidoEs413() {
         assertThat(handler.handleMaxUpload(new MaxUploadSizeExceededException(1L), request).getStatusCode())
                 .isEqualTo(HttpStatus.PAYLOAD_TOO_LARGE);

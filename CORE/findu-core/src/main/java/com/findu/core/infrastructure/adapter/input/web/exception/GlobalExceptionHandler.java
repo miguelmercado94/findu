@@ -13,6 +13,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -37,6 +38,17 @@ public class GlobalExceptionHandler {
                 request.getRequestURI()
         );
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
+    }
+
+    // ─── Status explicito (401/403 del guard de autorizacion, 403 de /internal, etc.) ───
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ErrorResponse> handleResponseStatus(ResponseStatusException ex, HttpServletRequest request) {
+        HttpStatus status = HttpStatus.resolve(ex.getStatusCode().value());
+        String reason = status != null ? status.getReasonPhrase() : ex.getStatusCode().toString();
+        String message = ex.getReason() != null ? ex.getReason() : reason;
+        ErrorResponse body = ErrorResponse.of(ex.getStatusCode().value(), reason, message, request.getRequestURI());
+        return ResponseEntity.status(ex.getStatusCode()).body(body);
     }
 
     // ─── 422 Unprocessable Entity ─────────────────────────────────────────────

@@ -332,6 +332,10 @@ services:
       FINDU_CACHE_ENABLED: "false"
       FINDU_NOTIFICATION_ENABLED: "true"
       FINDU_NOTIFICATION_LAMBDA_URL: http://notification-dispatcher:9000
+      # --- Autorizacion por propietario (D9): OFF | LOG | ENFORCE ---
+      FINDU_AUTHZ_MODE: ${FINDU_AUTHZ_MODE:-LOG}
+      JWT_SECRET: ZmluZHUtZGVmYXVsdC1zZWNyZXQta2V5LWF0LWxlYXN0LTI1Ni1iaXRzLWZvci1oczI1Ng==
+      FINDU_INTERNAL_SERVICE_KEY: ${FINDU_INTERNAL_SERVICE_KEY:-findu-internal-saga-secret-key-2026}
       # --- S3 (LocalStack) ---
       FINDU_AWS_S3_ENDPOINT: http://localstack:4566
       FINDU_AWS_S3_BUCKET: findu-media-assets-local

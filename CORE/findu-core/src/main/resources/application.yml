@@ -45,6 +45,15 @@ logging:
     com.findu.core: ${LOG_LEVEL_FINDU_CORE:INFO}
 
 findu:
+  security:
+    authz:
+      # OFF (default) | LOG (solo registra AUTHZ_VIOLATION) | ENFORCE (401/403)
+      mode: ${FINDU_AUTHZ_MODE:OFF}
+      # Ambitos bloqueados en ENFORCE (p.ej. archivos,perfil); vacio = todos los instrumentados
+      enforce-scopes: ${FINDU_AUTHZ_ENFORCE_SCOPES:}
+      # Mismo valor que JWT_SECRET de findu-spring-security (Base64 o UTF-8)
+      jwt-secret: ${JWT_SECRET:}
+      internal-service-key: ${FINDU_INTERNAL_SERVICE_KEY:findu-internal-saga-secret-key-2026}
   storage:
     # Tamano maximo de la foto de perfil (bytes); multipart permite 6MB para que el 413 lo emita el use case
     foto-perfil-max-bytes: ${FINDU_STORAGE_FOTO_PERFIL_MAX_BYTES:5242880}
