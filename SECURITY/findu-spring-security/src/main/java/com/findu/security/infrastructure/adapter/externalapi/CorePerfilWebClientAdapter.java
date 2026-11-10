@@ -48,6 +48,7 @@ public class CorePerfilWebClientAdapter implements CorePerfilPort {
     public Mono<PerfilProveedor> fetchByAuthUserId(Long authUserId) {
         return webClient.get()
                 .uri(perfilPath + "/auth/{authUserId}", authUserId)
+                .header(HEADER_INTERNAL_KEY, internalServiceKey)
                 .retrieve()
                 .onStatus(HttpStatusCode::is4xxClientError, resp -> Mono.empty())
                 .bodyToMono(CorePerfilResponse.class)
@@ -65,6 +66,7 @@ public class CorePerfilWebClientAdapter implements CorePerfilPort {
         body.put("urlImagenPerfil", urlImagenPerfil);
         return webClient.put()
                 .uri(perfilPath + "/{id}", perfilId)
+                .header(HEADER_INTERNAL_KEY, internalServiceKey)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(body)
                 .retrieve()

@@ -77,6 +77,8 @@ eureka:
       defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://localhost:8761/eureka/}
 
 findu:
+  internal:
+    service-key: ${FINDU_INTERNAL_SERVICE_KEY:findu-internal-saga-secret-key-2026}
   auth:
     recovery-code-expiry-minutes: ${FINDU_AUTH_RECOVERY_CODE_EXPIRY_MINUTES:3}
     auto-verify-email: ${FINDU_AUTH_AUTO_VERIFY_EMAIL:false}
