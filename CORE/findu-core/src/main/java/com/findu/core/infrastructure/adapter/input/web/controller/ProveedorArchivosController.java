@@ -3,6 +3,7 @@ package com.findu.core.infrastructure.adapter.input.web.controller;
 import com.findu.core.application.port.in.GestionArchivosProveedorUseCase;
 import com.findu.core.application.port.in.GestionArchivosProveedorUseCase.FotoPerfil;
 import com.findu.core.application.util.Base64Images;
+import com.findu.core.infrastructure.security.ProviderOwnershipGuard;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -27,7 +28,10 @@ import java.util.concurrent.TimeUnit;
 @Tag(name = "Perfil Proveedor", description = "Foto de perfil del proveedor")
 public class ProveedorArchivosController {
 
+    private static final String SCOPE = "archivos";
+
     private final GestionArchivosProveedorUseCase archivosUseCase;
+    private final ProviderOwnershipGuard ownershipGuard;
 
     public record FotoPerfilJsonRequest(String imagenBase64) {
     }
@@ -49,6 +53,7 @@ public class ProveedorArchivosController {
     @Operation(summary = "Cambiar foto de perfil (JSON base64)")
     public ResponseEntity<FotoPerfilResponse> cambiarJson(@PathVariable Long id,
                                                           @RequestBody FotoPerfilJsonRequest request) {
+        ownershipGuard.requirePerfil(SCOPE, id);
         byte[] bytes = Base64Images.decode(request != null ? request.imagenBase64() : null);
         return ResponseEntity.ok(new FotoPerfilResponse(archivosUseCase.cambiarFotoPerfil(id, bytes)));
     }
@@ -57,6 +62,7 @@ public class ProveedorArchivosController {
     @Operation(summary = "Cambiar foto de perfil (multipart, parte 'file')")
     public ResponseEntity<FotoPerfilResponse> cambiarMultipart(@PathVariable Long id,
                                                                @RequestPart("file") MultipartFile file) throws IOException {
+        ownershipGuard.requirePerfil(SCOPE, id);
         return ResponseEntity.ok(new FotoPerfilResponse(archivosUseCase.cambiarFotoPerfil(id, file.getBytes())));
     }
 }

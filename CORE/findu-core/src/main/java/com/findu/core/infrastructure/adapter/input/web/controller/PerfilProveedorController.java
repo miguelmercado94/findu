@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import com.findu.core.infrastructure.security.ProviderOwnershipGuard;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -29,7 +30,10 @@ import java.util.Map;
 @Tag(name = "Perfil Proveedor", description = "Gestión del perfil de proveedores")
 public class PerfilProveedorController {
 
+    private static final String SCOPE = "perfil";
+
     private final GestionPerfilProveedorUseCase proveedorUseCase;
+    private final ProviderOwnershipGuard ownershipGuard;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -58,6 +62,7 @@ public class PerfilProveedorController {
     public ResponseEntity<PerfilProveedorDetalleResponse> consultarPerfil(
             @Parameter(description = "ID del perfil de proveedor", required = true, example = "1")
             @PathVariable Long id) {
+        ownershipGuard.requirePerfil(SCOPE, id);
         return ResponseEntity.ok(proveedorUseCase.consultarPerfil(id));
     }
 
@@ -66,6 +71,7 @@ public class PerfilProveedorController {
     public ResponseEntity<PerfilProveedorDetalleResponse> consultarPerfilPorAuthUserId(
             @Parameter(description = "ID del usuario de autenticación", required = true, example = "4")
             @PathVariable Long authUserId) {
+        ownershipGuard.requireAuthUser(SCOPE, authUserId);
         return ResponseEntity.ok(proveedorUseCase.consultarPerfilPorAuthUserId(authUserId));
     }
 
@@ -74,6 +80,7 @@ public class PerfilProveedorController {
     public ResponseEntity<PerfilProveedorDetalleResponse> consultarPerfilPorAuthUserIdAlias(
             @Parameter(description = "ID del usuario de autenticación", required = true, example = "4")
             @PathVariable Long authUserId) {
+        ownershipGuard.requireAuthUser(SCOPE, authUserId);
         return ResponseEntity.ok(proveedorUseCase.consultarPerfilPorAuthUserId(authUserId));
     }
 
@@ -90,6 +97,7 @@ public class PerfilProveedorController {
             @Parameter(description = "ID del perfil de proveedor", required = true, example = "1")
             @PathVariable Long id,
             @RequestBody ActualizarPerfilProveedorRequest request) {
+        ownershipGuard.requirePerfil(SCOPE, id);
         return ResponseEntity.ok(proveedorUseCase.actualizarPerfil(id, request));
     }
 
@@ -105,6 +113,7 @@ public class PerfilProveedorController {
             @Parameter(description = "ID del perfil de proveedor", required = true, example = "1")
             @PathVariable Long id,
             @RequestBody Map<String, String> body) {
+        ownershipGuard.requirePerfil(SCOPE, id);
         proveedorUseCase.cambiarEstado(id, body.get("estado"));
         return ResponseEntity.noContent().build();
     }
@@ -120,6 +129,7 @@ public class PerfilProveedorController {
     public ResponseEntity<List<MunicipioResponse>> consultarCobertura(
             @Parameter(description = "ID del perfil de proveedor", required = true, example = "1")
             @PathVariable Long id) {
+        ownershipGuard.requirePerfil(SCOPE, id);
         return ResponseEntity.ok(proveedorUseCase.consultarCobertura(id));
     }
 
@@ -135,6 +145,7 @@ public class PerfilProveedorController {
             @Parameter(description = "ID del perfil de proveedor", required = true, example = "1")
             @PathVariable Long id,
             @RequestBody List<String> codigosDane) {
+        ownershipGuard.requirePerfil(SCOPE, id);
         proveedorUseCase.actualizarCobertura(id, codigosDane);
         return ResponseEntity.noContent().build();
     }
@@ -145,6 +156,7 @@ public class PerfilProveedorController {
             @Parameter(description = "ID del perfil de proveedor", required = true, example = "1")
             @PathVariable Long id,
             @RequestBody Map<String, Boolean> body) {
+        ownershipGuard.requirePerfil(SCOPE, id);
         boolean disponible = body.getOrDefault("disponible", true);
         return ResponseEntity.ok(proveedorUseCase.actualizarDisponibilidad(id, disponible));
     }
