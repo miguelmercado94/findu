@@ -141,4 +141,32 @@ class InternalPerfilControllerTest {
         assertThat(res.getBody().fotoPerfilActualizada()).isTrue();
         verify(archivosUseCase).registrarBiometria(5L, new GestionArchivosProveedorUseCase.BiometriaCommand("r", "f", "v", 0.9));
     }
+
+    @Test
+    void perfilPorAuthUserId_existenteDevuelvePerfilYAuth() {
+        when(proveedorRepository.findByAuthUserId(10L))
+                .thenReturn(Optional.of(PerfilProveedorEntity.builder().id(42L).authUserId(10L).build()));
+        ResponseEntity<com.findu.core.application.dto.response.internal.InternalPerfilAuthResponse> res =
+                controller.perfilPorAuthUserId(SERVICE_KEY, 10L);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(res.getBody().perfilId()).isEqualTo(42L);
+        assertThat(res.getBody().authUserId()).isEqualTo(10L);
+    }
+
+    @Test
+    void perfilPorAuthUserId_inexistenteEs404() {
+        when(proveedorRepository.findByAuthUserId(11L)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> controller.perfilPorAuthUserId(SERVICE_KEY, 11L))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
+    }
+
+    @Test
+    void perfilPorAuthUserId_llaveInvalidaEs403SinConsultar() {
+        assertThatThrownBy(() -> controller.perfilPorAuthUserId("mala", 10L))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN));
+        assertThatThrownBy(() -> controller.perfilPorAuthUserId(null, 10L)).isInstanceOf(ResponseStatusException.class);
+        verifyNoInteractions(proveedorRepository);
+    }
 }

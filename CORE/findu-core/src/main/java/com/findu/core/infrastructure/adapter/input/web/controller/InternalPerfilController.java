@@ -6,6 +6,7 @@ import com.findu.core.application.port.in.GestionArchivosProveedorUseCase;
 import com.findu.core.application.dto.request.internal.InternalCoberturaRequest;
 import com.findu.core.application.dto.request.internal.InternalCrearPerfilRequest;
 import com.findu.core.application.dto.request.internal.InternalEspecialidadItem;
+import com.findu.core.application.dto.response.internal.InternalPerfilAuthResponse;
 import com.findu.core.application.dto.response.internal.InternalPerfilResponse;
 import com.findu.core.infrastructure.adapter.out.persistence.entity.DireccionEntity;
 import com.findu.core.infrastructure.adapter.out.persistence.entity.PerfilClienteEntity;
@@ -27,6 +28,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -71,6 +73,18 @@ public class InternalPerfilController {
             log.warn("Access to /internal/perfiles rejected due to invalid service key");
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Acceso interno no autorizado");
         }
+    }
+
+    /** Resuelve el perfil de proveedor de una cuenta de auth; 404 si no existe. */
+    @GetMapping("/by-auth/{authUserId}")
+    @Transactional(readOnly = true)
+    public ResponseEntity<InternalPerfilAuthResponse> perfilPorAuthUserId(
+            @RequestHeader(name = HEADER_INTERNAL_KEY, required = false) String serviceKey,
+            @PathVariable Long authUserId) {
+        validateInternalAccess(serviceKey);
+        return proveedorRepository.findByAuthUserId(authUserId)
+                .map(p -> ResponseEntity.ok(new InternalPerfilAuthResponse(p.getId(), p.getAuthUserId())))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Perfil no encontrado"));
     }
 
     @PostMapping
