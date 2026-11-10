@@ -36,7 +36,11 @@ findu:
     secret: ${JWT_SECRET:secret-key-at-least-32-bytes-long-for-findu-security-environment!}
   websocket:
     endpoint: /ws/events
+    # Heartbeat: el servidor envia un PING cada ping-interval-seconds; la app responde pong/PONG.
+    # Si pasan max-missed-pongs ticks seguidos sin ningun frame entrante (cliente zombi, p.ej. cambio de red
+    # sin FIN) se cierra la sesion (GOING_AWAY) y se desregistra de local y Redis: 30 s * 3 = 90 s.
     ping-interval-seconds: 30
+    max-missed-pongs: ${FINDU_WS_MAX_MISSED_PONGS:3}
   rabbitmq:
     exchanges:
       events: findu.events.exchange

@@ -67,7 +67,13 @@ public class EventDispatcherService {
         if (sessionRegistry.hasLocalSession(targetUserId)) {
             log.info("Usuario {} en socket local. Despachando por WebSocket.", targetUserId);
             return serializeEnvelope(envelope)
-                    .flatMap(json -> sessionRegistry.sendToUserLocally(targetUserId, json));
+                    .flatMap(json -> sessionRegistry.sendToUserLocally(targetUserId, json))
+                    // Un envío fallido al socket local no debe perder el evento: cae a FCM.
+                    .onErrorResume(err -> {
+                        log.warn("Fallo al enviar a socket local de {} ({}). Enrutando a cola Fallback (FCM Push).",
+                                targetUserId, err.getMessage());
+                        return eventFallbackPort.sendToFallbackQueue(envelope);
+                    });
         }
 
         // 2. ¿Usuario conectado en OTRO nodo del clúster?

@@ -46,7 +46,8 @@ public class LocalSessionRegistryAdapter implements SessionRegistryPort {
     @Override
     public boolean hasLocalSession(String userId) {
         Set<WebSocketSession> sessions = localSessions.get(userId);
-        return sessions != null && !sessions.isEmpty();
+        // Solo cuentan sesiones abiertas: una cerrada/zombi aun no desregistrada no debe frenar el fallback FCM.
+        return sessions != null && sessions.stream().anyMatch(WebSocketSession::isOpen);
     }
 
     @Override
