@@ -1,180 +1,128 @@
 package com.findu.transaction.application.service;
 
+import com.findu.transaction.application.port.in.ExecuteAllSettlementsUseCase;
+import com.findu.transaction.application.port.in.ExecuteSettlementUseCase;
 import com.findu.transaction.application.port.in.command.CreateSettlementCommand;
-import com.findu.transaction.application.port.out.event.EventPublisherPort;
-import com.findu.transaction.application.port.out.event.TransactionEventPublisher;
-import com.findu.transaction.application.port.out.persistence.DailyBalanceRepository;
-import com.findu.transaction.application.port.out.persistence.ProviderAccountRepository;
-import com.findu.transaction.application.port.out.persistence.ProviderSettlementProfileRepository;
+import com.findu.transaction.application.port.in.dto.SettlementBatchResult;
+import com.findu.transaction.application.port.in.dto.SettlementRunResult;
+import com.findu.transaction.application.port.in.dto.SettlementRunResult.Outcome;
 import com.findu.transaction.application.port.out.persistence.SettlementRepository;
 import com.findu.transaction.domain.enums.ProviderType;
 import com.findu.transaction.domain.enums.SettlementStatus;
-import com.findu.transaction.domain.enums.SettlementType;
-import com.findu.transaction.domain.model.account.ProviderAccount;
-import com.findu.transaction.domain.model.balance.DailyBalance;
-import com.findu.transaction.domain.model.settlement.ProviderSettlementProfile;
 import com.findu.transaction.domain.model.settlement.Settlement;
 import com.findu.transaction.domain.valueobject.Money;
+import com.findu.transaction.infrastructure.adapter.input.web.dto.response.SettlementExecutionResultResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.junit.jupiter.MockitoSettings;
-import org.mockito.quality.Strictness;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
-import java.util.Collections;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
+/** ManageSettlementService ahora solo delega; la logica se prueba en SettlementExecutionServiceTest. */
 @ExtendWith(MockitoExtension.class)
-@MockitoSettings(strictness = Strictness.LENIENT)
 class ManageSettlementServiceTest {
 
     @Mock private SettlementRepository settlementRepository;
-    @Mock private ProviderSettlementProfileRepository profileRepository;
-    @Mock private DailyBalanceRepository dailyBalanceRepository;
-    @Mock private ProviderAccountRepository providerAccountRepository;
-    @Mock private EventPublisherPort eventPublisher;
-    @Mock private TransactionEventPublisher transactionEventPublisher;
+    @Mock private ExecuteSettlementUseCase executeSettlementUseCase;
+    @Mock private ExecuteAllSettlementsUseCase executeAllSettlementsUseCase;
 
-    @InjectMocks
     private ManageSettlementService service;
-
-    private final Long providerId = 100L;
-    private final LocalDate targetDate = LocalDate.of(2026, 9, 30);
+    private final Long providerId = 1L;
 
     @BeforeEach
     void setUp() {
-        ProviderAccount account = ProviderAccount.create(providerId, ProviderType.PERSONA_NATURAL);
-        when(providerAccountRepository.findByProviderId(providerId)).thenReturn(Optional.of(account));
+        Clock clock = Clock.fixed(Instant.parse("2026-11-10T15:23:00Z"), ZoneId.of("America/Bogota"));
+        service = new ManageSettlementService(settlementRepository, executeSettlementUseCase, executeAllSettlementsUseCase, clock);
+    }
 
-        ProviderSettlementProfile profile = ProviderSettlementProfile.createDefault(providerId, ProviderType.PERSONA_NATURAL);
-        when(profileRepository.findByProviderId(providerId)).thenReturn(Optional.of(profile));
-        when(profileRepository.save(any(ProviderSettlementProfile.class))).thenAnswer(inv -> inv.getArgument(0));
-
-        when(settlementRepository.save(any(Settlement.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(settlementRepository.findSettledDailyBalanceIdsByProviderId(providerId)).thenReturn(Collections.emptyList());
+    private SettlementRunResult settled() {
+        return SettlementRunResult.builder().providerId(providerId).outcome(Outcome.SETTLED)
+                .settlementId("S-1").settlementCode("SET-1-20261108")
+                .grossAmount(new BigDecimal("186300")).debtCompensationAmount(new BigDecimal("1300"))
+                .netAmount(new BigDecimal("185000")).transferred(true).reference("MOCK-TRANSFER-x").build();
     }
 
     @Test
-    @DisplayName("Crear settlement diario para Persona Natural con saldo positivo a favor")
-    void execute_DailySettlement_PersonaNatural_PositiveBalance() {
-        DailyBalance balance = DailyBalance.create(
-                providerId,
-                targetDate,
-                Money.ZERO,
-                Money.of(new BigDecimal("180000.00")),
-                Money.of(new BigDecimal("20000.00")),
-                Money.of(new BigDecimal("10000.00")),
-                Money.of(new BigDecimal("15000.00")),
-                Money.of(new BigDecimal("120000.00")),
-                Money.of(new BigDecimal("80000.00")),
-                Money.of(new BigDecimal("12000.00")),
-                Money.of(new BigDecimal("97000.00")),
-                Money.of(new BigDecimal("85000.00"))
-        );
+    @DisplayName("execute delega con el corte derivado de targetDate (domingo anterior) y devuelve la liquidacion")
+    void executeDelegates() {
+        Settlement stored = Settlement.create(providerId, ProviderType.PERSONA_NATURAL,
+                Money.of(186300), Money.of(1300), null, null);
+        when(executeSettlementUseCase.executeForProvider(providerId, LocalDate.of(2026, 11, 8))).thenReturn(settled());
+        when(settlementRepository.findById("S-1")).thenReturn(Optional.of(stored));
 
-        when(dailyBalanceRepository.findByProviderIdAndBalanceDateBetween(eq(providerId), any(), any()))
-                .thenReturn(List.of(balance));
+        Settlement result = service.execute(CreateSettlementCommand.builder()
+                .providerId(providerId).targetDate(LocalDate.of(2026, 11, 10)).build());
 
-        CreateSettlementCommand cmd = CreateSettlementCommand.builder()
-                .providerId(providerId)
-                .targetDate(targetDate)
-                .build();
-
-        Settlement settlement = service.execute(cmd);
-
-        assertThat(settlement).isNotNull();
-        assertThat(settlement.getProviderId()).isEqualTo(providerId);
-        assertThat(settlement.getSettlementType()).isEqualTo(SettlementType.DAILY);
-        assertThat(settlement.getGrossAmount()).isEqualTo(Money.of(new BigDecimal("97000.00")));
-        assertThat(settlement.getDebtCompensationAmount()).isEqualTo(Money.of(new BigDecimal("12000.00")));
-        assertThat(settlement.getNetAmount()).isEqualTo(Money.of(new BigDecimal("85000.00")));
-        assertThat(settlement.getStatus()).isEqualTo(SettlementStatus.CREATED);
-
-        verify(eventPublisher, times(1)).publish(any());
+        assertThat(result).isSameAs(stored);
     }
 
     @Test
-    @DisplayName("Crear settlement semanal para Corporativo consolidando múltiples DailyBalances")
-    void execute_WeeklySettlement_Corporativo() {
-        Long corpProviderId = 200L;
-        ProviderAccount corpAccount = ProviderAccount.create(corpProviderId, ProviderType.CORPORATIVO);
-        when(providerAccountRepository.findByProviderId(corpProviderId)).thenReturn(Optional.of(corpAccount));
+    @DisplayName("Nada que liquidar sin liquidaciones previas => SKIPPED en memoria, sin persistir")
+    void nothingToSettleReturnsSkipped() {
+        when(executeSettlementUseCase.executeForProvider(providerId, null)).thenReturn(
+                SettlementRunResult.builder().providerId(providerId).outcome(Outcome.NOTHING_TO_SETTLE).build());
+        when(settlementRepository.findLatestCompletedByProviderId(providerId)).thenReturn(Optional.empty());
 
-        ProviderSettlementProfile corpProfile = ProviderSettlementProfile.createDefault(corpProviderId, ProviderType.CORPORATIVO);
-        when(profileRepository.findByProviderId(corpProviderId)).thenReturn(Optional.of(corpProfile));
-        when(settlementRepository.findSettledDailyBalanceIdsByProviderId(corpProviderId)).thenReturn(Collections.emptyList());
-
-        DailyBalance day1 = DailyBalance.create(corpProviderId, LocalDate.of(2026, 9, 28), Money.ZERO, Money.ZERO, Money.ZERO, Money.ZERO, Money.ZERO, Money.ZERO, Money.ZERO, Money.ZERO, Money.of(new BigDecimal("100000.00")), Money.of(new BigDecimal("100000.00")));
-        DailyBalance day2 = DailyBalance.create(corpProviderId, LocalDate.of(2026, 9, 29), Money.ZERO, Money.ZERO, Money.ZERO, Money.ZERO, Money.ZERO, Money.ZERO, Money.ZERO, Money.ZERO, Money.of(new BigDecimal("150000.00")), Money.of(new BigDecimal("150000.00")));
-
-        when(dailyBalanceRepository.findByProviderIdAndBalanceDateBetween(eq(corpProviderId), any(), any()))
-                .thenReturn(List.of(day1, day2));
-
-        CreateSettlementCommand cmd = CreateSettlementCommand.builder()
-                .providerId(corpProviderId)
-                .targetDate(targetDate)
-                .build();
-
-        Settlement settlement = service.execute(cmd);
-
-        assertThat(settlement).isNotNull();
-        assertThat(settlement.getSettlementType()).isEqualTo(SettlementType.WEEKLY);
-        assertThat(settlement.getGrossAmount()).isEqualTo(Money.of(new BigDecimal("250000.00")));
-        assertThat(settlement.getNetAmount()).isEqualTo(Money.of(new BigDecimal("250000.00")));
-        assertThat(settlement.getDailyBalanceIds()).hasSize(2);
-    }
-
-    @Test
-    @DisplayName("Idempotencia: Re-ejecutar settlement para el mismo período retorna la liquidación existente")
-    void execute_Idempotency_ShouldReturnExistingSettlement() {
-        Settlement existing = Settlement.create(
-                providerId,
-                ProviderType.PERSONA_NATURAL,
-                Money.of(new BigDecimal("50000.00")),
-                Money.ZERO,
-                null,
-                null
-        );
-
-        when(settlementRepository.findByProviderIdAndPeriodStartAndPeriodEndAndSettlementType(eq(providerId), any(), any(), any()))
-                .thenReturn(Optional.of(existing));
-
-        CreateSettlementCommand cmd = CreateSettlementCommand.builder()
-                .providerId(providerId)
-                .targetDate(targetDate)
-                .build();
-
-        Settlement result = service.execute(cmd);
-
-        assertThat(result.getId()).isEqualTo(existing.getId());
-        verify(settlementRepository, never()).save(any());
-    }
-
-    @Test
-    @DisplayName("Proveedor sin DailyBalances elegibles produce Settlement SKIPPED")
-    void execute_NoEligibleBalances_ShouldReturnSkipped() {
-        when(dailyBalanceRepository.findByProviderIdAndBalanceDateBetween(eq(providerId), any(), any()))
-                .thenReturn(Collections.emptyList());
-
-        CreateSettlementCommand cmd = CreateSettlementCommand.builder()
-                .providerId(providerId)
-                .targetDate(targetDate)
-                .build();
-
-        Settlement result = service.execute(cmd);
+        Settlement result = service.execute(CreateSettlementCommand.builder().providerId(providerId).build());
 
         assertThat(result.getStatus()).isEqualTo(SettlementStatus.SKIPPED);
         assertThat(result.getNetAmount()).isEqualTo(Money.ZERO);
+        org.mockito.Mockito.verify(settlementRepository, org.mockito.Mockito.never()).save(any());
+    }
+
+    @Test
+    @DisplayName("executeManual con providerId liquida solo a ese proveedor y resume bruto/compensacion/neto/referencia")
+    void manualSingleProvider() {
+        LocalDate cutoff = LocalDate.of(2026, 11, 8);
+        when(executeSettlementUseCase.executeForProvider(providerId, cutoff)).thenReturn(settled());
+
+        SettlementExecutionResultResponse res = service.executeManual(providerId, null);
+
+        assertThat(res.getCutoffDate()).isEqualTo(cutoff);
+        assertThat(res.getNextSettlementDate()).isEqualTo(LocalDate.of(2026, 11, 17));
+        assertThat(res.getSettlementsCreated()).isEqualTo(1);
+        assertThat(res.getStatus()).isEqualTo("COMPLETED");
+        SettlementExecutionResultResponse.ProviderResult r = res.getResults().get(0);
+        assertThat(r.getSettlementCode()).isEqualTo("SET-1-20261108");
+        assertThat(r.getGrossAmount()).isEqualByComparingTo("186300");
+        assertThat(r.getDebtCompensationAmount()).isEqualByComparingTo("1300");
+        assertThat(r.getNetAmount()).isEqualByComparingTo("185000");
+        assertThat(r.getReference()).startsWith("MOCK-TRANSFER-");
+    }
+
+    @Test
+    @DisplayName("executeManual sin providerId liquida a todos y cuenta omitidos/fallidos")
+    void manualAll() {
+        LocalDate cutoff = LocalDate.of(2026, 11, 8);
+        when(executeAllSettlementsUseCase.executeAll(null)).thenReturn(SettlementBatchResult.builder()
+                .cutoffDate(cutoff)
+                .results(List.of(settled(),
+                        SettlementRunResult.builder().providerId(2L).outcome(Outcome.ALREADY_SETTLED).build(),
+                        SettlementRunResult.builder().providerId(3L).outcome(Outcome.FAILED).message("boom").build()))
+                .build());
+
+        SettlementExecutionResultResponse res = service.executeManual(null, null);
+
+        assertThat(res.getProvidersProcessed()).isEqualTo(3);
+        assertThat(res.getSettlementsCreated()).isEqualTo(1);
+        assertThat(res.getSettlementsSkipped()).isEqualTo(1);
+        assertThat(res.getProvidersFailed()).isEqualTo(1);
+        assertThat(res.getStatus()).isEqualTo("PARTIAL_SUCCESS");
+        assertThat(res.getErrors()).hasSize(1);
+        verify(executeAllSettlementsUseCase).executeAll(null);
     }
 }

@@ -4,7 +4,11 @@ import com.findu.transaction.application.port.in.finance.command.ConfirmBankCons
 import com.findu.transaction.application.port.in.finance.command.CreateBreBOrderCommand;
 import com.findu.transaction.application.port.in.finance.command.ProcessBreBWebhookCommand;
 import com.findu.transaction.application.port.in.finance.dto.DebtStatusResult;
+import com.findu.transaction.application.port.in.finance.dto.FinancialMovementsResult;
+import com.findu.transaction.application.port.in.finance.dto.PendingBalanceView;
 import com.findu.transaction.application.port.in.finance.dto.WeeklyBalanceResult;
+import com.findu.transaction.application.service.InMemoryFinanceRepos;
+import com.findu.transaction.domain.model.payout.Payout;
 import com.findu.transaction.application.port.out.gateway.BreBPaymentGatewayPort;
 import com.findu.transaction.application.port.out.persistence.*;
 import com.findu.transaction.domain.enums.*;
@@ -67,6 +71,13 @@ class ProviderFinanceServiceTest {
     @Mock
     private com.findu.transaction.infrastructure.adapter.out.client.CoreServiceClient coreServiceClient;
 
+    @Mock
+    private PendingBalanceService pendingBalanceService;
+    @Mock
+    private PayoutRepository payoutRepository;
+    @Mock
+    private SettlementRepository settlementRepository;
+
     @InjectMocks
     private ProviderFinanceService financeService;
 
@@ -90,6 +101,8 @@ class ProviderFinanceServiceTest {
         when(providerAccountRepository.findByProviderId(providerId)).thenReturn(Optional.of(account));
         when(dailyBalanceRepository.findByProviderIdAndBalanceDateBetween(anyLong(), any(), any())).thenReturn(Collections.emptyList());
         when(serviceTransactionRepository.findByProviderId(providerId)).thenReturn(Collections.emptyList());
+        when(pendingBalanceService.getPendingBalance(eq(providerId), any(LocalDate.class)))
+                .thenReturn(pending(0, 0, LocalDate.of(2026, 10, 27)));
 
         WeeklyBalanceResult result = financeService.getWeeklyBalance(providerId, testDate, "miguelm");
 
@@ -299,5 +312,117 @@ class ProviderFinanceServiceTest {
         assertNotNull(response.getMedioCobro());
         assertEquals("Transferencia bancaria", response.getMedioCobro().getMetodo());
         assertEquals("Confirmado", response.getMedioCobro().getEstado());
+    }
+
+    // ---------- Saldo neto unico (FEAT-2) ----------
+
+    private static PendingBalanceView pending(long gross, long compensation, LocalDate nextDate) {
+        long net = gross - compensation;
+        return PendingBalanceView.builder()
+                .grossAmount(Money.of(gross)).debtCompensationAmount(Money.of(compensation)).netAmount(Money.of(net))
+                .remainingDebt(Money.ZERO).thisWeekGrossAmount(Money.ZERO).carriedOverGrossAmount(Money.of(gross))
+                .carriedOver(gross > 0).pendingServicesCount(gross > 0 ? 4 : 0)
+                .nextSettlementDate(nextDate).nextSettlementCutoff(nextDate.minusDays(2)).nextSettlementNet(Money.of(net))
+                .build();
+    }
+
+    @Test
+    @DisplayName("Weekly con el ejemplo: provisionalBalance == proxima liquidacion == 185000 y desglose 186300/1300/185000")
+    void weeklyUsesSingleNetBalance() {
+        Long providerId = 1L;
+        ProviderAccount account = InMemoryFinanceRepos.exampleAccount(providerId);
+        when(providerAccountRepository.findByProviderId(providerId)).thenReturn(Optional.of(account));
+        when(profileRepository.findByProviderId(providerId)).thenReturn(Optional.empty());
+        when(dailyBalanceRepository.findByProviderIdAndBalanceDateBetween(anyLong(), any(), any())).thenReturn(Collections.emptyList());
+        when(serviceTransactionRepository.findByProviderId(providerId)).thenReturn(Collections.emptyList());
+        when(pendingBalanceService.getPendingBalance(eq(providerId), any(LocalDate.class)))
+                .thenReturn(pending(186300, 1300, LocalDate.of(2026, 11, 17)));
+
+        WeeklyBalanceResult r = financeService.getWeeklyBalance(providerId, LocalDate.of(2026, 11, 10), "x");
+
+        assertEquals(0, new BigDecimal("185000").compareTo(r.getProvisionalBalance().getAmount()));
+        assertEquals(0, new BigDecimal("185000").compareTo(r.getNextSettlementEstimatedAmount().getAmount()));
+        assertEquals(LocalDate.of(2026, 11, 17), r.getNextSettlementDate());
+        assertEquals(4, r.getPendingSettlementCount());
+        assertEquals(0, new BigDecimal("186300").compareTo(r.getPendingBalance().getGrossAmount().getAmount()));
+        assertEquals(0, new BigDecimal("1300").compareTo(r.getPendingBalance().getDebtCompensationAmount().getAmount()));
+        assertTrue(r.getPendingBalance().isCarriedOver());
+    }
+
+    @Test
+    @DisplayName("Movements con el ejemplo: Saldo del periodo == saldo pendiente neto 185000; comision en efectivo clara y negativa")
+    void movementsMatchPendingBalanceAndCashCommissionIsClear() {
+        Long providerId = 1L;
+        ProviderAccount account = InMemoryFinanceRepos.exampleAccount(providerId);
+        when(providerAccountRepository.findByProviderId(providerId)).thenReturn(Optional.of(account));
+        PendingBalanceView pending = pending(186300, 1300, LocalDate.of(2026, 11, 17));
+        when(pendingBalanceService.getPendingBalance(eq(providerId), any(LocalDate.class))).thenReturn(pending);
+
+        FinancialMovementsResult r = financeService.getMovements(providerId, "ALL");
+
+        assertEquals(0, r.getNetBalance().getAmount().compareTo(r.getPendingBalance().getNetAmount().getAmount()));
+        assertEquals(0, new BigDecimal("185000").compareTo(r.getNetBalance().getAmount()));
+        var cash = r.getMovements().stream().filter(m -> "CASH_COMMISSION_DEBT".equals(m.getMovementType())).toList();
+        assertEquals(2, cash.size());
+        cash.forEach(m -> {
+            assertEquals("Comisión por servicio en efectivo", m.getTitle());
+            assertEquals("CASH_PAYMENT_DEBT", m.getType());
+            assertTrue(m.getAmount().getAmount().signum() < 0);
+            assertFalse(m.isIncome());
+        });
+        assertTrue(r.getMovements().stream().anyMatch(m -> "SERVICE_EARNING".equals(m.getMovementType())));
+    }
+
+    @Test
+    @DisplayName("Tras liquidar: pendingBalance 0, item SETTLEMENT_PAYOUT con referencia MOCK-TRANSFER y netBalance sigue en 185000")
+    void movementsAfterSettlement() {
+        Long providerId = 1L;
+        ProviderAccount base = InMemoryFinanceRepos.exampleAccount(providerId);
+        java.util.List<com.findu.transaction.domain.model.account.ProviderLedgerEntry> entries = new java.util.ArrayList<>(base.getLedgerEntries());
+        java.time.Instant at = java.time.Instant.parse("2026-11-10T15:23:00Z");
+        entries.add(InMemoryFinanceRepos.entry(providerId, LedgerEntryType.COMPENSATION_ADJUSTMENT, 1300, LedgerDirection.DEBIT, "COMP-1", at));
+        entries.add(InMemoryFinanceRepos.entry(providerId, LedgerEntryType.PAYOUT, 185000, LedgerDirection.DEBIT, "PO-1-1", at));
+        ProviderAccount account = InMemoryFinanceRepos.account(providerId, 0, 0, entries);
+        when(providerAccountRepository.findByProviderId(providerId)).thenReturn(Optional.of(account));
+        when(pendingBalanceService.getPendingBalance(eq(providerId), any(LocalDate.class)))
+                .thenReturn(pending(0, 0, LocalDate.of(2026, 11, 17)));
+        Payout payout = Payout.reconstitute("p1", "PO-1-1", "S-1", providerId, Money.of(185000), PayoutStatus.COMPLETED,
+                "MOCK-TRANSFER-abc", null, at, at, at);
+        when(payoutRepository.findByPayoutCode("PO-1-1")).thenReturn(Optional.of(payout));
+        when(settlementRepository.findById("S-1")).thenReturn(Optional.of(
+                com.findu.transaction.domain.model.settlement.Settlement.createExecuted("SET-1-20261108", providerId,
+                        ProviderType.PERSONA_NATURAL, SettlementType.WEEKLY, Money.of(186300), Money.of(1300), at, at, at, null)));
+
+        FinancialMovementsResult r = financeService.getMovements(providerId, "ALL");
+
+        assertEquals(0, r.getPendingBalance().getNetAmount().getAmount().signum());
+        assertEquals(0, new BigDecimal("185000").compareTo(r.getNetBalance().getAmount()));
+        var payoutItem = r.getMovements().stream().filter(m -> "SETTLEMENT_PAYOUT".equals(m.getMovementType())).findFirst().orElseThrow();
+        assertEquals("Liquidación transferida", payoutItem.getTitle());
+        assertEquals("MOCK-TRANSFER-abc", payoutItem.getReference());
+        assertEquals("SET-1-20261108", payoutItem.getSettlementCode());
+        assertEquals("COMPLETADO", payoutItem.getStatus());
+        assertTrue(payoutItem.getAmount().getAmount().signum() > 0);
+        var comp = r.getMovements().stream().filter(m -> "DEBT_COMPENSATION".equals(m.getMovementType())).findFirst().orElseThrow();
+        assertTrue(comp.getAmount().getAmount().signum() < 0);
+    }
+
+    @Test
+    @DisplayName("Deuda mayor al saldo mantiene provisionalBalance negativo y la proxima liquidacion en 0")
+    void debtGreaterThanBalanceKeepsNegativeProvisional() {
+        Long providerId = 1L;
+        ProviderAccount account = InMemoryFinanceRepos.account(providerId, 0, 105000, Collections.emptyList());
+        when(providerAccountRepository.findByProviderId(providerId)).thenReturn(Optional.of(account));
+        when(profileRepository.findByProviderId(providerId)).thenReturn(Optional.empty());
+        when(dailyBalanceRepository.findByProviderIdAndBalanceDateBetween(anyLong(), any(), any())).thenReturn(Collections.emptyList());
+        when(serviceTransactionRepository.findByProviderId(providerId)).thenReturn(Collections.emptyList());
+        when(pendingBalanceService.getPendingBalance(eq(providerId), any(LocalDate.class)))
+                .thenReturn(pending(0, 0, LocalDate.of(2026, 11, 17)));
+
+        WeeklyBalanceResult r = financeService.getWeeklyBalance(providerId, LocalDate.of(2026, 11, 10), "x");
+
+        assertEquals(0, new BigDecimal("-105000").compareTo(r.getProvisionalBalance().getAmount()));
+        assertEquals("NEGATIVE_WARNING", r.getBalanceType());
+        assertEquals(0, r.getNextSettlementEstimatedAmount().getAmount().signum());
     }
 }

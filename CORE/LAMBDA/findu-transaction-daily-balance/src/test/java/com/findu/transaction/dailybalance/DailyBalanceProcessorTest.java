@@ -156,4 +156,24 @@ class DailyBalanceProcessorTest {
         assertThat(updated.getId()).isEqualTo(existing.getId());
         verify(dailyBalanceJpaRepository, times(1)).save(existing);
     }
-}
+
+    @Test
+    @DisplayName("Un balance SETTLED no se recalcula ni se guarda de nuevo")
+    void executeCut_SettledBalance_ShouldNotBeRecalculated() {
+        DailyBalanceEntity settled = new DailyBalanceEntity();
+        settled.setId("BAL-100-2026-09-30");
+        settled.setProviderId(providerId);
+        settled.setBalanceDate(targetDate);
+        settled.setPendingPayout(BigDecimal.ZERO);
+        settled.setStatus("SETTLED");
+        when(dailyBalanceJpaRepository.findByProviderIdAndBalanceDate(providerId, targetDate.minusDays(1)))
+                .thenReturn(Optional.empty());
+        when(dailyBalanceJpaRepository.findByProviderIdAndBalanceDate(providerId, targetDate))
+                .thenReturn(Optional.of(settled));
+
+        DailyBalanceEntity result = processor.processSingleProviderCut(providerId, targetDate);
+
+        assertThat(result).isSameAs(settled);
+        assertThat(result.getPendingPayout()).isEqualByComparingTo("0");
+        verify(dailyBalanceJpaRepository, never()).save(any(DailyBalanceEntity.class));
+    }}
