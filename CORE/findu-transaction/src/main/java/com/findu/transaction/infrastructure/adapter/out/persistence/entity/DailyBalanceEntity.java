@@ -68,6 +68,12 @@ public class DailyBalanceEntity {
     @Builder.Default
     private String currency = "COP";
 
+    @Column(name = "settlement_id", length = 36)
+    private String settlementId;
+
+    @Column(name = "settled_at")
+    private Instant settledAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

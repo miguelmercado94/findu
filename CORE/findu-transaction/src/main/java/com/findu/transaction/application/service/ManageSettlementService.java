@@ -1,255 +1,142 @@
 package com.findu.transaction.application.service;
 
 import com.findu.transaction.application.port.in.CreateSettlementUseCase;
+import com.findu.transaction.application.port.in.ExecuteAllSettlementsUseCase;
+import com.findu.transaction.application.port.in.ExecuteSettlementUseCase;
 import com.findu.transaction.application.port.in.GetSettlementUseCase;
 import com.findu.transaction.application.port.in.command.CreateSettlementCommand;
+import com.findu.transaction.application.port.in.dto.SettlementBatchResult;
+import com.findu.transaction.application.port.in.dto.SettlementRunResult;
+import com.findu.transaction.application.port.in.dto.SettlementRunResult.Outcome;
 import com.findu.transaction.application.port.in.query.GetSettlementQuery;
-import com.findu.transaction.application.port.out.event.EventPublisherPort;
-import com.findu.transaction.application.port.out.event.TransactionEventPublisher;
-import com.findu.transaction.application.port.out.persistence.DailyBalanceRepository;
-import com.findu.transaction.application.port.out.persistence.ProviderAccountRepository;
-import com.findu.transaction.application.port.out.persistence.ProviderSettlementProfileRepository;
 import com.findu.transaction.application.port.out.persistence.SettlementRepository;
-import com.findu.transaction.domain.enums.ProviderType;
-import com.findu.transaction.domain.enums.SettlementStatus;
 import com.findu.transaction.domain.enums.SettlementType;
-import com.findu.transaction.domain.event.SettlementCreatedEvent;
-import com.findu.transaction.domain.model.account.ProviderAccount;
-import com.findu.transaction.domain.model.balance.DailyBalance;
-import com.findu.transaction.domain.model.settlement.ProviderSettlementProfile;
 import com.findu.transaction.domain.model.settlement.Settlement;
+import com.findu.transaction.domain.service.SettlementSchedule;
 import com.findu.transaction.domain.valueobject.Money;
 import com.findu.transaction.infrastructure.adapter.input.web.dto.response.SettlementExecutionResultResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
-import java.time.DayOfWeek;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneId;
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
+/**
+ * Fachada de liquidaciones. La logica de calculo y pago vive en {@link SettlementExecutionService}
+ * (un proveedor) y {@link SettlementBatchService} (todos); aqui solo se delega y se adapta el resultado.
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class ManageSettlementService implements CreateSettlementUseCase, GetSettlementUseCase {
 
     private final SettlementRepository settlementRepository;
-    private final ProviderSettlementProfileRepository profileRepository;
-    private final DailyBalanceRepository dailyBalanceRepository;
-    private final ProviderAccountRepository providerAccountRepository;
-    private final EventPublisherPort eventPublisher;
-    private final TransactionEventPublisher transactionEventPublisher;
+    private final ExecuteSettlementUseCase executeSettlementUseCase;
+    private final ExecuteAllSettlementsUseCase executeAllSettlementsUseCase;
+    private final Clock clock;
 
-    private static final String DEFAULT_TIMEZONE = "America/Bogota";
-
+    /**
+     * Liquida al proveedor del comando. {@code targetDate} se interpreta como fecha de ejecucion
+     * (el corte es el domingo anterior); sin fecha se usa hoy. Si no hay nada que liquidar o ya se
+     * liquido ese corte, devuelve la ultima liquidacion existente o una SKIPPED en memoria (sin persistir).
+     */
     @Override
-    @Transactional
     public Settlement execute(CreateSettlementCommand command) {
         if (command == null || command.getProviderId() == null) {
             throw new IllegalArgumentException("El comando de settlement y el providerId son obligatorios");
         }
-
         Long providerId = command.getProviderId();
-        ProviderAccount account = providerAccountRepository.findByProviderId(providerId)
-                .orElseGet(() -> ProviderAccount.create(providerId, ProviderType.PERSONA_NATURAL));
+        LocalDate execDate = command.getTargetDate() != null ? command.getTargetDate() : command.getEndDate();
+        LocalDate cutoff = execDate != null ? SettlementSchedule.cutoffDate(execDate) : null;
 
-        ProviderSettlementProfile profile = profileRepository.findByProviderId(providerId)
-                .orElseGet(() -> {
-                    ProviderSettlementProfile defaultProf = ProviderSettlementProfile.createDefault(providerId, account.getProviderType());
-                    return profileRepository.save(defaultProf);
-                });
-
-        SettlementType settlementType = command.getSettlementType() != null ?
-                command.getSettlementType() : profile.getSettlementFrequency();
-
-        LocalDate refDate = command.getTargetDate() != null ? command.getTargetDate() :
-                (command.getStartDate() != null ? command.getStartDate() : LocalDate.now(ZoneId.of(DEFAULT_TIMEZONE)));
-
-        LocalDate startDate;
-        LocalDate endDate;
-
-        if (command.getStartDate() != null && command.getEndDate() != null) {
-            startDate = command.getStartDate();
-            endDate = command.getEndDate();
-        } else if (settlementType == SettlementType.WEEKLY) {
-            startDate = refDate.with(DayOfWeek.MONDAY);
-            endDate = refDate.with(DayOfWeek.SUNDAY);
-        } else {
-            startDate = refDate;
-            endDate = refDate;
-        }
-
-        ZoneId zoneId = ZoneId.of(DEFAULT_TIMEZONE);
-        Instant periodStart = startDate.atStartOfDay(zoneId).toInstant();
-        Instant periodEnd = endDate.plusDays(1).atStartOfDay(zoneId).toInstant();
-
-        // 1. Idempotencia: Verificar si el Settlement ya fue generado para este período y tipo
-        Optional<Settlement> existing = settlementRepository.findByProviderIdAndPeriodStartAndPeriodEndAndSettlementType(
-                providerId, periodStart, periodEnd, settlementType);
-        if (existing.isPresent()) {
-            log.info("Settlement ya existente (Idempotente): providerId={}, periodStart={}, periodEnd={}, settlementId={}",
-                    providerId, periodStart, periodEnd, existing.get().getId());
-            return existing.get();
-        }
-
-        // 2. Obtener DailyBalances elegibles en el rango de fechas
-        List<DailyBalance> dailyBalances = dailyBalanceRepository.findByProviderIdAndBalanceDateBetween(
-                providerId, startDate, endDate);
-
-        List<String> alreadySettledIds = settlementRepository.findSettledDailyBalanceIdsByProviderId(providerId);
-
-        List<DailyBalance> eligibleBalances = dailyBalances.stream()
-                .filter(b -> b.getId() != null && !alreadySettledIds.contains(b.getId()))
-                .collect(Collectors.toList());
-
-        if (eligibleBalances.isEmpty()) {
-            log.info("No se encontraron DailyBalances elegibles para liquidar: providerId={}, startDate={}, endDate={}",
-                    providerId, startDate, endDate);
-            Settlement skipped = Settlement.create(
-                    providerId,
-                    account.getProviderType(),
-                    settlementType,
-                    Money.ZERO,
-                    Money.ZERO,
-                    periodStart,
-                    periodEnd,
-                    Collections.emptyList()
-            );
-            skipped.markAsSkipped();
-            return settlementRepository.save(skipped);
-        }
-
-        // 3. Calcular montos acumulados de la liquidación
-        BigDecimal totalGross = BigDecimal.ZERO;
-        BigDecimal totalDebtComp = BigDecimal.ZERO;
-        List<String> eligibleIds = new ArrayList<>();
-
-        for (DailyBalance db : eligibleBalances) {
-            eligibleIds.add(db.getId());
-            BigDecimal pending = db.getPendingPayout() != null ? db.getPendingPayout().getAmount() : BigDecimal.ZERO;
-            BigDecimal debt = db.getProviderDebt() != null ? db.getProviderDebt().getAmount() : BigDecimal.ZERO;
-
-            totalGross = totalGross.add(pending);
-            totalDebtComp = totalDebtComp.add(debt);
-        }
-
-        Money grossMoney = Money.of(totalGross);
-        Money compensationMoney = Money.of(totalDebtComp);
-
-        Settlement settlement = Settlement.create(
-                providerId,
-                account.getProviderType(),
-                settlementType,
-                grossMoney,
-                compensationMoney,
-                periodStart,
-                periodEnd,
-                eligibleIds
-        );
-
-        // Check restricción financiera por saldo negativo acumulado
-        Money currentPayable = account.getPayableBalance();
-        Money currentReceivable = account.getReceivableBalance();
-        Money netReceivable = currentReceivable.subtract(currentPayable);
-        if (netReceivable.isGreaterThan(profile.getNegativeBalanceLimit())) {
-            settlement.markAsRestricted();
-            log.warn("Provider id={} supera límite de saldo negativo limit={}, netDebt={}",
-                    providerId, profile.getNegativeBalanceLimit().getAmount(), netReceivable.getAmount());
-        }
-
-        Settlement saved = settlementRepository.save(settlement);
-
-        // 4. Publicar evento SettlementCreatedEvent
-        SettlementCreatedEvent createdEvent = new SettlementCreatedEvent(
-                saved.getId(),
-                saved.getProviderId(),
-                saved.getPeriodStart(),
-                saved.getPeriodEnd(),
-                saved.getNetAmount()
-        );
-
-        if (eventPublisher != null) {
-            eventPublisher.publish(createdEvent);
-        }
-        if (transactionEventPublisher != null) {
-            transactionEventPublisher.publish(createdEvent.toEnvelope(null));
-        }
-
-        log.info("Settlement creado exitosamente: id={}, code={}, providerId={}, netAmount={}, status={}",
-                saved.getId(), saved.getSettlementCode(), saved.getProviderId(), saved.getNetAmount().getAmount(), saved.getStatus());
-
-        return saved;
-    }
-
-    @Transactional
-    public SettlementExecutionResultResponse runBatchSettlements(LocalDate targetDate, String settlementTypeFilter) {
-        String executionId = "exec-set-" + UUID.randomUUID().toString().substring(0, 8);
-        LocalDate date = targetDate != null ? targetDate : LocalDate.now(ZoneId.of(DEFAULT_TIMEZONE));
-        Instant startedAt = Instant.now();
-
-        List<Long> providerIds = providerAccountRepository.findAll().stream()
-                .map(ProviderAccount::getProviderId)
-                .distinct()
-                .collect(Collectors.toList());
-        if (providerIds.isEmpty()) {
-            providerIds = List.of(100L); // fallback for dev
-        }
-
-        int processed = 0;
-        int created = 0;
-        int skipped = 0;
-        int failed = 0;
-        List<String> errors = new ArrayList<>();
-
-        SettlementType filterType = null;
-        if (settlementTypeFilter != null) {
-            try {
-                filterType = SettlementType.valueOf(settlementTypeFilter.toUpperCase());
-            } catch (Exception ignored) {}
-        }
-
-        for (Long providerId : providerIds) {
-            processed++;
-            try {
-                CreateSettlementCommand cmd = CreateSettlementCommand.builder()
-                        .providerId(providerId)
-                        .targetDate(date)
-                        .settlementType(filterType)
-                        .build();
-
-                Settlement result = execute(cmd);
-                if (result.getStatus() == SettlementStatus.SKIPPED) {
-                    skipped++;
-                } else {
-                    created++;
-                }
-            } catch (Exception e) {
-                failed++;
-                String err = String.format("Error liquidando providerId=%d: %s", providerId, e.getMessage());
-                log.error(err, e);
-                errors.add(err);
+        SettlementRunResult result = executeSettlementUseCase.executeForProvider(providerId, cutoff);
+        if (result.getSettlementId() != null) {
+            Optional<Settlement> found = settlementRepository.findById(result.getSettlementId());
+            if (found.isPresent()) {
+                return found.get();
             }
         }
+        return settlementRepository.findLatestCompletedByProviderId(providerId).orElseGet(() -> {
+            Settlement skipped = Settlement.create(providerId, null, SettlementType.WEEKLY,
+                    Money.ZERO, Money.ZERO, null, null, null);
+            skipped.markAsSkipped();
+            return skipped;
+        });
+    }
 
-        Instant finishedAt = Instant.now();
+    /**
+     * Liquida a todos los proveedores. El parametro {@code type} se ignora (la liquidacion es siempre
+     * semanal: corte domingo, pago martes); se conserva por compatibilidad con /internal/settlements/run.
+     */
+    public SettlementExecutionResultResponse runBatchSettlements(LocalDate targetDate, String type) {
+        LocalDate cutoff = targetDate != null ? SettlementSchedule.cutoffDate(targetDate) : null;
+        return toResponse(executeAllSettlementsUseCase.executeAll(cutoff));
+    }
+
+    /**
+     * Disparo manual: un proveedor ({@code providerId != null}) o todos. {@code cutoffDate} opcional
+     * (por defecto el domingo anterior a hoy).
+     */
+    public SettlementExecutionResultResponse executeManual(Long providerId, LocalDate cutoffDate) {
+        if (providerId == null) {
+            return toResponse(executeAllSettlementsUseCase.executeAll(cutoffDate));
+        }
+        LocalDate cutoff = cutoffDate != null ? cutoffDate : SettlementSchedule.cutoffDate(LocalDate.now(clock));
+        SettlementRunResult one = executeSettlementUseCase.executeForProvider(providerId, cutoff);
+        return toResponse(SettlementBatchResult.builder().cutoffDate(cutoff).results(List.of(one)).build());
+    }
+
+    private SettlementExecutionResultResponse toResponse(SettlementBatchResult batch) {
+        Instant startedAt = Instant.now();
+        List<String> errors = new ArrayList<>();
+        List<SettlementExecutionResultResponse.ProviderResult> results = new ArrayList<>();
+        for (SettlementRunResult r : batch.getResults()) {
+            if (r.getOutcome() == Outcome.FAILED) {
+                errors.add(String.format("Error liquidando providerId=%d: %s", r.getProviderId(), r.getMessage()));
+            }
+            results.add(SettlementExecutionResultResponse.ProviderResult.builder()
+                    .providerId(r.getProviderId())
+                    .outcome(r.getOutcome().name())
+                    .settlementId(r.getSettlementId())
+                    .settlementCode(r.getSettlementCode())
+                    .grossAmount(r.getGrossAmount())
+                    .debtCompensationAmount(r.getDebtCompensationAmount())
+                    .netAmount(r.getNetAmount())
+                    .remainingDebt(r.getRemainingDebt())
+                    .transferred(r.isTransferred())
+                    .payoutCode(r.getPayoutCode())
+                    .reference(r.getReference())
+                    .periodStart(r.getPeriodStart())
+                    .periodEnd(r.getPeriodEnd())
+                    .executedAt(r.getExecutedAt())
+                    .dailyBalancesSettled(r.getDailyBalancesSettled())
+                    .message(r.getMessage())
+                    .build());
+        }
+        int created = (int) batch.count(Outcome.SETTLED, Outcome.NET_ZERO_NO_TRANSFER);
+        int skipped = (int) batch.count(Outcome.ALREADY_SETTLED, Outcome.NOTHING_TO_SETTLE);
+        int failed = (int) batch.count(Outcome.FAILED);
         String status = failed == 0 ? "COMPLETED" : (created > 0 ? "PARTIAL_SUCCESS" : "FAILED");
-
         return SettlementExecutionResultResponse.builder()
-                .executionId(executionId)
-                .targetDate(date)
-                .providersProcessed(processed)
+                .executionId("exec-set-" + UUID.randomUUID().toString().substring(0, 8))
+                .targetDate(batch.getCutoffDate())
+                .cutoffDate(batch.getCutoffDate())
+                .nextSettlementDate(SettlementSchedule.nextTuesdayAfter(LocalDate.now(clock)))
+                .providersProcessed(batch.getResults().size())
                 .settlementsCreated(created)
                 .settlementsSkipped(skipped)
                 .providersFailed(failed)
                 .startedAt(startedAt)
-                .finishedAt(finishedAt)
+                .finishedAt(Instant.now())
                 .status(status)
                 .errors(errors)
+                .results(results)
                 .build();
     }
 

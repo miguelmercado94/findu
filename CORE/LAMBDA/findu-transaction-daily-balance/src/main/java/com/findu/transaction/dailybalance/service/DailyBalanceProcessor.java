@@ -183,6 +183,12 @@ public class DailyBalanceProcessor {
                 .findByProviderIdAndBalanceDate(calc.getProviderId(), calc.getBalanceDate());
 
         DailyBalanceEntity entity;
+        if (existingOpt.isPresent() && "SETTLED".equals(existingOpt.get().getStatus())) {
+            // Cierre ya liquidado por findu-transaction: no se recalcula (reabriria el pendiente de pago).
+            log.info("DailyBalanceProcessor: balance SETTLED para providerId={} y fecha={}; no se recalcula",
+                    calc.getProviderId(), calc.getBalanceDate());
+            return existingOpt.get();
+        }
         if (existingOpt.isPresent()) {
             entity = existingOpt.get();
             entity.setUpdatedAt(Instant.now());

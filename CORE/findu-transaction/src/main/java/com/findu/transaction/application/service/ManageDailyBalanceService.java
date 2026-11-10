@@ -61,6 +61,12 @@ public class ManageDailyBalanceService implements
             throw new IllegalArgumentException("providerId y date son obligatorios");
         }
 
+        // Un cierre ya liquidado no se recalcula (evita reabrir el pendiente de pago).
+        Optional<DailyBalance> existingBalance = dailyBalanceRepository.findByProviderIdAndBalanceDate(providerId, date);
+        if (existingBalance.isPresent() && existingBalance.get().isSettled()) {
+            return existingBalance.get();
+        }
+
         List<ServiceTransaction> transactions = serviceTransactionRepository.findByProviderId(providerId);
 
         Money totalEarnings = Money.ZERO;

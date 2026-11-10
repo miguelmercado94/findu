@@ -110,8 +110,19 @@ public class ProviderAccount {
      * Retorna el monto de la compensación aplicada.
      */
     public Money applyCompensation() {
-        if (this.payableBalance.isPositive() && this.receivableBalance.isPositive()) {
-            BigDecimal compensationAmount = this.payableBalance.getAmount().min(this.receivableBalance.getAmount());
+        return applyCompensation(this.payableBalance);
+    }
+
+    /**
+     * Igual que {@link #applyCompensation()} pero limitando la compensacion a {@code max}
+     * (compensa min(payable, receivable, max)). Usado por la liquidacion para compensar solo
+     * lo que entra en la ventana liquidada.
+     */
+    public Money applyCompensation(Money max) {
+        if (max != null && max.isPositive() && this.payableBalance.isPositive() && this.receivableBalance.isPositive()) {
+            BigDecimal compensationAmount = this.payableBalance.getAmount()
+                    .min(this.receivableBalance.getAmount())
+                    .min(max.getAmount());
             Money compensation = new Money(compensationAmount, this.payableBalance.getCurrency());
 
             this.payableBalance = this.payableBalance.subtract(compensation);

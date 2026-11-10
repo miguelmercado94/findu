@@ -53,22 +53,6 @@ public class SchedulingConfig {
         }
     }
 
-    /**
-     * Corte semanal de Settlements:
-     * Se ejecuta los domingos a las 23:59 para consolidar el corte semanal y preparar la dispersión del martes.
-     */
-    @Scheduled(cron = "${findu.settlement.cron:0 59 23 * * SUN}", zone = "${findu.daily-balance.timezone:America/Bogota}")
-    public void runScheduledWeeklySettlement() {
-        log.info("Scheduled Task: Ejecutando corte semanal de liquidaciones los domingos (America/Bogota)");
-        LocalDate today = LocalDate.now(ZoneId.of("America/Bogota"));
-        try {
-            transactionRestClient.post()
-                    .uri("/internal/settlements/run?date={date}&type=WEEKLY", today)
-                    .retrieve()
-                    .toBodilessEntity();
-            log.info("Invocación exitosa a POST /internal/settlements/run en findu-transaction");
-        } catch (Exception e) {
-            log.warn("No se pudo invocar POST /internal/settlements/run en findu-transaction: {}", e.getMessage());
-        }
-    }
+    // La liquidacion semanal (martes, simulada) la ejecuta findu-transaction (findu.settlement.cron);
+    // este lambda solo hace el corte diario.
 }

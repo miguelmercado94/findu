@@ -25,6 +25,9 @@ public class DailyBalance {
     private Money closingBalance;
 
     private Instant createdAt;
+    private String status = "COMPLETED";
+    private String settlementId;
+    private Instant settledAt;
 
     private DailyBalance() {}
 
@@ -97,4 +100,29 @@ public class DailyBalance {
         b.createdAt = createdAt;
         return b;
     }
-}
+
+    public static DailyBalance reconstitute(
+            String id, Long providerId, LocalDate balanceDate, Money openingBalance, Money totalEarnings,
+            Money totalCommissions, Money totalTips, Money totalExtras, Money cashPayments, Money digitalPayments,
+            Money providerDebt, Money pendingPayout, Money closingBalance, Instant createdAt,
+            String status, String settlementId, Instant settledAt) {
+        DailyBalance b = reconstitute(id, providerId, balanceDate, openingBalance, totalEarnings, totalCommissions,
+                totalTips, totalExtras, cashPayments, digitalPayments, providerDebt, pendingPayout, closingBalance,
+                createdAt);
+        b.status = status != null ? status : "COMPLETED";
+        b.settlementId = settlementId;
+        b.settledAt = settledAt;
+        return b;
+    }
+
+    public boolean isSettled() {
+        return settledAt != null || "SETTLED".equals(status);
+    }
+
+    /** Marca el cierre diario como liquidado: el pendiente de pago queda en cero y enlazado a la liquidacion. */
+    public void markSettled(String settlementId, Instant at) {
+        this.pendingPayout = Money.ZERO;
+        this.status = "SETTLED";
+        this.settlementId = settlementId;
+        this.settledAt = at != null ? at : Instant.now();
+    }}

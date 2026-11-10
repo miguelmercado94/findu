@@ -144,6 +144,37 @@ public class Settlement {
                 periodStart, periodEnd, SettlementStatus.CREATED, SettlementType.DAILY, null, null, createdAt, createdAt, null);
     }
 
+    /**
+     * Crea una liquidacion ejecutada por el proceso de liquidacion con codigo determinista
+     * (idempotencia por UNIQUE settlement_code). Queda en estado CREATED hasta {@link #complete(Instant)}.
+     */
+    public static Settlement createExecuted(
+            String settlementCode,
+            Long providerId,
+            ProviderType providerType,
+            SettlementType settlementType,
+            Money grossAmount,
+            Money debtCompensationAmount,
+            Instant periodStart,
+            Instant periodEnd,
+            Instant scheduledAt,
+            List<String> dailyBalanceIds) {
+        if (settlementCode == null || settlementCode.isBlank()) {
+            throw new IllegalArgumentException("El codigo de liquidacion es obligatorio");
+        }
+        Settlement s = create(providerId, providerType, settlementType, grossAmount, debtCompensationAmount,
+                periodStart, periodEnd, dailyBalanceIds);
+        s.settlementCode = settlementCode;
+        s.scheduledAt = scheduledAt;
+        return s;
+    }
+
+    public void complete(Instant executedAt) {
+        this.status = SettlementStatus.COMPLETED;
+        this.executedAt = executedAt != null ? executedAt : Instant.now();
+        this.updatedAt = this.executedAt;
+    }
+
     public void markAsRestricted() {
         this.status = SettlementStatus.RESTRICTED;
         this.updatedAt = Instant.now();

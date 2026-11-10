@@ -168,9 +168,11 @@ public class TransactionPersistenceMapper {
                 .pendingPayout(domain.getPendingPayout() != null ? domain.getPendingPayout().getAmount() : null)
                 .closingBalance(domain.getClosingBalance() != null ? domain.getClosingBalance().getAmount() : null)
                 .currency("COP")
-                .status("COMPLETED")
+                .status(domain.getStatus() != null ? domain.getStatus() : "COMPLETED")
+                .settlementId(domain.getSettlementId())
+                .settledAt(domain.getSettledAt())
                 .createdAt(domain.getCreatedAt())
-                .updatedAt(domain.getCreatedAt())
+                .updatedAt(domain.getSettledAt() != null ? domain.getSettledAt() : domain.getCreatedAt())
                 .build();
     }
 
@@ -190,7 +192,10 @@ public class TransactionPersistenceMapper {
                 new Money(entity.getProviderDebt()),
                 new Money(entity.getPendingPayout()),
                 new Money(entity.getClosingBalance()),
-                entity.getCreatedAt()
+                entity.getCreatedAt(),
+                entity.getStatus(),
+                entity.getSettlementId(),
+                entity.getSettledAt()
         );
     }
 

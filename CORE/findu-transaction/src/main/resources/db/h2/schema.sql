@@ -310,3 +310,8 @@ CREATE TABLE IF NOT EXISTS bank_consignment_reports (
     created_at TIMESTAMP NOT NULL,
     updated_at TIMESTAMP NOT NULL
 );
+
+-- FEAT-2: marca de liquidacion de cierres diarios (idempotente)
+ALTER TABLE daily_balances ADD COLUMN IF NOT EXISTS settlement_id VARCHAR(36);
+ALTER TABLE daily_balances ADD COLUMN IF NOT EXISTS settled_at TIMESTAMP;
+CREATE INDEX IF NOT EXISTS idx_daily_balances_settled ON daily_balances(provider_id, settled_at);

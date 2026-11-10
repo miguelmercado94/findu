@@ -31,7 +31,7 @@ public class Payout {
 
         Payout payout = new Payout();
         payout.id = UUID.randomUUID().toString();
-        payout.payoutCode = "PO-" + Instant.now().toEpochMilli();
+        payout.payoutCode = "PO-" + Instant.now().toEpochMilli() + "-" + providerId;
         payout.settlementId = settlementId != null ? settlementId : "";
         payout.providerId = providerId;
         payout.amount = amount;
