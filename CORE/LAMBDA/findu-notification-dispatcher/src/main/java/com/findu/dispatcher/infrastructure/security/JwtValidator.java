@@ -1,74 +1,95 @@
 package com.findu.dispatcher.infrastructure.security;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jws;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import reactor.core.publisher.Mono;
 
 import javax.crypto.SecretKey;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+import java.util.Optional;
 
+/**
+ * Valida el access token JWT emitido por findu-spring-security: solo HS256, rechaza typ JWTRefresh,
+ * tokens vencidos, firma invalida y tokens sin claim userId. Secreto: primero Base64 y, si falla,
+ * UTF-8 (misma regla que SecurityConfig.decodeSecret de security y JwtVerifier de findu-core).
+ */
 @Slf4j
 @Component
 public class JwtValidator {
 
+    private static final String HS256 = "HS256";
+
     private final SecretKey secretKey;
 
     public JwtValidator(@Value("${findu.jwt.secret:secret-key-at-least-32-bytes-long-for-findu-security-environment!}") String secret) {
-        this.secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        this.secretKey = buildKey(secret);
+    }
+
+    /** Misma regla que security: primero Base64, si falla (o queda vacio) UTF-8 plano. */
+    static byte[] decodeSecret(String secret) {
+        if (secret == null || secret.isBlank()) {
+            return new byte[0];
+        }
+        try {
+            byte[] decoded = Base64.getDecoder().decode(secret.trim());
+            if (decoded.length > 0) {
+                return decoded;
+            }
+        } catch (IllegalArgumentException e) {
+            // no es Base64: se usa UTF-8
+        }
+        return secret.getBytes(StandardCharsets.UTF_8);
+    }
+
+    private static SecretKey buildKey(String secret) {
+        byte[] bytes = decodeSecret(secret);
+        if (bytes.length == 0) {
+            return null;
+        }
+        try {
+            return Keys.hmacShaKeyFor(bytes);
+        } catch (RuntimeException e) {
+            log.warn("JWT_SECRET demasiado corto para HS256 (minimo 256 bits); ningun token WebSocket sera valido");
+            return null;
+        }
     }
 
     /**
-     * Extrae y valida el JWT desde la URI del WebSocket handshake (?token=...)
+     * @param token JWT compacto (sin prefijo "Bearer ")
+     * @return el claim userId (authUserId) si el access token es valido; vacio en cualquier otro caso.
+     *         Nunca se registra el token.
      */
-    public Mono<String> extractAndValidateUserId(URI uri) {
-        return Mono.fromCallable(() -> {
-            if (uri == null || uri.getQuery() == null) {
-                throw new IllegalArgumentException("Handshake URI o Query string ausente");
+    public Optional<String> validateAccessToken(String token) {
+        if (secretKey == null || token == null || token.isBlank()) {
+            return Optional.empty();
+        }
+        try {
+            Jws<Claims> jws = Jwts.parser().verifyWith(secretKey).build().parseSignedClaims(token.trim());
+            if (!HS256.equals(jws.getHeader().getAlgorithm())) {
+                return Optional.empty();
             }
-
-            String query = uri.getQuery();
-            String token = null;
-            String userIdParam = null;
-            for (String param : query.split("&")) {
-                String[] pair = param.split("=");
-                if (pair.length == 2) {
-                    if ("token".equalsIgnoreCase(pair[0])) {
-                        token = pair[1];
-                    } else if ("userId".equalsIgnoreCase(pair[0])) {
-                        userIdParam = pair[1];
-                    }
-                }
+            String typ = jws.getHeader().getType();
+            if (typ != null && typ.equalsIgnoreCase("JWTRefresh")) {
+                return Optional.empty();
             }
-
-            if (userIdParam != null && !userIdParam.isBlank()) {
-                return userIdParam;
+            Claims claims = jws.getPayload();
+            if (claims.getExpiration() == null) {
+                return Optional.empty();
             }
-
-            if (token == null || token.isBlank()) {
-                throw new IllegalArgumentException("Token o userId no proporcionado en query params");
+            Object userId = claims.get("userId");
+            if (userId == null || String.valueOf(userId).isBlank()) {
+                return Optional.empty();
             }
-
-            Claims claims = Jwts.parser()
-                    .verifyWith(secretKey)
-                    .build()
-                    .parseSignedClaims(token)
-                    .getPayload();
-
-            // Priorizar userId claim, o sub
-            Object userIdClaim = claims.get("userId");
-            String userId = userIdClaim != null ? String.valueOf(userIdClaim) : claims.getSubject();
-
-            if (userId == null || userId.isBlank()) {
-                throw new IllegalArgumentException("El token JWT no contiene identificación de usuario válida");
-            }
-
-            log.debug("Token JWT validado exitosamente para userId: {}", userId);
-            return userId;
-        }).doOnError(ex -> log.warn("Fallo de autenticación JWT en handshake WebSocket: {}", ex.getMessage()));
+            return Optional.of(String.valueOf(userId).trim());
+        } catch (JwtException | IllegalArgumentException e) {
+            log.debug("Token WebSocket rechazado: {}", e.getClass().getSimpleName());
+            return Optional.empty();
+        }
     }
 }

@@ -5,7 +5,7 @@ import com.findu.dispatcher.domain.model.EventEnvelope;
 import com.findu.dispatcher.domain.port.RedisPubSubPort;
 import com.findu.dispatcher.domain.port.SessionRegistryPort;
 import com.findu.dispatcher.infrastructure.routing.RecipientResolver;
-import com.findu.dispatcher.infrastructure.security.JwtValidator;
+import com.findu.dispatcher.infrastructure.security.WebSocketAuthService;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,7 +28,7 @@ public class EventWebSocketHandler implements WebSocketHandler {
 
     private static final int DEFAULT_MAX_MISSED_PONGS = 3;
 
-    private final JwtValidator jwtValidator;
+    private final WebSocketAuthService authService;
     private final SessionRegistryPort sessionRegistry;
     private final RedisPubSubPort redisPubSubPort;
     private final ObjectMapper objectMapper;
@@ -54,7 +54,10 @@ public class EventWebSocketHandler implements WebSocketHandler {
 
     @Override
     public Mono<Void> handle(WebSocketSession session) {
-        return jwtValidator.extractAndValidateUserId(session.getHandshakeInfo().getUri())
+        return authService.authorize(session.getHandshakeInfo().getUri())
+                .flatMap(decision -> decision.accepted()
+                        ? Mono.just(decision.channel())
+                        : Mono.<String>error(new IllegalArgumentException("handshake rechazado: " + decision.reason())))
                 .onErrorResume(ex -> {
                     log.warn("Rechazando conexión WebSocket por autenticación fallida: {}", ex.getMessage());
                     return session.close(CloseStatus.BAD_DATA).then(Mono.<String>empty());

@@ -41,6 +41,15 @@ findu:
     # sin FIN) se cierra la sesion (GOING_AWAY) y se desregistra de local y Redis: 30 s * 3 = 90 s.
     ping-interval-seconds: 30
     max-missed-pongs: ${FINDU_WS_MAX_MISSED_PONGS:3}
+    auth:
+      # OFF (default): sin validacion; LOG: acepta y registra WS_AUTH_VIOLATION; ENFORCE: rechaza 401/403.
+      mode: ${FINDU_WS_AUTH_MODE:OFF}
+  core:
+    # Endpoint interno de core para resolver authUserId -> proveedorId (cache TTL, timeout corto).
+    base-url: ${FINDU_CORE_URL:http://findu-core:8082/findu-core}
+    internal-service-key: ${FINDU_INTERNAL_SERVICE_KEY:findu-internal-saga-secret-key-2026}
+    timeout-ms: ${FINDU_CORE_TIMEOUT_MS:1500}
+    cache-ttl-seconds: ${FINDU_CORE_CACHE_TTL_SECONDS:300}
   rabbitmq:
     exchanges:
       events: findu.events.exchange

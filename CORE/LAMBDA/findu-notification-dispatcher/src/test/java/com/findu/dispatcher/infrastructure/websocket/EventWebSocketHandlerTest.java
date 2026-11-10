@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.findu.dispatcher.domain.port.RedisPubSubPort;
 import com.findu.dispatcher.domain.port.SessionRegistryPort;
 import com.findu.dispatcher.infrastructure.routing.RecipientResolver;
-import com.findu.dispatcher.infrastructure.security.JwtValidator;
+import com.findu.dispatcher.infrastructure.security.WebSocketAuthService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -32,7 +32,7 @@ class EventWebSocketHandlerTest {
     private static final String USER = "PROVEEDOR_7";
     private static final String NODE = "node-test";
 
-    private JwtValidator jwtValidator;
+    private WebSocketAuthService authService;
     private SessionRegistryPort registry;
     private RedisPubSubPort redis;
     private WebSocketSession session;
@@ -41,7 +41,7 @@ class EventWebSocketHandlerTest {
 
     @BeforeEach
     void setUp() {
-        jwtValidator = mock(JwtValidator.class);
+        authService = mock(WebSocketAuthService.class);
         registry = mock(SessionRegistryPort.class);
         redis = mock(RedisPubSubPort.class);
         session = mock(WebSocketSession.class);
@@ -55,12 +55,12 @@ class EventWebSocketHandlerTest {
         when(session.receive()).thenReturn(inbound.asFlux());
         when(session.send(any())).thenReturn(Mono.never());
         when(session.close(any(CloseStatus.class))).thenReturn(Mono.empty());
-        when(jwtValidator.extractAndValidateUserId(any())).thenReturn(Mono.just(USER));
+        when(authService.authorize(any())).thenReturn(Mono.just(new WebSocketAuthService.Decision(true, USER, 0, null)));
         when(redis.registerPresence(USER, NODE)).thenReturn(Mono.empty());
         when(redis.removePresence(USER, NODE)).thenReturn(Mono.empty());
         when(registry.hasLocalSession(USER)).thenReturn(false);
 
-        handler = new EventWebSocketHandler(jwtValidator, registry, redis,
+        handler = new EventWebSocketHandler(authService, registry, redis,
                 JsonMapper.builder().findAndAddModules().build(), new RecipientResolver());
         ReflectionTestUtils.setField(handler, "pingIntervalSeconds", 30L);
         ReflectionTestUtils.setField(handler, "nodeId", NODE);
@@ -148,7 +148,7 @@ class EventWebSocketHandlerTest {
     @Test
     @DisplayName("fallo de autenticacion cierra con BAD_DATA y no registra sesion")
     void authFailure_closesBadData() {
-        when(jwtValidator.extractAndValidateUserId(any())).thenReturn(Mono.error(new IllegalArgumentException("sin userId")));
+        when(authService.authorize(any())).thenReturn(Mono.just(new WebSocketAuthService.Decision(false, null, 400, "NO_IDENTITY")));
 
         StepVerifier.create(handler.handle(session)).verifyComplete();
 

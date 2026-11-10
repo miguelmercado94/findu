@@ -482,6 +482,11 @@ services:
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://findu-eureka-server:8761/eureka/
       DYNAMODB_ENDPOINT: http://localstack:4566
       AWS_REGION: us-east-1
+      # Token del WebSocket (D9 fase 4): mismo secreto base64 que security/core. OFF | LOG | ENFORCE.
+      JWT_SECRET: ZmluZHUtZGVmYXVsdC1zZWNyZXQta2V5LWF0LWxlYXN0LTI1Ni1iaXRzLWZvci1oczI1Ng==
+      FINDU_WS_AUTH_MODE: ${FINDU_WS_AUTH_MODE:-LOG}
+      FINDU_CORE_URL: http://findu-core:8082/findu-core
+      FINDU_INTERNAL_SERVICE_KEY: ${FINDU_INTERNAL_SERVICE_KEY:-findu-internal-saga-secret-key-2026}
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:9000/actuator/health || exit 1"]
       interval: 15s
